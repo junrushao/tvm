@@ -355,6 +355,13 @@ inline String Repr(const Schedule& sch) {
   return s;
 }
 
+inline String Repr(const tir::PrimFunc& func) {
+  const auto* f = runtime::Registry::Get("script.AsTVMScript");
+  CHECK(f) << "IndexError: global function \"script.AsTVMScript\" not found";
+  String s = (*f)(func, false);
+  return s;
+}
+
 }  // namespace meta_schedule
 }  // namespace tvm
 

@@ -18,6 +18,7 @@
  */
 #include <dmlc/memory_io.h>  // NOLINT(build/include)
 #include <tvm/node/serialization.h>
+#include <tvm/node/structural_equal.h>
 #include <algorithm>
 
 #include "../support/base64.h"
@@ -168,6 +169,12 @@ void ProgramMeasurerNode::Init(const SearchTask& task) {
       dmlc::Stream* strm = &b64strm;
       strm->Read(&parsed);
       orig_func = Downcast<tir::PrimFunc>(LoadJSON(parsed));
+      LOG(INFO) << "parsed =\n" << parsed;
+    }
+    LOG(INFO) << "task->func =\n" << task->func;
+    LOG(INFO) << "orig_func =\n" << Repr(orig_func);
+    if (!StructuralEqual()(orig_func, task->func)) {
+      continue;
     }
     Array<ObjectRef> trace = Downcast<Array<ObjectRef>>(record[4]);
     Schedule sch = ScheduleNode::Import(trace, orig_func, /*seed=*/NullOpt);
