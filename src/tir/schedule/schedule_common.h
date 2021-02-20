@@ -40,20 +40,28 @@
 namespace tvm {
 namespace tir {
 
-#define TVM_SREF_TO_BLOCK(Result, SRef)                     \
-  SRef->GetStmt<::tvm::tir::BlockNode>();                   \
-  CHECK(Result) << "TypeError: Expects `Block`, but gets: " \
-                << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None");
+#define TVM_SREF_AS_E(Result, SRef, Type) \
+  SRef->GetStmt<Type>();                  \
+  CHECK(Result)
 
-#define TVM_SREF_TO_LOOP(Result, SRef)                     \
-  SRef->GetStmt<::tvm::tir::LoopNode>();                   \
-  CHECK(Result) << "TypeError: Expects `Loop`, but gets: " \
-                << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None");
+#define TVM_TYPE_AS_E(Result, From, Type) \
+  From.as<Type>();                        \
+  CHECK(Result)
 
-#define TVM_TYPE_AS(Result, From, Type)                      \
-  From.as<Type>();                                           \
-  CHECK(Result) << "TypeError: Expects `" << Type::_type_key \
-                << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None")
+#define TVM_TYPE_AS(Result, From, Type)                                                     \
+  From.as<Type>();                                                                          \
+  CHECK(Result) << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
+                << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None");
+
+#define TVM_SREF_AS_BLOCK(Result, SRef)               \
+  TVM_SREF_AS_E(Result, SRef, ::tvm::tir::BlockNode)  \
+      << "TypeError: Expects the StmtSRef `" << #SRef \
+      << "` points to a `Block`, but gets: " << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None");
+
+#define TVM_SREF_AS_LOOP(Result, SRef)                \
+  TVM_SREF_AS_E(Result, SRef, ::tvm::tir::LoopNode)   \
+      << "TypeError: Expects the StmtSRef `" << #SRef \
+      << "` points to a `Loop`, but gets: " << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None");
 
 /*!
  * \brief Get the direct child Schedulable Stmt (Block and Loop)

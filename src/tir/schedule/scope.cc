@@ -54,7 +54,7 @@ Array<DepEdge> ScopeNode::GetSuccessors(const StmtSRef& block_sref) const {
   if (iter != edges.end()) {
     return iter->second;
   } else {
-    return Array<DepEdge>();
+    return {};
   }
 }
 
@@ -65,7 +65,7 @@ Array<DepEdge> ScopeNode::GetPredecessors(const StmtSRef& block_sref) const {
   if (iter != edges.end()) {
     return iter->second;
   } else {
-    return Array<DepEdge>();
+    return {};
   }
 }
 

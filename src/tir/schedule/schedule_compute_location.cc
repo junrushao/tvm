@@ -379,16 +379,11 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
    *   - i + iii + iv + v + dominance property => consumers of input_block will
    *     read the same input as before.
    */
-  const auto* block = block_sref->GetStmt<BlockNode>();
-  const auto* loop = loop_sref->GetStmt<LoopNode>();
-  CHECK(block != nullptr) << "TypeError: 'compute_at' expects 'block' to be a block, but get type: "
-                          << block_sref->stmt->GetTypeKey();
-  CHECK(loop != nullptr) << "TypeError: 'compute_at' expects 'loop' to be a loop, but get type: "
-                         << loop_sref->stmt->GetTypeKey();
+  const auto* block = TVM_SREF_AS_BLOCK(block, block_sref);
+  const auto* loop = TVM_SREF_AS_LOOP(loop, loop_sref);
   const StmtSRef& parent_block_sref = GetParentBlockSRef(block_sref);
   const auto* parent_block = parent_block_sref->GetStmt<BlockNode>();
   const Scope& scope = scopes.at(parent_block_sref);
-  Array<DepEdge> edges_to_pred = scope->GetPredecessors(block_sref);
   Array<DepEdge> edges_to_succ = scope->GetSuccessors(block_sref);
   // Cond 0. `block` and `loop` are in the same scope
   CHECK_EQ(parent_block_sref.get(), GetParentBlockSRef(loop_sref).get())
@@ -414,6 +409,7 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
   // Step 1. Find insertion position
   int insert_pos;
   {
+    Array<DepEdge> edges_to_pred = scope->GetPredecessors(block_sref);
     // After all predecessors in dependency graph
     Array<Stmt> loop_body = GetChildren(GetRef<Stmt>(loop));
     int n_stmts = loop_body.size();
@@ -564,27 +560,26 @@ void ScheduleNode::compute_inline(const StmtSRef& block_sref) {
    *    1. The inner stmt of block_sref if a BufferStore
    *    2. block_sref if a complete Block
    */
-  const auto* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const auto* block = TVM_SREF_AS_BLOCK(block, block_sref);
   const StmtSRef& scope_block_sref = GetParentBlockSRef(block_sref);
   const Scope& scope = this->scopes.at(scope_block_sref);
 
-  CHECK(block->body->IsInstance<BufferStoreNode>())
-      << "ValueError: 'compute_inline' can only inline single assignment statement";
   CHECK_EQ(block->writes.size(), 1)
       << "ValueError: 'compute_inline' can only inline statement with one output";
   CHECK(scope->IsComplete(block_sref))
       << "ValueError: 'compute_inline' can only inline a complete block";
+  // The buffer-store statement
+  const auto* store = TVM_TYPE_AS_E(store, block->body, BufferStoreNode)
+                      << "ValueError: 'compute_inline' can only inline single assignment statement";
   // The buffer to be inlined
   const Buffer& buffer = block->writes[0]->buffer;
-  // The buffer-store statement
-  const auto* store = TVM_TYPE_AS(store, block->body, BufferStoreNode);
   // Step 1. Extract the rhs side of BufferStore
   // A[i, j, k, ...] = f_rhs(i, j, k, ...)
   std::vector<Var> index_vars;
   index_vars.reserve(store->indices.size());
   for (const PrimExpr& i : store->indices) {
-    const auto* var = i.as<VarNode>();
-    CHECK(var != nullptr) << "ValueError: `compute_inline` requires indices to be variables";
+    const auto* var = TVM_TYPE_AS_E(var, i, VarNode)
+                      << "ValueError: `compute_inline` requires indices to be variables";
     index_vars.push_back(GetRef<Var>(var));
   }
   for (const Var& var : VarsUsed(store->value)) {
