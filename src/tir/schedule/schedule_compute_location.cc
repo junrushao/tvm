@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "../../arith/pattern_match.h"
+#include "./analysis.h"
 #include "./schedule_common.h"
 
 namespace tvm {
@@ -381,41 +382,37 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
    */
   const auto* block = TVM_SREF_AS_BLOCK(block, block_sref);
   const auto* loop = TVM_SREF_AS_LOOP(loop, loop_sref);
-  const StmtSRef& parent_block_sref = GetParentBlockSRef(block_sref);
-  const auto* parent_block = parent_block_sref->GetStmt<BlockNode>();
-  const Scope& scope = scopes.at(parent_block_sref);
-  Array<DepEdge> edges_to_succ = scope->GetSuccessors(block_sref);
+  StmtSRef scope_block_sref = stree::Scope(block_sref);
+  const auto* scope_block = scope_block_sref->GetStmt<BlockNode>();
+  const Scope& scope = scopes.at(scope_block_sref);
+  Array<DepEdge> edge_consumers = scope->GetSuccessors(block_sref);
   // Cond 0. `block` and `loop` are in the same scope
-  CHECK_EQ(parent_block_sref.get(), GetParentBlockSRef(loop_sref).get())
+  CHECK_EQ(scope_block_sref.get(), GetParentBlockSRef(loop_sref).get())
       << "ValueError: 'compute_at' expects 'block' and 'loop' be in the same block";
   // Cond 1. 'block' is complete/reduction block
   CHECK(scope->IsComplete(block_sref) || scope->IsReduction(block_sref))
       << "ValueError: 'compute_at' expects 'block' to be a complete or reduction block";
   // Cond 2. Check all RAW successors are in the subtree rooted by loop_sref
-  CHECK(EachEdgePointsToABlock(edges_to_succ, GetChildBlocks(loop_sref), /*raw_edge_only=*/true))
+  CHECK(EachEdgePointsToABlock(edge_consumers, GetChildBlocks(loop_sref), /*raw_edge_only=*/true))
       << "ValueError: 'compute_at' does not apply to a block that some other "
       << "blocks outside the scope depends on";
   // Cond 3. The subtree has compact data flow
   CHECK(scope->IsCompactDataFlow(GetSubTreeOfParent(block_sref), this))
       << "ValueError: 'compute_at' expects the subtree of 'block' to have compact dataflow";
   // Cond 4. Check the block is not a output block
-  for (const TensorRegion& parent_write : parent_block->writes) {
-    for (const TensorRegion& write : block->writes) {
-      CHECK_NE(write->buffer.get(), parent_write->buffer.get())
-          << "ValueError: 'compute_at' does not work on an output block";
-    }
-  }
+  CHECK(!block::IsOutput(block, scope_block))
+      << "ValueError: 'compute_at' does not work on an output block";
   // Mutation
   // Step 1. Find insertion position
   int insert_pos;
   {
-    Array<DepEdge> edges_to_pred = scope->GetPredecessors(block_sref);
+    Array<DepEdge> edge_producers = scope->GetPredecessors(block_sref);
     // After all predecessors in dependency graph
     Array<Stmt> loop_body = GetChildren(GetRef<Stmt>(loop));
     int n_stmts = loop_body.size();
     for (insert_pos = n_stmts; insert_pos > 0; --insert_pos) {
       const StmtNode* stmt = loop_body[insert_pos - 1].get();
-      if (AnyEdgePointsToABlock(edges_to_pred, GetChildBlocks(stmt2ref.at(stmt)))) {
+      if (AnyEdgePointsToABlock(edge_producers, GetChildBlocks(stmt2ref.at(stmt)))) {
         break;
       }
     }
@@ -423,7 +420,7 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
     int before_pos;
     for (before_pos = 0; before_pos < n_stmts; before_pos++) {
       const StmtNode* stmt = loop_body[before_pos].get();
-      if (AnyEdgePointsToABlock(edges_to_succ, GetChildBlocks(stmt2ref.at(stmt)))) {
+      if (AnyEdgePointsToABlock(edge_consumers, GetChildBlocks(stmt2ref.at(stmt)))) {
         break;
       }
     }
@@ -436,7 +433,7 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
       SolveCover(block,
                  GatherRequirements(/*produced_regions=*/block->writes,
                                     /*lca_loop_sref=*/loop_sref,
-                                    /*consumer_blocks=*/EdgesToSRefs(edges_to_succ),
+                                    /*consumer_blocks=*/EdgesToSRefs(edge_consumers),
                                     /*relax_vars=*/RelaxForExecScope(loop_sref, block_sref),
                                     /*gather_read=*/true),
                  true),
@@ -451,7 +448,7 @@ void ScheduleNode::compute_at(const StmtSRef& block_sref, const StmtSRef& loop_s
   StmtSRef lca = LowestCommonAncestor({block_sref, loop_sref}, this->root);
   Stmt replaced = StmtReplacer(replace_map)(GetRef<Stmt>(lca->stmt));
   if (const auto* replaced_block = replaced.as<BlockNode>()) {
-    this->Replace(lca, replaced, {{GetRef<Block>(replaced_block), GetRef<Block>(parent_block)}});
+    this->Replace(lca, replaced, {{GetRef<Block>(replaced_block), GetRef<Block>(scope_block)}});
   } else {
     this->Replace(lca, replaced, {});
   }
@@ -481,8 +478,8 @@ void ScheduleNode::reverse_compute_at(const StmtSRef& block_sref, const StmtSRef
   const StmtSRef& parent_block_sref = GetParentBlockSRef(block_sref);
   const auto* parent_block = parent_block_sref->GetStmt<BlockNode>();
   const Scope& scope = scopes.at(parent_block_sref);
-  Array<DepEdge> edges_to_pred = scope->GetPredecessors(block_sref);
-  Array<DepEdge> edges_to_succ = scope->GetSuccessors(block_sref);
+  Array<DepEdge> edge_producers = scope->GetPredecessors(block_sref);
+  Array<DepEdge> edge_consumers = scope->GetSuccessors(block_sref);
   // Cond 0. `block` and `loop` are in the same scope
   CHECK_EQ(parent_block_sref.get(), GetParentBlockSRef(loop_sref).get())
       << "ValueError: 'reverse_compute_at' expects 'block' and 'loop' be in the same block";
@@ -490,17 +487,17 @@ void ScheduleNode::reverse_compute_at(const StmtSRef& block_sref, const StmtSRef
   CHECK(scope->IsComplete(block_sref) || scope->IsReduction(block_sref))
       << "ValueError: 'reverse_compute_at' expects 'block' to be a complete or reduction block";
   // Cond 2. Check all RAW predecessors are in the subtree rooted by loop_sref
-  CHECK(EachEdgePointsToABlock(edges_to_pred, GetChildBlocks(loop_sref), /*raw_edge_only=*/true))
+  CHECK(EachEdgePointsToABlock(edge_producers, GetChildBlocks(loop_sref), /*raw_edge_only=*/true))
       << "ValueError: 'reverse_compute_at' does not apply to a block that some other "
       << "blocks outside the scope depends on";
   // Cond 3. The subtree has compact data flow
   CHECK(scope->IsCompactDataFlow(GetSubTreeOfParent(block_sref), this))
       << "ValueError: 'reverse_compute_at' expects the subtree of 'block' to have compact dataflow";
   // Cond 4. Check there is only one RAW predecessor
-  CHECK_EQ(edges_to_pred.size(), 1)
+  CHECK_EQ(edge_producers.size(), 1)
       << "ValueError: 'reverse_compute_at' expects only one producer of current block";
   // Cond 5. Check the RAW predecessor is complete/reduction block
-  CHECK(scope->IsComplete(edges_to_pred[0]->dst) || scope->IsReduction(edges_to_pred[0]->dst))
+  CHECK(scope->IsComplete(edge_producers[0]->dst) || scope->IsReduction(edge_producers[0]->dst))
       << "ValueError: 'reverse_compute_at' expects producers of 'block' to be a complete or "
          "reduction block";
   // Mutation
@@ -512,7 +509,7 @@ void ScheduleNode::reverse_compute_at(const StmtSRef& block_sref, const StmtSRef
     int n_stmts = loop_body.size();
     for (insert_pos = n_stmts; insert_pos > 0; --insert_pos) {
       const StmtNode* stmt = loop_body[insert_pos - 1].get();
-      if (AnyEdgePointsToABlock(edges_to_pred, GetChildBlocks(stmt2ref.at(stmt)))) {
+      if (AnyEdgePointsToABlock(edge_producers, GetChildBlocks(stmt2ref.at(stmt)))) {
         break;
       }
     }
@@ -520,7 +517,7 @@ void ScheduleNode::reverse_compute_at(const StmtSRef& block_sref, const StmtSRef
     int before_pos;
     for (before_pos = 0; before_pos < n_stmts; before_pos++) {
       const StmtNode* stmt = loop_body[before_pos].get();
-      if (AnyEdgePointsToABlock(edges_to_succ, GetChildBlocks(stmt2ref.at(stmt)))) {
+      if (AnyEdgePointsToABlock(edge_consumers, GetChildBlocks(stmt2ref.at(stmt)))) {
         break;
       }
     }
@@ -528,16 +525,16 @@ void ScheduleNode::reverse_compute_at(const StmtSRef& block_sref, const StmtSRef
                                        "point that satisfies dependency";
   }
   // Generate new LoopNode to substitute loop_sref->stmt
-  Loop new_loop =
-      RegenerateLoops(block_sref, loop_sref, insert_pos,
-                      SolveCover(block,
-                                 GatherRequirements(/*produced_regions=*/block->reads,
-                                                    /*lca_loop_sref=*/loop_sref,
-                                                    /*consumer_blocks=*/EdgesToSRefs(edges_to_pred),
-                                                    /*relax_vars=*/{},
-                                                    /*gather_read=*/false),
-                                 false),
-                      preserve_trivial_loop);
+  Loop new_loop = RegenerateLoops(
+      block_sref, loop_sref, insert_pos,
+      SolveCover(block,
+                 GatherRequirements(/*produced_regions=*/block->reads,
+                                    /*lca_loop_sref=*/loop_sref,
+                                    /*consumer_blocks=*/EdgesToSRefs(edge_producers),
+                                    /*relax_vars=*/{},
+                                    /*gather_read=*/false),
+                 false),
+      preserve_trivial_loop);
   // Remove leaf
   std::pair<Stmt, Stmt> removed = RemoveLeaf(block_sref, this->root);
   std::unordered_map<const StmtNode*, const StmtNode*> replace_map = {
