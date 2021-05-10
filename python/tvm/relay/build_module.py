@@ -135,6 +135,7 @@ class BuildModule(object):
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
         self._build(mod, target, target_host)
+        tir_func = self._get_primfunc()
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -142,7 +143,7 @@ class BuildModule(object):
         mod = self.get_module()
         params = self.get_params()
 
-        return graph_json, mod, params
+        return graph_json, mod, params, tir_func
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -289,7 +290,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
+        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params, tune_result)
         runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )

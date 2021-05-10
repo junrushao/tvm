@@ -78,8 +78,7 @@ PassContext PassContext::Current() {
 }
 
 // linearly scan the pass array to match pass_name
-inline bool PassArrayContains(const Array<runtime::String>& pass_array,
-                              const std::string& pass_name) {
+bool PassArrayContains(const Array<runtime::String>& pass_array, const std::string& pass_name) {
   for (auto x : pass_array) {
     if (x == pass_name) return true;
   }

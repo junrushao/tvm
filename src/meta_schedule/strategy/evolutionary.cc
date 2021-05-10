@@ -482,7 +482,7 @@ Array<Trace> EvolutionaryNode::SampleInitPopulation(const Array<Schedule>& suppo
   std::vector<tir::PrimFunc> thread_workloads = ForkWorkload(num_threads, task->workload);
   // Pick measured states
   int num_measured = this->population * this->init_measured_ratio;
-  for (const Database::Entry& entry : database->GetTopK(num_measured, task)) {
+  for (const Database::Entry& entry : database->GetTopK(num_measured)) {
     results.push_back(entry.trace.value());
   }
   auto f_proc_measured = [this, &results, &thread_samplers, &task, &space, thread_workloads](
@@ -569,7 +569,7 @@ Array<Trace> EvolutionaryNode::EvolveWithCostModel(const Array<Trace>& inits,
     for (int i = 0, n = sch_curr.size(); i < n; ++i) {
       CachedTrace& entry = sch_curr[i];
       entry.throughput = scores[i];
-      if (!database->Has(entry.repr, task)) {
+      if (!database->Has(entry.repr)) {
         heap.Push(entry);
       }
     }
@@ -721,7 +721,7 @@ Array<MeasureResult> EvolutionaryNode::MeasureAndUpdateCostModel(const SearchTas
     const MeasureResult& measure_result = measure_results[i];
     const CachedTrace& trace = cached_traces[i];
     database->Add(trace.trace->Simplified(/*remove_postproc=*/true), trace.repr,
-                  AsVector<FloatImm, double>(measure_result->costs), task);
+                  AsVector<FloatImm, double>(measure_result->costs));
   }
   // Update the cost model
   cost_model->Update(measure_inputs, measure_results);

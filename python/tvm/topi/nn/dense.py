@@ -21,9 +21,7 @@ from tvm import te, auto_scheduler
 from .. import tag
 
 
-def dense(
-    data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layout="", original_shape=[]
-):
+def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layout=""):
     """The default implementation of dense in topi.
 
     Parameters
@@ -60,10 +58,6 @@ def dense(
         out_dim, red_dim = auto_scheduler.get_shape_from_rewritten_layout(
             auto_scheduler_rewritten_layout, ["j", "k"]
         )
-        auto_scheduler.remove_index_check(weight)
-    elif len(original_shape) != 0:
-        out_dim, red_dim = original_shape
-        weight = te.placeholder((out_dim, red_dim), name=weight.name)
         auto_scheduler.remove_index_check(weight)
     else:
         out_dim, red_dim = weight.shape

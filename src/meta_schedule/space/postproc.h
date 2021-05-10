@@ -19,7 +19,6 @@
 #ifndef SRC_META_SCHEDULE_SPACE_POSTPROC_H_
 #define SRC_META_SCHEDULE_SPACE_POSTPROC_H_
 
-#include "../analysis.h"
 #include "../schedule.h"
 #include "../search.h"
 
@@ -116,13 +115,6 @@ TVM_DLL Postproc DisallowDynamicLoops();
  * \return The postprocessor created
  */
 TVM_DLL Postproc VerifyGPUCode();
-
-struct LayoutRewriteHint {
-  std::vector<Integer> extents;
-  std::vector<Integer> reorder;
-};
-
-TVM_DLL Postproc RewriteLayout();
 
 }  // namespace meta_schedule
 }  // namespace tvm
