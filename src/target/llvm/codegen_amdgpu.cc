@@ -192,7 +192,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 #if TVM_LLVM_VERSION >= 90
 #if TVM_LLVM_VERSION >= 130
         return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
-                                         llvm::MaybeAlign::MaybeAlign(),
+                                         llvm::MaybeAlign(),
                                          llvm::AtomicOrdering::Monotonic);
 #else
         return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
@@ -204,7 +204,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
 #if TVM_LLVM_VERSION >= 130
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
-                                       llvm::MaybeAlign::MaybeAlign(),
+                                       llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
 #else
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
