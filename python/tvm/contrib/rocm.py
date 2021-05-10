@@ -51,6 +51,7 @@ def find_lld(required=True):
         lld_list += ["ld.lld-%d.0" % major]
         lld_list += ["ld.lld-%d" % major]
     lld_list += ["ld.lld"]
+    lld_list = ["/opt/rocm/llvm/bin/ld.lld"]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
@@ -168,3 +169,32 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
             raise RuntimeError("could not find bitcode " + n)
 
     return tvm.runtime.convert(bitcode_files)
+
+def parse_compute_version(compute_version):
+    """Parse compute capability string to divide major and minor version
+
+    Parameters
+    ----------
+    compute_version : str
+        GFX version of a GPU (e.g. "6.0")
+
+    Returns
+    -------
+    major : int
+        major version number
+    minor : int
+        minor version number
+    """
+    split_ver = compute_version.split(".")
+    try:
+        major = int(split_ver[0])
+        minor = int(split_ver[1])
+        return major, minor
+    except (IndexError, ValueError) as err:
+        raise RuntimeError("Compute version parsing error: " + str(err))
+
+def support_mfma(device):
+    major, minor = parse_compute_version(device.compute_version)
+    if major >= 9 and minor >= 8:
+        return True
+    return False
