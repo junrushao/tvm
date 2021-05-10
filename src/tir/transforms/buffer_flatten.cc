@@ -103,13 +103,14 @@ class LCACollector : public StmtExprVisitor {
     // Buffers, who appear as arguments, do not have allocation sites
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
-      detector.buffer_lca_.emplace(buffer.get(), nullptr);
+      detector.buffer_var_map_.emplace(buffer->data.get(), buffer.get());
+      detector.buffer_lca_.emplace(buffer->data.get(), nullptr);
     }
     detector(func->body);
     // Prepare the return
     Map<Buffer, Optional<For>> buffer_lca;
     for (const auto& kv : detector.buffer_lca_) {
-      buffer_lca.Set(GetRef<Buffer>(kv.first), GetRef<Optional<For>>(kv.second));
+      buffer_lca.Set(GetRef<Buffer>(detector.buffer_var_map_.at(kv.first)), GetRef<Optional<For>>(kv.second));
     }
     return buffer_lca;
   }
@@ -123,17 +124,35 @@ class LCACollector : public StmtExprVisitor {
     ancestor_loops_.pop_back();
   }
 
+
   void VisitExpr_(const BufferLoadNode* op) final {
-    CalcBufferLCA(op->buffer.get());
+    CalcBufferLCA(op->buffer->data.get());
     StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    CalcBufferLCA(op->buffer.get());
+    CalcBufferLCA(op->buffer->data.get());
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void CalcBufferLCA(const BufferNode* buffer) {
+  void VisitStmt_(const StoreNode* op) final {
+    CalcBufferLCA(op->buffer_var.get());
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const LoadNode* op) final {
+    CalcBufferLCA(op->buffer_var.get());
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BlockNode* op) final {
+    for (const Buffer& buf: op->alloc_buffers) {
+      buffer_var_map_.emplace(buf->data.get(), buf.get());
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void CalcBufferLCA(const VarNode* buffer) {
     // We use `nullptr` as lca to represent the case that the lca is the root block.
     const auto it = buffer_lca_.find(buffer);
     if (it == buffer_lca_.end()) {
@@ -183,7 +202,8 @@ class LCACollector : public StmtExprVisitor {
   /*! \brief The parent and depth info of each Loop/BufferLoad/BufferStore Node */
   std::unordered_map<const ForNode*, ForInfo> for_info_ = {};
   /*! \brief The map from Buffer to its LCA Stmt/Expr */
-  std::unordered_map<const BufferNode*, const ForNode*> buffer_lca_ = {};
+  std::unordered_map<const VarNode*, const ForNode*> buffer_lca_ = {};
+  std::unordered_map<const VarNode*, const BufferNode*> buffer_var_map_ = {};
 };
 
 class BufferRewriter : public StmtExprMutator {
@@ -273,19 +293,29 @@ class BufferAllocator : public StmtExprMutator {
   }
 
  private:
+  /*! \brief The storage alignment for a dimension */
+  struct DimAlignInfo {
+    /*! \brief The factor of the alignment */
+    int align_factor{0};
+    /*! \brief The offset of the alignment */
+    int align_offset{0};
+  };
+
   struct BufferInfo {
     NDIntSet accessed_region;
     Optional<For> alloc_site;
     Array<Range> region;
     Buffer new_buffer;
     bool is_arg;
+    std::vector<DimAlignInfo> dim_aligns;
 
     explicit BufferInfo(int ndim, Optional<For> alloc_site)
         : accessed_region(NDIntSetEmpty(ndim)),
           alloc_site(std::move(alloc_site)),
           region{nullptr},
           new_buffer{nullptr},
-          is_arg(false) {}
+          is_arg(false),
+          dim_aligns{} {}
   };
 
   explicit BufferAllocator(SMap<Buffer, BufferInfo> buffer_info,
@@ -365,10 +395,29 @@ class BufferAllocator : public StmtExprMutator {
     Array<BufferRegion> writes = VisitBufferRegions(block->writes);
     // Step 4. Handle predicate
     PrimExpr predicate = this->VisitExpr(realize->predicate);
-    // Step 5. Root allocation
+    // Step 5. Collect storage align
+    auto it = block->annotations.find(attr::buffer_dim_align);
+    if (it != block->annotations.end()) {
+      const auto& storage_align = Downcast<Array<Array<Array<Integer>>>>((*it).second);
+      ICHECK(storage_align.size() == block->writes.size());
+      for (size_t i = 0; i < storage_align.size(); ++i) {
+        const auto& buffer = block->writes[i]->buffer;
+        CHECK(!buffer_info_.at(buffer).dim_aligns.size());
+        std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
+        for (const Array<Integer>& dim_align : storage_align[i]) {
+          ICHECK(dim_align.size() == 3);
+          int dim = dim_align[0]->value;
+          int factor = dim_align[1]->value;
+          int offset = dim_align[2]->value;
+          dim_aligns.at(dim) = {factor, offset};
+        }
+        buffer_info_.at(buffer).dim_aligns = std::move(dim_aligns);
+      }
+    }
+    // Step 6. Root allocation
     Array<Buffer> alloc_buffers =
         (block_nest_depth_ == 0) ? AllocBufferUnderLoop(NullOpt) : Array<Buffer>{};
-    // Step 6. Create new blocks
+    // Step 7. Create new blocks
     return BlockRealize(/*iter_values=*/{},
                         /*predicate=*/std::move(predicate),
                         /*block=*/
@@ -469,7 +518,25 @@ class BufferAllocator : public StmtExprMutator {
         shape.push_back(range->extent);
       }
       ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
+      Array<PrimExpr> strides;
+      if (info.dim_aligns.size()) {
+        ICHECK(info.dim_aligns.size() == shape.size()) << "dim_aligns.size " << info.dim_aligns.size() << " shape.size " << shape.size();
+        strides.resize(shape.size());
+        PrimExpr stride = make_const(shape[0].dtype(), 1);
+        for (size_t i = shape.size(); i != 0; --i) {
+          size_t dim = i - 1;
+          if (info.dim_aligns[dim].align_factor != 0) {
+            PrimExpr factor = make_const(stride.dtype(), info.dim_aligns[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), info.dim_aligns[dim].align_offset);
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+          }
+          strides.Set(dim, stride);
+          stride = stride * shape[dim];
+        }
+      }
+
       new_buffer->shape = std::move(shape);
+      new_buffer->strides = strides;
       info.new_buffer = Buffer(std::move(new_buffer));
       result.push_back(info.new_buffer);
     }
@@ -606,6 +673,13 @@ class Flattener : public StmtExprMutator {
       storage_scope = "global";
     }
     PrimExpr area = BufferArea(buffer);
+    arith::Analyzer ana;
+    if (StartsWith(storage_scope, "local.special")) {
+      int div = std::stoi(storage_scope.c_str() + 14);
+      area = floordiv(area, div);
+      storage_scope = "local";
+      area = ana.Simplify(area);
+    }
     body = Allocate(buffer->data, buffer->dtype, {area}, const_true(), body);
     body = AttrStmt(buffer->data, attr::storage_scope, StringImm(storage_scope), body);
     if (is_double_buffer) {
