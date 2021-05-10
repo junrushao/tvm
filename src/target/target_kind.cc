@@ -257,6 +257,10 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("shared_memory_per_block", Integer(65536))
+    .add_attr_option<Integer>("registers_per_block", Integer(65536))
+    .add_attr_option<Integer>("max_registers_per_block", Integer(65536))
     .set_default_keys({"rocm", "gpu"})
     .set_attrs_preprocessor(UpdateROCmAttrs);
 
