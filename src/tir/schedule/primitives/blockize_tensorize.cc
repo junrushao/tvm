@@ -89,6 +89,7 @@ bool TensorizeComparator::VisitStmt_(const BlockRealizeNode* op, const Stmt& oth
         if (lhs_iter) VisitExpr(lhs_iter.value(), rhs_iter.value());
         if (is_zero(rhs_expr)) {
           CHECK(is_zero(lhs_expr)) << "Incompatible binding";
+          equal_map_[GetRef<Var>(rhs_iter.as<VarNode>())] = lhs_iter;
         } else {
           const auto* bv = rhs_expr.as<VarNode>();
           if (!bv) {
@@ -152,9 +153,9 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
     if (!CompareArray(op->reads, rhs->reads, &TensorizeComparator::CompareBufferRegion)) {
       return false;
     }
-    if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
-      return false;
-    }
+    // if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
+    //   return false;
+    // }
     if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers, &TensorizeComparator::CompareBuffer)) {
       return false;
     }
@@ -268,7 +269,7 @@ bool TensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
   if (equal) {
     rhs_buffer_map_[rhs] = lhs;
   } else if (assert_mode_) {
-    LOG(FATAL) << "Buffers are not matching between:" << lhs << " and " << rhs;
+    LOG(FATAL) << "Buffers are not matching between:" << lhs << " and " << rhs << " " << lhs->dtype << " " << lhs->scope << " " << rhs->dtype << " " << rhs->scope;
   }
   return equal;
 }
@@ -442,12 +443,13 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   std::unordered_map<Var, Range, ObjectPtrHash, ObjectPtrEqual> bv_iters;
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& iter_var = block->iter_vars[i];
-    if (division[i]->IsOuter()) {
-      // extract this iter var to outer block directly
-      outer_bindings.push_back(converter.Convert(division[i]->outer));
-      outer_block_vars.push_back(iter_var);
-      bv_iters[iter_var->var] = Range::FromMinExtent(iter_var->var, 1);
-    } else {
+    // // if (division[i]->IsOuter()) {
+    // //   // extract this iter var to outer block directly
+    // //   outer_bindings.push_back(converter.Convert(division[i]->outer));
+    // //   outer_block_vars.push_back(iter_var);
+    // //   bv_iters[iter_var->var] = Range::FromMinExtent(iter_var->var, 1);
+    // } else {
+    {
       const IterVar outer_var(Range::FromMinExtent(0, division[i]->outer_extent),
                               iter_var->var.copy_with_suffix("o"), iter_var->iter_type);
       outer_bindings.push_back(converter.Convert(division[i]->outer));
@@ -660,6 +662,22 @@ class BufferReplacer : public StmtExprMutator {
     } else {
       return GetRef<PrimExpr>(op);
     }
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    auto e = StmtExprMutator::VisitExpr_(op);
+    op = e.as<LoadNode>();
+    ICHECK(op != nullptr);
+    Var buffer_var = Downcast<Var>(VisitExpr(op->buffer_var));
+    return Load(op->dtype, buffer_var, op->index, op->predicate);
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    auto s = StmtExprMutator::VisitStmt_(op);
+    op = s.as<StoreNode>();
+    ICHECK(op != nullptr);
+    Var buffer_var = Downcast<Var>(VisitExpr(op->buffer_var));
+    return Store(buffer_var, op->value, op->index, op->predicate);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
