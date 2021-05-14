@@ -37,7 +37,7 @@ def _create_task():
 
 
 def _create_strategy():
-    return ms.strategy.Replay(args.num_trials)
+    return ms.strategy.Replay(args.num_trials if args.tune else 0)
 
 
 def rocm_space():
@@ -85,12 +85,17 @@ def _create_measurer():
 
 
 def main():
+    task = _create_task()
+    space = rocm_space()
     sch = ms.autotune(
-        task=_create_task(),
-        space=rocm_space(),
+        task=task,
+        space=space,
         strategy=_create_strategy(),
         measurer=_create_measurer(),
     )
+    space.postprocess(task, sch)
+    
+    
     if sch is None:
         print("No valid schedule found")
         return
