@@ -24,6 +24,7 @@ use for error reporting.
 import json
 import operator
 import inspect
+import types
 from typing import Union
 from synr import ast, Transformer, to_ast
 
@@ -675,14 +676,18 @@ class TVMScriptParser(Transformer):
             if node.func_name.name in self._binop_maker:
                 lhs = self.transform(node.params[0])
                 rhs = self.transform(node.params[1])
-                return self._binop_maker[node.func_name.name](
-                    lhs, rhs, span=tvm_span_from_synr(node.span)
-                )
+                maker = self._binop_maker[node.func_name.name]
+                if isinstance(maker, types.BuiltinFunctionType):
+                    return maker(lhs, rhs)
+                else:
+                    return maker(lhs, rhs, span=tvm_span_from_synr(node.span))
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
-                return self._unaryop_maker[node.func_name.name](
-                    rhs, span=tvm_span_from_synr(node.span)
-                )
+                maker = self._unaryop_maker[node.func_name.name]
+                if isinstance(maker, types.BuiltinFunctionType):
+                    return maker(rhs)
+                else:
+                    return maker(rhs, span=tvm_span_from_synr(node.span))
             self.report_error(f"Unsupported operator {node.func_name.name}.", node.func_name.span)
         else:
             func = self.transform(node.func_name)
