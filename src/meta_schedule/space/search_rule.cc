@@ -1033,7 +1033,7 @@ class RuleCrossThreadReduction {
   Array<Schedule> Apply(const SearchTask& task,
                         const Schedule& sch, const BlockRV& block_rv) const {
     // Check target. And extract `max_threads_per_block` and `warp_size` from target.
-    CHECK(task->target->kind->name == "cuda")
+    CHECK(task->target->kind->name == "cuda" || task->target->kind->name == "rocm")
       << "TargetError: Search rule \"CrossThreadReduction\" can only run on CUDA";
     Optional<Integer> opt_max_threads_per_block =
         task->target->GetAttr<Integer>("max_threads_per_block");
