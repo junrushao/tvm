@@ -431,15 +431,15 @@ class AllReduceTransformer : public StmtExprMutator {
 
       // Add store predicate.
       PrimExpr predicate = op->predicate;
-      for (size_t i = par_idx + 1; i < stmt_stack_.size(); ++i) {
-        const auto* loop = stmt_stack_[i].as<ForNode>();
-        ICHECK(loop != nullptr);
-        std::string thread_tag =
-            loop->thread_binding.defined() ? loop->thread_binding.value()->thread_tag : "";
-        if (thread_tag.substr(0, 9) == "threadIdx") {
-          predicate = And(predicate, EQ(loop->loop_var, loop->min));
-        }
-      }
+      // for (size_t i = par_idx + 1; i < stmt_stack_.size(); ++i) {
+      //   const auto* loop = stmt_stack_[i].as<ForNode>();
+      //   ICHECK(loop != nullptr);
+      //   std::string thread_tag =
+      //       loop->thread_binding.defined() ? loop->thread_binding.value()->thread_tag : "";
+      //   if (thread_tag.substr(0, 9) == "threadIdx") {
+      //     predicate = And(predicate, EQ(loop->loop_var, loop->min));
+      //   }
+      // }
 
       Stmt body1 =
           BufferStore(write_buffer, BufferLoad(reduce_temp.value(), {0}), update_body->indices);
@@ -511,11 +511,11 @@ class AllReduceTransformer : public StmtExprMutator {
 
       // Add store predicate.
       PrimExpr predicate = op->predicate;
-      for (size_t i = par_idx + 1; i < stmt_stack_.size(); ++i) {
-        const auto* loop = stmt_stack_[i].as<ForNode>();
-        ICHECK(loop != nullptr);
-        predicate = And(predicate, EQ(loop->loop_var, loop->min));
-      }
+      // for (size_t i = par_idx + 1; i < stmt_stack_.size(); ++i) {
+      //   const auto* loop = stmt_stack_[i].as<ForNode>();
+      //   ICHECK(loop != nullptr);
+      //   predicate = And(predicate, EQ(loop->loop_var, loop->min));
+      // }
 
       Stmt body =
           BufferStore(write_buffer, BufferLoad(reduce_temp.value(), {0}), update_body->indices);
