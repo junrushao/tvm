@@ -18,6 +18,38 @@
 from typing import Tuple
 from tvm import te, tir, topi
 
+def special_matmul(  # pylint: disable=invalid-name
+    N: int,
+    M: int,
+    K0: int,
+    K: int,
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    x = te.placeholder((N, K0, K), name="X")
+    y = te.placeholder((K0, K, M), name="Y")
+    k1 = te.reduce_axis((0, K), name="k1")
+    z = te.compute(  # pylint: disable=invalid-name
+        (N, M, K0),
+        lambda i, j, k0: te.sum(x[i, k0, k1] * y[k0, k1, j], axis=[k1]),
+        name="Z",
+    )
+    return (x, y, z)
+
+
+def matmul(  # pylint: disable=invalid-name
+    N: int,
+    M: int,
+    K: int,
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    x = te.placeholder((N, K), name="X")
+    y = te.placeholder((K, M), name="Y")
+    k = te.reduce_axis((0, K), name="k")
+    z = te.compute(  # pylint: disable=invalid-name
+        (N, M),
+        lambda i, j: te.sum(x[i][k] * y[k][j], axis=[k]),
+        name="Z",
+    )
+    return (x, y, z)
+
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name
     B: int,

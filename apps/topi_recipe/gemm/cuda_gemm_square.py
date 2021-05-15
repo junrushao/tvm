@@ -21,12 +21,14 @@ import os
 from tvm.contrib import nvcc
 from tvm.contrib import spirv
 import numpy as np
+import tvm.testing
+import time
 
 TASK = "gemm"
 USE_MANUAL_CODE = False
 
 
-@tvm.register_func
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code):
     ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
@@ -66,8 +68,8 @@ def test_gemm():
     BL = s.cache_read(BB, "local", [C])
     CC = s.cache_write(C, "local")
 
-    scale = 8
-    num_thread = 8
+    scale = 4
+    num_thread = 16
     block_factor = scale * num_thread
     block_x = te.thread_axis("blockIdx.x")
     thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
@@ -145,7 +147,7 @@ def test_gemm():
         GFLOPS = num_flops / (t * 1e3) / 1e6
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
-    for device in ["cuda", "opencl", "rocm", "nvptx", "vulkan"]:
+    for device in ["rocm"]:
         with tvm.transform.PassContext(
             config={"tir.UnrollLoop": {"auto_max_step": 128, "explicit_unroll": device != "cuda"}}
         ):

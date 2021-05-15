@@ -45,7 +45,7 @@ def find_lld(required=True):
     This function will first search ld.lld that
     matches the major llvm version that built with tvm
     """
-    lld_list = []
+    lld_list = ["/opt/rocm/llvm/bin/ld.lld"]
     major = tvm.target.codegen.llvm_version_major(allow_none=True)
     if major is not None:
         lld_list += ["ld.lld-%d.0" % major]
