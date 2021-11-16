@@ -36,12 +36,15 @@ class BuilderInput(Object):
         The IRModule to be built.
     target : Target
         The target to be built for.
+    params: dict
+        The parameters for Relay build module
     """
 
     mod: IRModule
     target: Target
+    params: dict
 
-    def __init__(self, mod: IRModule, target: Target) -> None:
+    def __init__(self, mod: IRModule, target: Target, params: dict) -> None:
         """Constructor.
 
         Parameters
@@ -50,11 +53,14 @@ class BuilderInput(Object):
             The IRModule to be built.
         target : Target
             The target to be built for.
+        params: dict
+            The parameters for Relay build module
         """
         self.__init_handle_by_constructor__(
             _ffi_api.BuilderInput,  # type: ignore # pylint: disable=no-member
             mod,
             target,
+            params,
         )
 
 

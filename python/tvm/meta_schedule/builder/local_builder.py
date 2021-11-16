@@ -21,7 +21,7 @@ from typing import Callable, List, Optional, Union
 
 from tvm._ffi import register_func
 from tvm.ir import IRModule
-from tvm.runtime import Module
+from tvm.runtime import Module, save_param_dict, load_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
@@ -134,6 +134,7 @@ class LocalBuilder(PyBuilder):
                     self.f_export,
                     build_input.mod,
                     build_input.target,
+                    save_param_dict(build_input.params),
                 )
                 for build_input in build_inputs
             ],
@@ -172,6 +173,7 @@ class LocalBuilder(PyBuilder):
         _f_export: Union[None, str, T_EXPORT],
         mod: IRModule,
         target: Target,
+        params: dict,
     ) -> str:
         # Step 0. Get the registered functions
         f_build: LocalBuilder.T_BUILD = get_global_func_with_default_on_worker(
@@ -183,7 +185,7 @@ class LocalBuilder(PyBuilder):
             default_export,
         )
         # Step 1. Build the IRModule
-        rt_mod: Module = f_build(mod, target)
+        rt_mod: Module = f_build(mod, target, load_param_dict(params))
         # Step 2. Export the Module
         artifact_path: str = f_export(rt_mod)
         return artifact_path
