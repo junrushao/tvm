@@ -15,35 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Test Meta Schedule Builder """
-
+# pylint: disable=missing-docstring
 
 import sys
+
 import pytest
-import itertools
 import tvm
 from tvm import relay
+from tvm.meta_schedule.arg_info import TensorInfo
+from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
+from tvm.meta_schedule.runner import EvaluatorConfig, LocalRunner, RunnerInput
+from tvm.meta_schedule.testing import get_network
+from tvm.meta_schedule.testing.byoc_trt import (
+    build_with_tensorrt,
+    build_without_tensorrt,
+    run_with_graph_executor,
+)
 from tvm.relay import testing
 from tvm.relay.op.contrib import tensorrt
-import numpy as np
-from typing import List, Tuple
-
-# from tvm import script
-# from tvm._ffi import register_func
-# from tvm.runtime import Module
-from tvm._ffi import register_func
-from tvm.relay.testing.init import Initializer
 from tvm.target import Target
-from tvm.runtime import Module
-from tvm.meta_schedule.arg_info import TensorInfo
-from tvm.meta_schedule.builder import BuilderInput, LocalBuilder, BuilderResult
-from tvm.meta_schedule.runner import (
-    EvaluatorConfig,
-    LocalRunner,
-    RunnerInput,
-)
-
 from tvm.tir import FloatImm
-from tvm.meta_schedule.testing import get_network
 
 has_tensorrt_codegen = pytest.mark.skipif(
     not tvm.get_global_func("relay.ext.tensorrt", True), reason="TensorRT codegen not available"
@@ -89,94 +80,48 @@ def get_conv2d_relu(
 
 
 def verify_meta_schedule_with_tensorrt(
-    mod, params, data_shape, use_meta_sched: bool = True, use_trt: bool = True, mode: str = "vm"
+    mod,
+    params,
+    data_shape,
+    use_meta_sched: bool = True,
+    use_trt: bool = True,
+    mode: str = "vm",
 ):
     if use_meta_sched:
         # With meta_schedule
         dev = "nvidia/geforce-rtx-2080"
-
         # Build
-        if use_trt:
-
-            def relay_build_with_tensorrt(
-                mod: Module,
-                target: Target,
-                params: dict,
-            ) -> List[BuilderResult]:
-                from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
-
-                mod, config = partition_for_tensorrt(mod, params)
-                with tvm.transform.PassContext(
-                    opt_level=3, config={"relay.ext.tensorrt.options": config}
-                ):
-                    # @Sung: Weird. Cannot pass keyword arg
-                    return tvm.relay.build_module._build_module_no_factory(
-                        mod, "cuda", "llvm", params
-                    )
-
-            builder = LocalBuilder(f_build=relay_build_with_tensorrt)
-        else:
-
-            def relay_build_without_tensorrt(
-                mod: Module,
-                target: Target,
-                params: dict,
-            ) -> List[BuilderResult]:
-                # @Sung: Weird. Cannot pass keyword arg
-                return tvm.relay.build_module._build_module_no_factory(mod, "cuda", "llvm", params)
-
-            builder = LocalBuilder(f_build=relay_build_without_tensorrt)
-
+        builder = LocalBuilder(
+            f_build=build_with_tensorrt if use_trt else build_without_tensorrt,
+            timeout_sec=1000,
+        )
         builder_input = BuilderInput(mod, Target(dev, host="llvm"), params)
-
-        (builder_result,) = builder.build([builder_input])
-        assert builder_result.error_msg is None
+        builder_result = builder.build([builder_input])[0]
+        assert builder_result.error_msg is None, builder_result.error_msg
         assert builder_result.artifact_path is not None
 
         # Run
-        evaluator_config = EvaluatorConfig(
-            number=5,
-            repeat=2,
-            min_repeat_ms=0,
-            enable_cpu_cache_flush=False,
-        )
-
         runner_input = RunnerInput(
-            builder_result.artifact_path, "cuda", [TensorInfo("float32", data_shape)]
+            builder_result.artifact_path,
+            device_type="cuda",
+            args_info=[TensorInfo("float32", data_shape)],
         )
-
-        def eval_func(rt_mod, device, evaluator_config, repeated_args):
-            rt_mod = tvm.contrib.graph_executor.GraphModule(rt_mod["default"](device))
-
-            eval = rt_mod.module.time_evaluator(
-                func_name="run",
-                dev=device,
-                number=evaluator_config.number,
-                repeat=evaluator_config.repeat,
-                min_repeat_ms=evaluator_config.min_repeat_ms,
-                f_preproc="cache_flush_cpu_non_first_arg"
-                if evaluator_config.enable_cpu_cache_flush
-                else "",
-            )
-            repeated_costs: List[List[float]] = []
-            for args in repeated_args:
-                profile_result = eval(*args)
-                repeated_costs.append(profile_result.results)
-
-            costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
-            return costs
-
         runner = LocalRunner(
-            evaluator_config=evaluator_config,
-            f_run_evaluator=eval_func,
+            evaluator_config=EvaluatorConfig(
+                number=5,
+                repeat=2,
+                min_repeat_ms=0,
+                enable_cpu_cache_flush=False,
+            ),
+            f_run_evaluator=run_with_graph_executor,
         )
 
         # Run the module
-        (runner_future,) = runner.run([runner_input])
+        runner_future = runner.run([runner_input])[0]
         runner_result = runner_future.result()
         assert runner_result is not None
+        assert runner_result.error_msg is None, runner_result.error_msg
         assert runner_result.run_secs is not None
-        assert runner_result.error_msg is None
 
         for result in runner_result.run_secs:
             if isinstance(result, FloatImm):
@@ -191,12 +136,12 @@ def verify_meta_schedule_with_tensorrt(
             with tvm.transform.PassContext(
                 opt_level=3, config={"relay.ext.tensorrt.options": config}
             ):
-                func = relay.create_executor(
+                _func = relay.create_executor(
                     mode, mod=mod, device=tvm.cuda(0), target="cuda"
                 ).evaluate()
         else:
             with tvm.transform.PassContext(opt_level=3):
-                func = relay.create_executor(
+                _func = relay.create_executor(
                     mode, mod=mod, device=tvm.cuda(0), target="cuda", params=params
                 ).evaluate()
 
@@ -229,17 +174,25 @@ def test_conv2d_relu():
     "model_name",
     ["resnet-50", "mobilenet"],
 )
-@pytest.mark.parametrize("batch_size", [1, 8, 16])
+@pytest.mark.parametrize("batch_size", [1, 8])
 @pytest.mark.parametrize("use_meta_sched", [True])
 @pytest.mark.parametrize("use_trt", [True, False])
 def test_relay_model(model_name: str, batch_size: int, use_meta_sched: bool, use_trt: bool):
-
-    mod, params, input_shape, output_shape = get_network(name=model_name, batch_size=batch_size)
+    mod, params, input_shape, _oshape = get_network(
+        name=model_name,
+        batch_size=batch_size,
+    )
     verify_meta_schedule_with_tensorrt(
-        mod, params, input_shape, use_meta_sched=use_meta_sched, use_trt=use_trt, mode="vm"
+        mod,
+        params,
+        input_shape,
+        use_meta_sched=use_meta_sched,
+        use_trt=use_trt,
+        mode="vm",
     )
 
 
-# @sunggg: memory verification error at test_relay_model("resnet-50", 1, use_meta_sched=False, use_trt=True)
+# TODO(@sunggg): memory verification error at:
+#   test_relay_model("resnet-50", 1, use_meta_sched=False, use_trt=True)
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
