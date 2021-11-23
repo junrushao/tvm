@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
-from typing import List, Optional
+from typing import List, Optional, Dict
 
+from tvm.runtime import NDArray
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
@@ -36,15 +37,15 @@ class BuilderInput(Object):
         The IRModule to be built.
     target : Target
         The target to be built for.
-    params: dict
+    params: Optional[Dict[str, NDArray]]
         The parameters for Relay build module
     """
 
     mod: IRModule
     target: Target
-    params: dict
+    params: Optional[Dict[str, NDArray]]
 
-    def __init__(self, mod: IRModule, target: Target, params: dict) -> None:
+    def __init__(self, mod: IRModule, target: Target, params: Optional[Dict[str, NDArray]]) -> None:
         """Constructor.
 
         Parameters
@@ -53,7 +54,7 @@ class BuilderInput(Object):
             The IRModule to be built.
         target : Target
             The target to be built for.
-        params: dict
+        params: Optional[Dict[str, NDArray]]
             The parameters for Relay build module
         """
         self.__init_handle_by_constructor__(

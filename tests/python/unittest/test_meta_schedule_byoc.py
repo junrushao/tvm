@@ -109,7 +109,6 @@ def verify_meta_schedule_with_tensorrt(
                 with tvm.transform.PassContext(
                     opt_level=3, config={"relay.ext.tensorrt.options": config}
                 ):
-                    # @Sung: Weird. Cannot pass keyword arg
                     return tvm.relay.build_module._build_module_no_factory(
                         mod, "cuda", "llvm", params
                     )
