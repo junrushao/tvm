@@ -17,7 +17,9 @@
 """Local builder that compile on the local host"""
 import os
 import tempfile
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Union, Dict
+from numpy import byte
+from tvm.runtime import NDArray
 
 from tvm._ffi import register_func
 from tvm.ir import IRModule
@@ -27,6 +29,18 @@ from tvm.target import Target
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from ..utils import cpu_count, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
+
+
+def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:
+    if params is None:
+        return None
+    return save_param_dict(params)
+
+
+def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, NDArray]]:
+    if params is None:
+        return None
+    return load_param_dict(params)
 
 
 class LocalBuilder(PyBuilder):
@@ -134,7 +148,7 @@ class LocalBuilder(PyBuilder):
                     self.f_export,
                     build_input.mod,
                     build_input.target,
-                    save_param_dict(build_input.params),
+                    _serialize_params(build_input.params),
                 )
                 for build_input in build_inputs
             ],
@@ -173,7 +187,7 @@ class LocalBuilder(PyBuilder):
         _f_export: Union[None, str, T_EXPORT],
         mod: IRModule,
         target: Target,
-        params: dict,
+        params: Optional[bytearray],
     ) -> str:
         # Step 0. Get the registered functions
         f_build: LocalBuilder.T_BUILD = get_global_func_with_default_on_worker(
@@ -185,7 +199,7 @@ class LocalBuilder(PyBuilder):
             default_export,
         )
         # Step 1. Build the IRModule
-        rt_mod: Module = f_build(mod, target, load_param_dict(params))
+        rt_mod: Module = f_build(mod, target, _deserialize_params(params))
         # Step 2. Export the Module
         artifact_path: str = f_export(rt_mod)
         return artifact_path
