@@ -18,11 +18,15 @@
 
 from typing import List
 
+import numpy as np
 import tvm
 from tvm import meta_schedule as ms
+from tvm._ffi import get_global_func
 from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext
+from tvm.meta_schedule.measure_callback import EchoStatistics
 from tvm.meta_schedule.postproc import Postproc
+from tvm.meta_schedule.runner import EvaluatorConfig
 from tvm.meta_schedule.testing import create_te_workload
 from tvm.meta_schedule.tune import DefaultCUDA, DefaultLLVM
 from tvm.meta_schedule.utils import remove_build_dir
@@ -34,7 +38,7 @@ RPC_HOST = "192.168.6.66"
 RPC_PORT = 4445
 RPC_KEY = "jetson-agx-xavier"
 TARGET = Target("nvidia/jetson-agx-xavier")
-WORKLOAD = "C1D"
+WORKLOAD = "GMM"
 POSTPROCS: List[Postproc] = DefaultCUDA._postproc()  # pylint: disable=protected-access
 
 TARGET = tvm.target.Target("nvidia/jetson-agx-xavier")
@@ -54,57 +58,55 @@ def tvm_callback_cuda_postproc(code):
 def schedule_fn(sch: Schedule):
     # pylint: disable=invalid-name,line-too-long,unused-variable
     # fmt: off
-    b0 = sch.get_block(name="PadInput", func_name="main")
-    b1 = sch.get_block(name="conv1d_nlc", func_name="main")
-    b2 = sch.get_block(name="root", func_name="main")
-    b3 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
-    l4, l5, l6, l7, l8 = sch.get_loops(block=b1)
-    v9, v10, v11, v12, v13 = sch.sample_perfect_tile(loop=l4, n=5, max_innermost_factor=64, decision=[1, 1, 1, 1, 1])
-    l14, l15, l16, l17, l18 = sch.split(loop=l4, factors=[v9, v10, v11, v12, v13])
-    v19, v20, v21, v22, v23 = sch.sample_perfect_tile(loop=l5, n=5, max_innermost_factor=64, decision=[4, 1, 8, 4, 1])
-    l24, l25, l26, l27, l28 = sch.split(loop=l5, factors=[v19, v20, v21, v22, v23])
-    v29, v30, v31, v32, v33 = sch.sample_perfect_tile(loop=l6, n=5, max_innermost_factor=64, decision=[4, 1, 16, 1, 2])
-    l34, l35, l36, l37, l38 = sch.split(loop=l6, factors=[v29, v30, v31, v32, v33])
-    v39, v40, v41 = sch.sample_perfect_tile(loop=l7, n=3, max_innermost_factor=64, decision=[1, 1, 3])
-    l42, l43, l44 = sch.split(loop=l7, factors=[v39, v40, v41])
-    v45, v46, v47 = sch.sample_perfect_tile(loop=l8, n=3, max_innermost_factor=64, decision=[4, 8, 2])
-    l48, l49, l50 = sch.split(loop=l8, factors=[v45, v46, v47])
-    sch.reorder(l14, l24, l34, l15, l25, l35, l16, l26, l36, l42, l48, l43, l49, l17, l27, l37, l44, l50, l18, l28, l38)
-    l51 = sch.fuse(l14, l24, l34)
-    sch.bind(loop=l51, thread_axis="blockIdx.x")
-    l52 = sch.fuse(l15, l25, l35)
-    sch.bind(loop=l52, thread_axis="vthread.x")
-    l53 = sch.fuse(l16, l26, l36)
-    sch.bind(loop=l53, thread_axis="threadIdx.x")
+    b0 = sch.get_block(name="Z", func_name="main")
+    b1 = sch.get_block(name="root", func_name="main")
+    b2 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
+    l3, l4, l5, l6 = sch.get_loops(block=b0)
+    v7, v8, v9, v10, v11 = sch.sample_perfect_tile(loop=l3, n=5, max_innermost_factor=64, decision=[1, 1, 1, 1, 1])
+    l12, l13, l14, l15, l16 = sch.split(loop=l3, factors=[v7, v8, v9, v10, v11])
+    v17, v18, v19, v20, v21 = sch.sample_perfect_tile(loop=l4, n=5, max_innermost_factor=64, decision=[4, 1, 8, 2, 2])
+    l22, l23, l24, l25, l26 = sch.split(loop=l4, factors=[v17, v18, v19, v20, v21])
+    v27, v28, v29, v30, v31 = sch.sample_perfect_tile(loop=l5, n=5, max_innermost_factor=64, decision=[4, 2, 16, 1, 1])
+    l32, l33, l34, l35, l36 = sch.split(loop=l5, factors=[v27, v28, v29, v30, v31])
+    v37, v38, v39 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=64, decision=[4, 2, 16])
+    l40, l41, l42 = sch.split(loop=l6, factors=[v37, v38, v39])
+    sch.reorder(l12, l22, l32, l13, l23, l33, l14, l24, l34, l40, l41, l15, l25, l35, l42, l16, l26, l36)
+    l43 = sch.fuse(l12, l22, l32)
+    sch.bind(loop=l43, thread_axis="blockIdx.x")
+    l44 = sch.fuse(l13, l23, l33)
+    sch.bind(loop=l44, thread_axis="vthread.x")
+    l45 = sch.fuse(l14, l24, l34)
+    sch.bind(loop=l45, thread_axis="threadIdx.x")
 
-    b54 = sch.cache_read(block=b1, read_buffer_index=1, storage_scope="shared")
-    sch.compute_at(block=b54, loop=l48, preserve_unit_loops=True)
-    l55, l56, l57, l58, l59, l60, l61, l62 = sch.get_loops(block=b54)
-    l63 = sch.fuse(l60, l61, l62)
-    v64, v65 = sch.sample_perfect_tile(loop=l63, n=2, max_innermost_factor=4, decision=[1040, 1])
-    sch.annotate(block_or_loop=b54, ann_key="meta_schedule.cooperative_fetch", ann_val=v65)
+    b46 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")
+    sch.compute_at(block=b46, loop=l40, preserve_unit_loops=True)
+    l47, l48, l49, l50, l51, l52, l53 = sch.get_loops(block=b46)
+    l54 = sch.fuse(l51, l52, l53)
+    v55, v56 = sch.sample_perfect_tile(loop=l54, n=2, max_innermost_factor=4, decision=[512, 1])
+    sch.annotate(block_or_loop=b46, ann_key="meta_schedule.cooperative_fetch", ann_val=v56)
 
-    b66 = sch.cache_read(block=b1, read_buffer_index=2, storage_scope="shared")
-    sch.compute_at(block=b66, loop=l48, preserve_unit_loops=True)
-    l67, l68, l69, l70, l71, l72, l73, l74 = sch.get_loops(block=b66)
-    l75 = sch.fuse(l72, l73, l74)
-    v76, v77 = sch.sample_perfect_tile(loop=l75, n=2, max_innermost_factor=4, decision=[1536, 1])
-    sch.annotate(block_or_loop=b66, ann_key="meta_schedule.cooperative_fetch", ann_val=v77)
+    b57 = sch.cache_read(block=b0, read_buffer_index=2, storage_scope="shared")
+    sch.compute_at(block=b57, loop=l40, preserve_unit_loops=True)
+    l58, l59, l60, l61, l62, l63, l64 = sch.get_loops(block=b57)
+    l65 = sch.fuse(l62, l63, l64)
+    v66, v67 = sch.sample_perfect_tile(loop=l65, n=2, max_innermost_factor=4, decision=[1024, 2])
+    sch.annotate(block_or_loop=b57, ann_key="meta_schedule.cooperative_fetch", ann_val=v67)
 
-    sch.reverse_compute_at(block=b3, loop=l53, preserve_unit_loops=True)
-    sch.compute_inline(block=b0)
-    # v78 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.2, 0.2, 0.2, 0.2, 0.2], decision=4)
-    # sch.annotate(block_or_loop=b2, ann_key="meta_schedule.unroll_explicit", ann_val=v78)
+    print(sch.mod.script())
+    import sys; sys.exit()
+    sch.reverse_compute_at(block=b2, loop=l45, preserve_unit_loops=True)
+    v68 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=3)
+    sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v68)
     # fmt: on
+    # pylint: enable=invalid-name,line-too-long,unused-variable
     return sch
 
 
-def _make_sch() -> Schedule:
+def _make_mod() -> IRModule:
     prim_func = create_te_workload(WORKLOAD, 0)
     prim_func = prim_func.with_attr("global_symbol", "main")
     prim_func = prim_func.with_attr("tir.noalias", True)
-    mod = IRModule({"main": prim_func})
-    return Schedule(mod, debug_mask="all")
+    return IRModule({"main": prim_func})
 
 
 def _apply_postproc(sch: Schedule):
@@ -115,7 +117,7 @@ def _apply_postproc(sch: Schedule):
         assert p.apply(sch)
 
 
-def run_sch(sch: Schedule):
+def run_sch(sch: Schedule, mod: IRModule):
     print(sch.mod.script())
     print(sch.trace)
     print(tvm.lower(sch.mod).script())
@@ -128,7 +130,13 @@ def run_sch(sch: Schedule):
             tracker_key=RPC_KEY,
             session_timeout_sec=60,
         ),
-        alloc_repeat=3,
+        evaluator_config=EvaluatorConfig(
+            number=3,
+            repeat=1,
+            min_repeat_ms=200,
+            enable_cpu_cache_flush=False,
+        ),
+        alloc_repeat=10,
         max_workers=5,
     )
     (builder_result,) = builder.build(  # pylint: disable=unbalanced-tuple-unpacking
@@ -147,16 +155,25 @@ def run_sch(sch: Schedule):
         runner_result = runner_future.result()
         if runner_result.error_msg is not None:
             print(runner_result.error_msg)
+            return
         else:
-            print([float(x) * 1000.0 for x in runner_result.run_secs])
+            result = [float(x) * 1000.0 for x in runner_result.run_secs]
     finally:
         remove_build_dir(builder_result.artifact_path)
 
+    flop = get_global_func("meta_schedule._CountFlop")(mod)
+    print(flop)
+    result = [flop / 1e6 / s for s in result]
+    print(result)
+    print(np.mean(result))
+
 
 def main():
-    sch = schedule_fn(_make_sch())
+    mod = _make_mod()
+    sch = Schedule(mod, debug_mask="all")
+    sch = schedule_fn(sch)
     _apply_postproc(sch)
-    run_sch(sch)
+    run_sch(sch, mod)
 
 
 if __name__ == "__main__":

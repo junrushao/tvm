@@ -16,11 +16,11 @@
 # under the License.
 """Meta schedule integration with high-level IR"""
 from contextlib import contextmanager
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
-from tvm.relay import Any, Function as RelayFunc, vm
+from tvm.relay import Function as RelayFunc, vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc

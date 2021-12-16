@@ -215,6 +215,8 @@ double CountFlop(const IRModule& mod) {
   return cnt;
 }
 
+TVM_REGISTER_GLOBAL("meta_schedule._CountFlop").set_body_typed(CountFlop);
+
 }  // namespace tir
 }  // namespace tvm
 
