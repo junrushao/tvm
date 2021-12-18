@@ -36,91 +36,109 @@ def tvm_callback_cuda_postproc(code):
 
 
 def func(  # pylint: disable=invalid-name,missing-docstring
-    B: int,
     N: int,
-    M: int,
-    K: int,
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    x = te.placeholder((B, N, K), name="X")
-    y = te.placeholder((B, K, M), name="Y")
-    k = te.reduce_axis((0, K), name="k")
-    z = te.compute(  # pylint: disable=invalid-name
-        (B, N, M),
-        lambda b, i, j: te.sum(x[b][i][k] * y[b][k][j], axis=[k]),
-        name="Z",
+    L: int,
+    CI: int,
+    CO: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 0,
+    dilation: int = 1,
+    groups: int = 1,
+):
+    inputs = te.placeholder((N, L, CI), name="inputs")
+    weight = te.placeholder((kernel_size, CI // groups, CO), name="weight")
+
+    batch_size, in_len, _ = inputs.shape
+    k_len, channel_per_group, out_channel = weight.shape
+    out_channel_per_group = out_channel // groups
+    out_len = (in_len + 2 * padding - dilation * (k_len - 1) - 1) // stride + 1
+    rc = te.reduce_axis((0, channel_per_group), name="rc")
+    rl = te.reduce_axis((0, k_len), name="rl")
+
+    padded = topi.nn.pad(inputs, [0, padding, 0])
+    output = te.compute(
+        (batch_size, out_len, out_channel),
+        lambda n, l, co: te.sum(
+            (
+                padded[
+                    n,
+                    l * stride + rl * dilation,
+                    co // out_channel_per_group * channel_per_group + rc,
+                ]
+                * weight[rl, rc, co]
+            ),
+            axis=[rl, rc],
+        ),
+        name="conv1d_nlc",
     )
-    return (x, y, z)
+    return (inputs, weight, padded, output)
 
 
 def main():
-    X, Y, Z = func(1, 128, 128, 128)
-    s = te.create_schedule(Z.op)
+    inputs, weight, PadInput, conv1d_nlc = func(1, 256, 64, 128, 3, 2, 1)
+    s = te.create_schedule(conv1d_nlc.op)
     # fmt: off
-    Z_b, Z_i, Z_j, Z_k = tuple(Z.op.axis) + tuple(Z.op.reduce_axis)
-    Z_local, = s.cache_write([Z], "local")
-    Z_local_b_c, Z_local_i_c, Z_local_j_c, Z_local_k = tuple(Z_local.op.axis) + tuple(Z_local.op.reduce_axis)
-
-    Z_local_b_c_o_i, Z_local_b_c_i = s[Z_local].split(Z_local_b_c, factor=1)
-    Z_local_b_c_o_o_i, Z_local_b_c_o_i = s[Z_local].split(Z_local_b_c_o_i, factor=1)
-    Z_local_b_c_o_o_o_i, Z_local_b_c_o_o_i = s[Z_local].split(Z_local_b_c_o_o_i, factor=1)
-    Z_local_b_c_o_o_o_o, Z_local_b_c_o_o_o_i = s[Z_local].split(Z_local_b_c_o_o_o_i, factor=1)
-
-    Z_local_i_c_o_i, Z_local_i_c_i = s[Z_local].split(Z_local_i_c, factor=2)
-    Z_local_i_c_o_o_i, Z_local_i_c_o_i = s[Z_local].split(Z_local_i_c_o_i, factor=2)
-    Z_local_i_c_o_o_o_i, Z_local_i_c_o_o_i = s[Z_local].split(Z_local_i_c_o_o_i, factor=8)
-    Z_local_i_c_o_o_o_o, Z_local_i_c_o_o_o_i = s[Z_local].split(Z_local_i_c_o_o_o_i, factor=1)
-
-    Z_local_j_c_o_i, Z_local_j_c_i = s[Z_local].split(Z_local_j_c, factor=1)
-    Z_local_j_c_o_o_i, Z_local_j_c_o_i = s[Z_local].split(Z_local_j_c_o_i, factor=1)
-    Z_local_j_c_o_o_o_i, Z_local_j_c_o_o_i = s[Z_local].split(Z_local_j_c_o_o_i, factor=16)
-    Z_local_j_c_o_o_o_o, Z_local_j_c_o_o_o_i = s[Z_local].split(Z_local_j_c_o_o_o_i, factor=2)
-
-    Z_local_k_o_i, Z_local_k_i = s[Z_local].split(Z_local_k, factor=16)
-    Z_local_k_o_o, Z_local_k_o_i = s[Z_local].split(Z_local_k_o_i, factor=2)
-
-    s[Z_local].reorder(Z_local_b_c_o_o_o_o, Z_local_i_c_o_o_o_o, Z_local_j_c_o_o_o_o, Z_local_b_c_o_o_o_i, Z_local_i_c_o_o_o_i, Z_local_j_c_o_o_o_i, Z_local_b_c_o_o_i, Z_local_i_c_o_o_i, Z_local_j_c_o_o_i, Z_local_k_o_o, Z_local_k_o_i, Z_local_b_c_o_i, Z_local_i_c_o_i, Z_local_j_c_o_i, Z_local_k_i, Z_local_b_c_i, Z_local_i_c_i, Z_local_j_c_i)
-    Z_b_o_i, Z_b_i = s[Z].split(Z_b, factor=1)
-    Z_b_o_o_i, Z_b_o_i = s[Z].split(Z_b_o_i, factor=1)
-    Z_b_o_o_o, Z_b_o_o_i = s[Z].split(Z_b_o_o_i, factor=1)
-    Z_i_o_i, Z_i_i = s[Z].split(Z_i, factor=4)
-    Z_i_o_o_i, Z_i_o_i = s[Z].split(Z_i_o_i, factor=8)
-    Z_i_o_o_o, Z_i_o_o_i = s[Z].split(Z_i_o_o_i, factor=1)
-    Z_j_o_i, Z_j_i = s[Z].split(Z_j, factor=1)
-    Z_j_o_o_i, Z_j_o_i = s[Z].split(Z_j_o_i, factor=16)
-    Z_j_o_o_o, Z_j_o_o_i = s[Z].split(Z_j_o_o_i, factor=2)
-    s[Z].reorder(Z_b_o_o_o, Z_i_o_o_o, Z_j_o_o_o, Z_b_o_o_i, Z_i_o_o_i, Z_j_o_o_i, Z_b_o_i, Z_i_o_i, Z_j_o_i, Z_b_i, Z_i_i, Z_j_i)
-    s[Z_local].compute_at(s[Z], Z_j_o_i)
-    Y_shared = s.cache_read(Y, "shared", [Z_local])
-    Y_shared_ax0, Y_shared_ax1, Y_shared_ax2 = tuple(Y_shared.op.axis)
-    s[Y_shared].compute_at(s[Z_local], Z_local_k_o_o)
-    X_shared = s.cache_read(X, "shared", [Z_local])
-    X_shared_ax0, X_shared_ax1, X_shared_ax2 = tuple(X_shared.op.axis)
-    s[X_shared].compute_at(s[Z_local], Z_local_k_o_o)
-    Z_b_o_o_o_i_o_o_o_fused_j_o_o_o_fused = s[Z].fuse(Z_b_o_o_o, Z_i_o_o_o, Z_j_o_o_o)
-    s[Z].bind(Z_b_o_o_o_i_o_o_o_fused_j_o_o_o_fused, te.thread_axis("blockIdx.x"))
-    Z_b_o_o_i_i_o_o_i_fused_j_o_o_i_fused = s[Z].fuse(Z_b_o_o_i, Z_i_o_o_i, Z_j_o_o_i)
-    s[Z].bind(Z_b_o_o_i_i_o_o_i_fused_j_o_o_i_fused, te.thread_axis("vthread"))
-    Z_b_o_i_i_o_i_fused_j_o_i_fused = s[Z].fuse(Z_b_o_i, Z_i_o_i, Z_j_o_i)
-    s[Z].bind(Z_b_o_i_i_o_i_fused_j_o_i_fused, te.thread_axis("threadIdx.x"))
-
-    Y_shared_ax0_ax1_fused_ax2_fused = s[Y_shared].fuse(Y_shared_ax0, Y_shared_ax1, Y_shared_ax2)
-    Y_shared_ax0_ax1_fused_ax2_fused_o, Y_shared_ax0_ax1_fused_ax2_fused_i = s[Y_shared].split(Y_shared_ax0_ax1_fused_ax2_fused, factor=4)
-    s[Y_shared].vectorize(Y_shared_ax0_ax1_fused_ax2_fused_i)
-    Y_shared_ax0_ax1_fused_ax2_fused_o_o, Y_shared_ax0_ax1_fused_ax2_fused_o_i = s[Y_shared].split(Y_shared_ax0_ax1_fused_ax2_fused_o, factor=128)
-    s[Y_shared].bind(Y_shared_ax0_ax1_fused_ax2_fused_o_i, te.thread_axis("threadIdx.x"))
-
-    X_shared_ax0_ax1_fused_ax2_fused = s[X_shared].fuse(X_shared_ax0, X_shared_ax1, X_shared_ax2)
-    X_shared_ax0_ax1_fused_ax2_fused_o, X_shared_ax0_ax1_fused_ax2_fused_i = s[X_shared].split(X_shared_ax0_ax1_fused_ax2_fused, factor=1)
-    s[X_shared].vectorize(X_shared_ax0_ax1_fused_ax2_fused_i)
-    X_shared_ax0_ax1_fused_ax2_fused_o_o, X_shared_ax0_ax1_fused_ax2_fused_o_i = s[X_shared].split(X_shared_ax0_ax1_fused_ax2_fused_o, factor=128)
-    s[X_shared].bind(X_shared_ax0_ax1_fused_ax2_fused_o_i, te.thread_axis("threadIdx.x"))
-
-    s[Z_local].pragma(Z_local_b_c_o_o_o_o, "auto_unroll_max_step", 0)
-    s[Z_local].pragma(Z_local_b_c_o_o_o_o, "unroll_explicit", True)
+    PadInput_i0, PadInput_i1, PadInput_i2 = tuple(PadInput.op.axis) + tuple(PadInput.op.reduce_axis)
+    conv1d_nlc_n, conv1d_nlc_l, conv1d_nlc_co, conv1d_nlc_rl, conv1d_nlc_rc = tuple(conv1d_nlc.op.axis) + tuple(conv1d_nlc.op.reduce_axis)
+    conv1d_nlc_local, = s.cache_write([conv1d_nlc], "local")
+    conv1d_nlc_local_n_c, conv1d_nlc_local_l_c, conv1d_nlc_local_co_c, conv1d_nlc_local_rl, conv1d_nlc_local_rc = tuple(conv1d_nlc_local.op.axis) + tuple(conv1d_nlc_local.op.reduce_axis)
+    conv1d_nlc_local_n_c_o_i, conv1d_nlc_local_n_c_i = s[conv1d_nlc_local].split(conv1d_nlc_local_n_c, factor=1)
+    conv1d_nlc_local_n_c_o_o_i, conv1d_nlc_local_n_c_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_n_c_o_i, factor=1)
+    conv1d_nlc_local_n_c_o_o_o_i, conv1d_nlc_local_n_c_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_n_c_o_o_i, factor=1)
+    conv1d_nlc_local_n_c_o_o_o_o, conv1d_nlc_local_n_c_o_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_n_c_o_o_o_i, factor=1)
+    conv1d_nlc_local_l_c_o_i, conv1d_nlc_local_l_c_i = s[conv1d_nlc_local].split(conv1d_nlc_local_l_c, factor=1)
+    conv1d_nlc_local_l_c_o_o_i, conv1d_nlc_local_l_c_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_l_c_o_i, factor=4)
+    conv1d_nlc_local_l_c_o_o_o_i, conv1d_nlc_local_l_c_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_l_c_o_o_i, factor=8)
+    conv1d_nlc_local_l_c_o_o_o_o, conv1d_nlc_local_l_c_o_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_l_c_o_o_o_i, factor=1)
+    conv1d_nlc_local_co_c_o_i, conv1d_nlc_local_co_c_i = s[conv1d_nlc_local].split(conv1d_nlc_local_co_c, factor=2)
+    conv1d_nlc_local_co_c_o_o_i, conv1d_nlc_local_co_c_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_co_c_o_i, factor=1)
+    conv1d_nlc_local_co_c_o_o_o_i, conv1d_nlc_local_co_c_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_co_c_o_o_i, factor=16)
+    conv1d_nlc_local_co_c_o_o_o_o, conv1d_nlc_local_co_c_o_o_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_co_c_o_o_o_i, factor=1)
+    conv1d_nlc_local_rl_o_i, conv1d_nlc_local_rl_i = s[conv1d_nlc_local].split(conv1d_nlc_local_rl, factor=3)
+    conv1d_nlc_local_rl_o_o, conv1d_nlc_local_rl_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_rl_o_i, factor=1)
+    conv1d_nlc_local_rc_o_i, conv1d_nlc_local_rc_i = s[conv1d_nlc_local].split(conv1d_nlc_local_rc, factor=2)
+    conv1d_nlc_local_rc_o_o, conv1d_nlc_local_rc_o_i = s[conv1d_nlc_local].split(conv1d_nlc_local_rc_o_i, factor=8)
+    s[conv1d_nlc_local].reorder(conv1d_nlc_local_n_c_o_o_o_o, conv1d_nlc_local_l_c_o_o_o_o, conv1d_nlc_local_co_c_o_o_o_o, conv1d_nlc_local_n_c_o_o_o_i, conv1d_nlc_local_l_c_o_o_o_i, conv1d_nlc_local_co_c_o_o_o_i, conv1d_nlc_local_n_c_o_o_i, conv1d_nlc_local_l_c_o_o_i, conv1d_nlc_local_co_c_o_o_i, conv1d_nlc_local_rl_o_o, conv1d_nlc_local_rc_o_o, conv1d_nlc_local_rl_o_i, conv1d_nlc_local_rc_o_i, conv1d_nlc_local_n_c_o_i, conv1d_nlc_local_l_c_o_i, conv1d_nlc_local_co_c_o_i, conv1d_nlc_local_rl_i, conv1d_nlc_local_rc_i, conv1d_nlc_local_n_c_i, conv1d_nlc_local_l_c_i, conv1d_nlc_local_co_c_i)
+    conv1d_nlc_n_o_i, conv1d_nlc_n_i = s[conv1d_nlc].split(conv1d_nlc_n, factor=1)
+    conv1d_nlc_n_o_o_i, conv1d_nlc_n_o_i = s[conv1d_nlc].split(conv1d_nlc_n_o_i, factor=1)
+    conv1d_nlc_n_o_o_o, conv1d_nlc_n_o_o_i = s[conv1d_nlc].split(conv1d_nlc_n_o_o_i, factor=1)
+    conv1d_nlc_l_o_i, conv1d_nlc_l_i = s[conv1d_nlc].split(conv1d_nlc_l, factor=4)
+    conv1d_nlc_l_o_o_i, conv1d_nlc_l_o_i = s[conv1d_nlc].split(conv1d_nlc_l_o_i, factor=8)
+    conv1d_nlc_l_o_o_o, conv1d_nlc_l_o_o_i = s[conv1d_nlc].split(conv1d_nlc_l_o_o_i, factor=1)
+    conv1d_nlc_co_o_i, conv1d_nlc_co_i = s[conv1d_nlc].split(conv1d_nlc_co, factor=2)
+    conv1d_nlc_co_o_o_i, conv1d_nlc_co_o_i = s[conv1d_nlc].split(conv1d_nlc_co_o_i, factor=16)
+    conv1d_nlc_co_o_o_o, conv1d_nlc_co_o_o_i = s[conv1d_nlc].split(conv1d_nlc_co_o_o_i, factor=1)
+    s[conv1d_nlc].reorder(conv1d_nlc_n_o_o_o, conv1d_nlc_l_o_o_o, conv1d_nlc_co_o_o_o, conv1d_nlc_n_o_o_i, conv1d_nlc_l_o_o_i, conv1d_nlc_co_o_o_i, conv1d_nlc_n_o_i, conv1d_nlc_l_o_i, conv1d_nlc_co_o_i, conv1d_nlc_n_i, conv1d_nlc_l_i, conv1d_nlc_co_i)
+    s[conv1d_nlc_local].compute_at(s[conv1d_nlc], conv1d_nlc_co_o_i)
+    weight_shared = s.cache_read(weight, "shared", [conv1d_nlc_local])
+    weight_shared_ax0, weight_shared_ax1, weight_shared_ax2 = tuple(weight_shared.op.axis)
+    s[weight_shared].compute_at(s[conv1d_nlc_local], conv1d_nlc_local_rc_o_o)
+    PadInput_shared = s.cache_read(PadInput, "shared", [conv1d_nlc_local])
+    PadInput_shared_ax0, PadInput_shared_ax1, PadInput_shared_ax2 = tuple(PadInput_shared.op.axis)
+    s[PadInput_shared].compute_at(s[conv1d_nlc_local], conv1d_nlc_local_rc_o_o)
+    s[PadInput].compute_inline()
+    conv1d_nlc_n_o_o_o_l_o_o_o_fused_co_o_o_o_fused = s[conv1d_nlc].fuse(conv1d_nlc_n_o_o_o, conv1d_nlc_l_o_o_o, conv1d_nlc_co_o_o_o)
+    s[conv1d_nlc].bind(conv1d_nlc_n_o_o_o_l_o_o_o_fused_co_o_o_o_fused, te.thread_axis("blockIdx.x"))
+    conv1d_nlc_n_o_o_i_l_o_o_i_fused_co_o_o_i_fused = s[conv1d_nlc].fuse(conv1d_nlc_n_o_o_i, conv1d_nlc_l_o_o_i, conv1d_nlc_co_o_o_i)
+    s[conv1d_nlc].bind(conv1d_nlc_n_o_o_i_l_o_o_i_fused_co_o_o_i_fused, te.thread_axis("vthread"))
+    conv1d_nlc_n_o_i_l_o_i_fused_co_o_i_fused = s[conv1d_nlc].fuse(conv1d_nlc_n_o_i, conv1d_nlc_l_o_i, conv1d_nlc_co_o_i)
+    s[conv1d_nlc].bind(conv1d_nlc_n_o_i_l_o_i_fused_co_o_i_fused, te.thread_axis("threadIdx.x"))
+    weight_shared_ax0_ax1_fused_ax2_fused = s[weight_shared].fuse(weight_shared_ax0, weight_shared_ax1, weight_shared_ax2)
+    weight_shared_ax0_ax1_fused_ax2_fused_o, weight_shared_ax0_ax1_fused_ax2_fused_i = s[weight_shared].split(weight_shared_ax0_ax1_fused_ax2_fused, factor=1)
+    s[weight_shared].vectorize(weight_shared_ax0_ax1_fused_ax2_fused_i)
+    weight_shared_ax0_ax1_fused_ax2_fused_o_o, weight_shared_ax0_ax1_fused_ax2_fused_o_i = s[weight_shared].split(weight_shared_ax0_ax1_fused_ax2_fused_o, factor=128)
+    s[weight_shared].bind(weight_shared_ax0_ax1_fused_ax2_fused_o_i, te.thread_axis("threadIdx.x"))
+    PadInput_shared_ax0_ax1_fused_ax2_fused = s[PadInput_shared].fuse(PadInput_shared_ax0, PadInput_shared_ax1, PadInput_shared_ax2)
+    PadInput_shared_ax0_ax1_fused_ax2_fused_o, PadInput_shared_ax0_ax1_fused_ax2_fused_i = s[PadInput_shared].split(PadInput_shared_ax0_ax1_fused_ax2_fused, factor=1)
+    s[PadInput_shared].vectorize(PadInput_shared_ax0_ax1_fused_ax2_fused_i)
+    PadInput_shared_ax0_ax1_fused_ax2_fused_o_o, PadInput_shared_ax0_ax1_fused_ax2_fused_o_i = s[PadInput_shared].split(PadInput_shared_ax0_ax1_fused_ax2_fused_o, factor=128)
+    s[PadInput_shared].bind(PadInput_shared_ax0_ax1_fused_ax2_fused_o_i, te.thread_axis("threadIdx.x"))
+    # s[conv1d_nlc_local].pragma(conv1d_nlc_local_n_c_o_o_o_o, "auto_unroll_max_step", 1024)
+    # s[conv1d_nlc_local].pragma(conv1d_nlc_local_n_c_o_o_o_o, "unroll_explicit", True)
     # fmt: on
-
-    print(tvm.lower(s, [X, Y, Z]).script())
-    tvm.build(s, [X, Y, Z], target=TARGET)
+    print(tvm.lower(s, [inputs, weight, conv1d_nlc]).script())
+    tvm.build(s, [inputs, weight, conv1d_nlc], target=TARGET)
 
 
 if __name__ == "__main__":
