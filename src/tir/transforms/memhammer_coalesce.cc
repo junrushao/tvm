@@ -74,10 +74,8 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   PrimExpr tot_threads = threadIdx_x * threadIdx_y * threadIdx_z;
   PrimExpr data_bits = constraints.data_bits;
   PrimExpr vector_len = max(1, vector_bytes * 8 / data_bits);
-  if (!loop || !is_zero(indexmod(loop->extent, (vector_len * tot_threads)))) {
-    LOG(FATAL) << "the number of elements must be a multiple of thread num";
-  }
-  PrimExpr outer_loop_extent = indexdiv(loop->extent, tot_threads * vector_len);
+  PrimExpr outer_loop_extent = indexdiv(loop->extent + tot_threads * vector_len-1, tot_threads *
+                                                                                       vector_len);
   Array<PrimExpr> factors{outer_loop_extent};
   std::vector<std::string> thread_axis;
   // generate thread binding loops
@@ -97,15 +95,15 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   factors.push_back(vector_len);
   int n = factors.size();
   std::vector<Var> new_loop_vars;
+  arith::Analyzer analyzer;
   new_loop_vars.reserve(n);
-  for (int i = 0; i < n; i++) {
-    new_loop_vars.push_back(loop->loop_var.copy_with_suffix("_" + std::to_string(i)));
-  }
-
   PrimExpr substitute_value = 0;
   for (int i = 0; i < n; i++) {
-    substitute_value *= factors[i];
-    substitute_value += new_loop_vars[i];
+    const PrimExpr& factor = factors[i];
+    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
+    substitute_value = substitute_value * factor + var;
+    analyzer.Bind(var, Range::FromMinExtent(0, factor));
+    new_loop_vars.emplace_back(std::move(var));
   }
   body = Substitute(loop->body, [&](const Var& v) -> Optional<PrimExpr> {
     if (v.same_as(loop->loop_var)) {
@@ -114,7 +112,11 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
       return NullOpt;
     }
   });
-
+  
+  PrimExpr predicate = substitute_value < loop->extent;
+  if (!analyzer.CanProve(predicate)) {
+    body = IfThenElse(predicate, body);
+  }
   For new_loop = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, body);
 
   for (int i = n - 2; i >= 1; i--) {

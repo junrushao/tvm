@@ -155,8 +155,6 @@ class AutoPadder {
                 }
               }
               low_dim_iter_space[i] = span;
-            } else {
-              ICHECK(min_conflict_pad == 0);
             }
           }
           stride = stride * buffer->shape[k + 1] + min_conflict_pad;
@@ -457,7 +455,7 @@ class AutoPadder {
           warp_thread_extent_(warp_thread_extent) {}
 
    private:
-    bool CheckVarContiguous(PrimExpr e, Var var) {
+    bool CheckVarContiguous(PrimExpr e, Var var, const Map<Var, PrimExpr>& subst_map) {
       PrimExpr e1 = Substitute(e, [var](const Var& v) -> Optional<PrimExpr> {
         if (v.same_as(var)) {
           return Integer(0);
@@ -473,7 +471,7 @@ class AutoPadder {
         }
       });
       arith::Analyzer analyzer;
-      return analyzer.CanProve(e2 - e1 == 1);
+      return !analyzer.CanProve(Substitute(e2 - e1, subst_map) != 1);
     }
 
     void VisitStmt_(const ForNode* op) final {
@@ -516,7 +514,8 @@ class AutoPadder {
         if (!iter_space.empty()) {
           self->iter_spaces_[op->buffer.get()].push_back(iter_space);
         }
-        if (vector_length_ != -1 && CheckVarContiguous(substitued_indices.back(), vector_var)) {
+        if (vector_length_ != -1 &&
+            CheckVarContiguous(op->indices.back(), vector_var, substitute_map_)) {
           Integer m = self->padding_min_.Get(op->buffer).value_or(1);
           self->padding_min_.Set(op->buffer, Downcast<Integer>(max(vector_length_, m)));
         }
@@ -543,7 +542,8 @@ class AutoPadder {
         if (!iter_space.empty()) {
           self->iter_spaces_[op->buffer.get()].push_back(iter_space);
         }
-        if (vector_length_ != -1 && CheckVarContiguous(substitued_indices.back(), vector_var)) {
+        if (vector_length_ != -1 &&
+            CheckVarContiguous(substitued_indices.back(), vector_var, substitute_map_)) {
           Integer m = self->padding_min_.Get(op->buffer).value_or(1);
           self->padding_min_.Set(op->buffer, Downcast<Integer>(max(vector_length_, m)));
         }
@@ -684,7 +684,7 @@ class AutoCopyMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     Block block;
-    //only rewrite the block annotated with "auto_copy"
+    // only rewrite the block annotated with "auto_copy"
     if (is_one(Downcast<PrimExpr>(op->annotations.Get("auto_copy").value_or(Integer(0))))) {
       block = runtime::Downcast<Block>(StmtMutator::VisitStmt_(op));
       ICHECK(block->reads.size() == 1 && block->writes.size() == 1);

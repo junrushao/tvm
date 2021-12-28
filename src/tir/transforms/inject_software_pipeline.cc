@@ -490,8 +490,11 @@ class PipelineRewriter : public StmtExprMutator {
   Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop) {
     Array<Stmt> stmts;
     PrimExpr new_loop_var;
-    bool is_unit_loop = analyzer_.CanProveEqual(start + 1, end);
-    if (is_unit_loop) {
+    PrimExpr extent = end - start;
+    if (!analyzer_.CanProve(extent > 0)) {
+      return BlockRealize({}, Bool(true), MakeBlock(Evaluate(0), buffer_data_to_buffer_));;
+    }
+    bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);    if (is_unit_loop) {
       new_loop_var = start;
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
@@ -527,6 +530,19 @@ class PipelineRewriter : public StmtExprMutator {
       stmt = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, end - start,
                  unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, SeqStmt(stmts));
     }
+    
+    if (stmts.size() == 1) {
+      stmt = stmts[0];
+    } else if (stmts.size() == 0) {
+      stmt = Evaluate(0);
+    } else {
+      stmt = SeqStmt(stmts);
+    }
+    if (!is_unit_loop) {
+      stmt = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
+                  unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, SeqStmt(stmts));
+    }
+    
     if (stmt->IsInstance<BlockRealizeNode>()) {
       return stmt;
     }

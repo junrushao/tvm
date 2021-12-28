@@ -179,9 +179,7 @@ class IterMapRewriter : public ExprMutator {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
-      if (is_one(vrng->extent)) {
-        var_map_[var] = IterSumExpr({}, vrng->min);
-      } else if (is_zero(vrng->min)) {
+      if (is_zero(vrng->min)) {
         IterMark mark(var, vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
@@ -617,10 +615,17 @@ class IterMapRewriter : public ExprMutator {
     PrimExpr expected_extra_base = 0;
     PrimExpr expected_scale = base_scale.value();
     for (size_t i = 0; i < expr->args.size();) {
+      if (is_one(expr->args[i]->source->extent)) {
+        flattened_iters.push_back(expr->args[i]);
+        grouped_iters.push_back(expr->args[i]);
+        i++;
+        continue;
+      }
       // find j such that expr->args[j] has expected scale
       size_t j = i == 0 ? base_index : 0;
       for (; j < expr->args.size(); ++j) {
-        if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)) break;
+        if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)
+            && !is_one(is_one(expr->args[j]->source->extent))) break;
       }
       if (j == expr->args.size()) {
         diag_ctx_.Emit(Diagnostic::Error(expr->span)

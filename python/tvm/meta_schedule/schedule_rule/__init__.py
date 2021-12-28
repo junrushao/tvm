@@ -26,3 +26,4 @@ from .multi_level_tiling import MultiLevelTiling, ReuseType
 from .parallel_vectorize_unroll import ParallelizeVectorizeUnroll
 from .random_compute_location import RandomComputeLocation
 from .schedule_rule import PyScheduleRule, ScheduleRule
+from .multi_level_tiling_memhammer import MultiLevelTilingMemHammer
