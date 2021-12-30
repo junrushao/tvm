@@ -141,7 +141,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * - [blockIdx.x, vthread.x, threadIdx.x] on GPU
    * \param use_tensor_core Whether to apply tensor core wmma intrinsic for the computation
    * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
-   * \param vector_load_max_len The length of vector lane in vectorized cooperative fetching.
+   * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
    * NullOpt means disable vectorization
    * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
    * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
@@ -151,9 +151,26 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<String>> tile_binds,           //
                                                bool use_tensor_core,                         //
                                                Optional<Integer> max_innermost_factor,       //
-                                               Optional<Integer> vector_load_max_len,        //
+                                               Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write);
+  /*!
+   * \brief Create a rule: add-rfactor to some blocks if needed
+   * \param max_jobs_per_core The maximum number of jobs to be launched per CPU core. It sets the
+   * uplimit of CPU parallelism, i.e. `num_cores * max_jobs_per_core`. Use -1 to disable
+   * parallelism.
+   * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule AddRFactor(int max_jobs_per_core,  //
+                                         Optional<Integer> max_innermost_factor);
+  /*!
+   * \brief Create a schedule rule which applies cross-thread reduction to some reduction blocks
+   * correspondingly when needed
+   * \param thread_extents Candidates of thread axis extent (values are required to be positive).
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule CrossThreadReduction(Array<Integer> thread_extents);
   /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The rule created

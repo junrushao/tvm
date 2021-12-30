@@ -384,6 +384,20 @@ TVM_DLL Pass LowerInitBlock();
 TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 
 /*!
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
+ * \return The pass.
+ */
+TVM_DLL Pass ApplyBlockBoundPredicate();
+
+/*!
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
+ * \return The pass.
+ */
+TVM_DLL Pass ApplyBlockBoundPredicate();
+
+/*!
  * \brief Substitute all the block vars with the PrimExprs they are bound to, indicated by the
  *        corresponding iter_values in BlockRealize, for opaque blocks by removing all
  *.        the iter_values in BlockRealize and iter_vars in Block.
@@ -483,6 +497,24 @@ TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
  * \return The pass.
  */
 TVM_DLL Pass ConvertForLoopsToSerial();
+
+/*!
+ * \brief Transform annotated loops into pipelined one that ovarlaps producers and consumers.
+ * \return The IR transform pass.
+ */
+TVM_DLL Pass InjectSoftwarePipeline();
+
+/*!
+ * \brief Automatically do memory optimizations for auto copy blocks
+ * \return The pass.
+ */
+TVM_DLL Pass LowerAutoCopy();
+
+/*!
+ * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+ * \return The pass.
+ */
+TVM_DLL Pass RenormalizeSplitPattern();
 
 }  // namespace transform
 }  // namespace tir

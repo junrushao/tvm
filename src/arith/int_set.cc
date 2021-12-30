@@ -574,6 +574,20 @@ bool IntSet::CanProveNonNegative() const {
   return false;
 }
 
+bool IntSet::HasLowerBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasLowerBound();
+  }
+  return false;
+}
+
+bool IntSet::HasUpperBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasUpperBound();
+  }
+  return false;
+}
+
 SignType IntSet::GetSignType() const {
   if (CanProvePositive()) {
     return kPositive;
@@ -760,6 +774,17 @@ IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map) {
 
 IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   return EvalSet(e, ConvertDomMap(dom_map));
+}
+
+Array<IntSet> EvalSet(const Array<PrimExpr>& exprs, const Map<Var, IntSet>& dom_map) {
+  Array<IntSet> result;
+  result.reserve(exprs.size());
+  Analyzer ana;
+  IntervalSetEvaluator m(&ana, dom_map);
+  for (const PrimExpr& e : exprs) {
+    result.push_back(m.Eval(e));
+  }
+  return result;
 }
 
 IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map) {
