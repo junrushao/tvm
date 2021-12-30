@@ -22,6 +22,7 @@
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 
+#include <random>
 #include <vector>
 
 namespace tvm {
@@ -440,7 +441,6 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
  * \param ann_key The annotation key
  */
 TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key);
-
 /******** Schedule: Misc ********/
 
 }  // namespace tir

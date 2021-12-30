@@ -27,17 +27,18 @@
 #include <tvm/meta_schedule/database.h>
 #include <tvm/meta_schedule/feature_extractor.h>
 #include <tvm/meta_schedule/measure_callback.h>
+#include <tvm/meta_schedule/mutator.h>
+#include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/task_scheduler.h>
 #include <tvm/meta_schedule/tune_context.h>
-#include <tvm/node/node.h>
-#include <tvm/node/serialization.h>
 #include <tvm/support/parallel_for.h>
-#include <tvm/tir/schedule/schedule.h>
 
+#include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 

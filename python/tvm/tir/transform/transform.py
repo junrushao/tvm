@@ -636,6 +636,18 @@ def PlanAndUpdateBufferAllocationLocation():
     return _ffi_api.PlanAndUpdateBufferAllocationLocation()  # type: ignore
 
 
+def ApplyBlockBoundPredicate():
+    """Narrow the extents of some loops by checking whether some constraints in the block iter
+    bound predicates can be directly applied on the loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ApplyBlockBoundPredicate()  # type: ignore
+
+
 def ConvertBlocksToOpaque():
     """Substitute all the block vars with the PrimExprs they are bound to, indicated by
     the corresponding iter_values in BlockRealize, and then convert the blocks into

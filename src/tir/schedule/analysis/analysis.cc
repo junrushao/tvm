@@ -518,6 +518,22 @@ void CheckAffineBinding(const ScheduleState& self, Block block) {
   }
 }
 
+bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  Array<StmtSRef> loops = GetLoops(block_sref);
+  Array<PrimExpr> binds = GetBlockRealize(self, block_sref)->iter_values;
+  if (loops.size() != binds.size()) {
+    return false;
+  }
+  for (int i = 0, n = loops.size(); i < n; ++i) {
+    const ForNode* loop = TVM_SREF_TO_FOR(loop, loops[i]);
+    if (binds[i].get() != loop->loop_var.get()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                          const Optional<StmtSRef>& high_exclusive,
                                          const runtime::StorageScope& extra_relax_scope) {

@@ -25,7 +25,7 @@ from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 
-# pylint: disable=no-member,invalid-name,unused-variable
+# pylint: disable=no-member,invalid-name,unused-variable,line-too-long
 
 
 @T.prim_func

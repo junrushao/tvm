@@ -384,6 +384,20 @@ TVM_DLL Pass LowerInitBlock();
 TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 
 /*!
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
+ * \return The pass.
+ */
+TVM_DLL Pass ApplyBlockBoundPredicate();
+
+/*!
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
+ * \return The pass.
+ */
+TVM_DLL Pass ApplyBlockBoundPredicate();
+
+/*!
  * \brief Substitute all the block vars with the PrimExprs they are bound to, indicated by the
  *        corresponding iter_values in BlockRealize, for opaque blocks by removing all
  *.        the iter_values in BlockRealize and iter_vars in Block.
