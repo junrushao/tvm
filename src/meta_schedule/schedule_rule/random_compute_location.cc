@@ -76,7 +76,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // - Note that only single producer is allowed in this case.
     Array<tir::BlockRV> producers{nullptr};
     if (tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
-                    Bool(true))) {
+                    true)) {
       producers = sch->GetProducers(block_rv);
       sch->Unannotate(block_rv, tir::attr::meta_schedule_random_compute_producer);
       ICHECK_EQ(producers.size(), 1);
