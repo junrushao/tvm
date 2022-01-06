@@ -43,7 +43,6 @@ class UpdateCostModelNode : public MeasureCallbackNode {
         pruned_runner_result.push_back(runner_results[i]);
       }
     }
-    LOG(INFO)<<"build successful candidates: "<<pruned_runner_result.size();
     cost_model->Update(task, pruned_candidate, pruned_runner_result);
   }
 
