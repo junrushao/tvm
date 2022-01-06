@@ -95,7 +95,7 @@ def main():
         config=ms.EvolutionarySearchConfig(
             num_trials_per_iter=64,
             num_trials_total=ARGS.num_trials,
-            init_max_fail_count=8192,
+            init_min_unmeasured=50
         ),
         runner=runner,
         task_name=ARGS.workload,

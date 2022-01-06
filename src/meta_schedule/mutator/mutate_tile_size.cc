@@ -16,6 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <mutex>
+#include <unordered_map>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -100,6 +103,49 @@ bool FindSamplePerfectTile(const Trace& trace, TRandState* rand_state, Instructi
   return false;
 }
 
+struct FactorMemo {
+  static std::vector<int> Factorize(int n) {
+    if (const std::vector<int>* result = Global()->Query(n)) {
+      return *result;
+    }
+    std::vector<int> result;
+    for (int64_t i = 1; i * i < n; ++i) {
+      if (n % i == 0) {
+        result.push_back(i);
+        if (i * i != n) {
+          result.push_back(n / i);
+        }
+      }
+    }
+    std::sort(result.begin(), result.end());
+    Global()->Add(n, result);
+    return result;
+  }
+
+ private:
+  const std::vector<int>* Query(int n) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    auto it = memo_.find(n);
+    if (it != memo_.end()) {
+      return &it->second;
+    }
+    return nullptr;
+  }
+
+  void Add(int n, std::vector<int> result) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    memo_.emplace(n, std::move(result));
+  }
+
+  static FactorMemo* Global() {
+    static FactorMemo singleton;
+    return &singleton;
+  }
+
+  std::unordered_map<int, std::vector<int>> memo_;
+  std::mutex mutex_;
+};
+
 Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
   Instruction inst;
   std::vector<int64_t> tiles;
@@ -108,59 +154,44 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
   }
   int n_splits = tiles.size();
   // Step 1. Choose two loops, `x` and `y`
-  int x = tir::SampleInt(rand_state, 0, n_splits);
-  int y;
-  if (tiles[x] == 1) {
-    // need to guarantee that tiles[x] * tiles[y] > 1
-    std::vector<int> idx;
-    idx.reserve(n_splits);
-    for (int i = 0; i < n_splits; ++i) {
-      if (tiles[i] > 1) {
-        idx.push_back(i);
-      }
+  int x, y;
+  // select source
+  while (true) {
+    x = tir::SampleInt(rand_state, 0, n_splits);
+    if (tiles[x] <= 1) {
+      continue;
     }
-    y = idx[tir::SampleInt(rand_state, 0, idx.size())];
-  } else {
-    // sample without replacement
     y = tir::SampleInt(rand_state, 0, n_splits - 1);
     if (y >= x) {
       ++y;
     }
-  }
-  // make sure x < y
-  CHECK_NE(x, y);
-  if (x > y) {
-    std::swap(x, y);
-  }
-  // Step 2. Choose the new tile size
-  int64_t len_x, len_y;
-  if (y != n_splits - 1) {
-    // Case 1. None of x and y are innermost loop
-    do {
-      std::vector<int64_t> result = tir::SamplePerfectTile(rand_state, tiles[x] * tiles[y], 2);
-      len_x = result[0];
-      len_y = result[1];
-    } while (len_y == tiles[y]);
-  } else {
-    // Case 2. y is the innermost loop
-    std::vector<int64_t> len_y_space;
-    int64_t limit = Downcast<Integer>(inst->attrs[1])->value;
-    int64_t prod = tiles[x] * tiles[y];
-    for (len_y = 1; len_y <= limit; ++len_y) {
-      if (len_y != tiles[y] && prod % len_y == 0) {
-        len_y_space.push_back(len_y);
+    std::vector<int> factors = FactorMemo::Factorize(tiles[x]);
+    // Step 2. Choose the divide factor
+    int64_t divide_factor;
+    if (y != n_splits - 1) {
+      divide_factor = factors[tir::SampleInt(rand_state, 1, factors.size())];
+    } else {
+      int64_t limit = Downcast<Integer>(inst->attrs[1])->value;
+      int max_factor_index = static_cast<int>(factors.size()) - 1;
+      for (; max_factor_index >= 1; max_factor_index--) {
+        if (factors[max_factor_index] * tiles[y] <= limit) {
+          break;
+        }
       }
+      if (max_factor_index == 0) {
+        if (n_splits <= 2) {
+          return NullOpt;
+        }
+        // Failed on this dst_idx, try next one.
+        continue;
+      }
+      divide_factor = factors[tir::SampleInt(rand_state, 1, max_factor_index + 1)];
     }
-    if (len_y_space.empty()) {
-      return NullOpt;
-    }
-    len_y = len_y_space[tir::SampleInt(rand_state, 0, len_y_space.size())];
-    len_x = prod / len_y;
+    tiles[x] /= divide_factor;
+    tiles[y] *= divide_factor;
+    return trace->WithDecision(inst, support::AsArray<int64_t, ObjectRef>(tiles),
+                               /*remove_postproc=*/true);
   }
-  tiles[x] = len_x;
-  tiles[y] = len_y;
-  return trace->WithDecision(inst, support::AsArray<int64_t, ObjectRef>(tiles),
-                             /*remove_postproc=*/true);
 }
 
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
