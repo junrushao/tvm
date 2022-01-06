@@ -315,7 +315,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   /*! \brief The ratio of measured states used in the initial population */
   double init_measured_ratio;
   /*! \brief The minimal size of unmeasured population in the initial sampling.*/
-  int min_unmeasured_population;
+  int init_min_unmeasured;
   /*** Configuration: evolution ***/
   /*! \brief The number of iterations performed by generic algorithm. */
   int genetic_num_iters;
@@ -346,7 +346,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     v->Visit("population_size", &population_size);
     /*** Configuration: the initial population ***/
     v->Visit("init_measured_ratio", &init_measured_ratio);
-    v->Visit("min_unmeasured_population", &min_unmeasured_population);
+    v->Visit("init_min_unmeasured", &init_min_unmeasured);
     /*** Configuration: evolution ***/
     v->Visit("genetic_num_iters", &genetic_num_iters);
     v->Visit("genetic_mutate_prob", &genetic_mutate_prob);
@@ -446,7 +446,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
 std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
   ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> out_schs;
-  while (static_cast<int>(out_schs.size()) < self->min_unmeasured_population) {
+  while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured) {
     std::vector<Schedule> results(num, Schedule{nullptr});
     auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
       PerThreadData& data = self->per_thread_data_.at(thread_id);
@@ -646,7 +646,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
                                                   int num_trials_total,        //
                                                   int population_size,         //
                                                   double init_measured_ratio,  //
-                                                  int min_unmeasured_population,     //
+                                                  int init_min_unmeasured,     //
                                                   int genetic_num_iters,       //
                                                   double genetic_mutate_prob,  //
                                                   int genetic_max_fail_count,  //
@@ -659,7 +659,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
   n->num_trials_total = num_trials_total;
   n->population_size = population_size;
   n->init_measured_ratio = init_measured_ratio;
-  n->min_unmeasured_population = min_unmeasured_population;
+  n->init_min_unmeasured = init_min_unmeasured;
   n->genetic_num_iters = genetic_num_iters;
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;

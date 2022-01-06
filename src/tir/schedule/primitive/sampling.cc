@@ -300,7 +300,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
   CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
-  while(true) {
+  while (true) {
     std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
     if (result.back() <= max_innermost_factor) {
       return result;

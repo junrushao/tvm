@@ -33,11 +33,14 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     ICHECK(task->measure_candidates.defined())  //
         << "Task's measure candidates must be present!";
     CostModel cost_model = task_scheduler->cost_model.value();
+    ICHECK_EQ(measure_candidates.size(), builder_results.size());
+    ICHECK_EQ(runner_results.size(), builder_results.size());
+    int n = builder_results.size();
     Array<MeasureCandidate> pruned_candidate;
     Array<RunnerResult> pruned_runner_result;
-    ICHECK(measure_candidates.size()==builder_results.size());
-    ICHECK(builder_results.size()==runner_results.size());
-    for (int i = 0; i < measure_candidates.size(); i++) {
+    pruned_candidate.reserve(n);
+    pruned_runner_result.reserve(n);
+    for (int i = 0; i < n; i++) {
       if (!builder_results[i]->error_msg.defined()) {
         pruned_candidate.push_back(measure_candidates[i]);
         pruned_runner_result.push_back(runner_results[i]);

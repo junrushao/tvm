@@ -56,7 +56,7 @@ class EvolutionarySearch(SearchStrategy):
     num_trials_total: int
     population_size: int
     init_measured_ratio: int
-    min_unmeasured_population: int
+    init_min_unmeasured: int
     genetic_num_iters: int
     genetic_mutate_prob: float
     genetic_max_fail_count: int
@@ -69,7 +69,7 @@ class EvolutionarySearch(SearchStrategy):
         num_trials_total: int,
         population_size: int,
         init_measured_ratio: float,
-        min_unmeasured_population: int,
+        init_min_unmeasured: int,
         genetic_num_iters: int,
         genetic_mutate_prob: float,
         genetic_max_fail_count: int,
@@ -82,7 +82,7 @@ class EvolutionarySearch(SearchStrategy):
             num_trials_total,
             population_size,
             init_measured_ratio,
-            min_unmeasured_population,
+            init_min_unmeasured,
             genetic_num_iters,
             genetic_mutate_prob,
             genetic_max_fail_count,
@@ -97,7 +97,7 @@ class EvolutionarySearchConfig(NamedTuple):
     num_trials_total: int
     population_size: int = 2048
     init_measured_ratio: float = 0.2
-    min_unmeasured_population: int = 50
+    init_min_unmeasured: int = 50
     genetic_num_iters: int = 4
     genetic_mutate_prob: float = 0.85
     genetic_max_fail_count: int = 10
@@ -109,7 +109,7 @@ class EvolutionarySearchConfig(NamedTuple):
             num_trials_total=self.num_trials_total,
             population_size=self.population_size,
             init_measured_ratio=self.init_measured_ratio,
-            min_unmeasured_population=self.min_unmeasured_population,
+            init_min_unmeasured=self.init_min_unmeasured,
             genetic_num_iters=self.genetic_num_iters,
             genetic_mutate_prob=self.genetic_mutate_prob,
             genetic_max_fail_count=self.genetic_max_fail_count,

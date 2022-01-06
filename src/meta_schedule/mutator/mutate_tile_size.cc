@@ -16,6 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <mutex>
+#include <unordered_map>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -100,27 +103,48 @@ bool FindSamplePerfectTile(const Trace& trace, TRandState* rand_state, Instructi
   return false;
 }
 
-static std::unordered_map<int, std::vector<int>> factor_memory_;
-
-const std::vector<int>& GetFactors(int n) {
-  auto it = factor_memory_.find(n);
-  if (it != factor_memory_.end()) {
-    return it->second;
-  }
-  
-  std::vector<int>& res = factor_memory_[n];
-  int step = n % 2 == 0 ? 1 : 2;
-  for (size_t i = 1; i < static_cast<size_t>(std::sqrt(n)) + 1; i += step) {
-    if (n % i == 0) {
-      res.push_back(i);
-      if (n / i != i) {
-        res.push_back(n / i);
+struct FactorMemo {
+  static std::vector<int> Factorize(int n) {
+    if (const std::vector<int>* result = Global()->Query(n)) {
+      return *result;
+    }
+    std::vector<int> result;
+    for (int64_t i = 1; i * i < n; ++i) {
+      if (n % i == 0) {
+        result.push_back(i);
+        if (i * i != n) {
+          result.push_back(n / i);
+        }
       }
     }
+    std::sort(result.begin(), result.end());
+    Global()->Add(n, result);
+    return result;
   }
-  std::sort(res.begin(), res.end());
-  return res;
-}
+
+ private:
+  const std::vector<int>* Query(int n) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    auto it = memo_.find(n);
+    if (it != memo_.end()) {
+      return &it->second;
+    }
+    return nullptr;
+  }
+
+  void Add(int n, std::vector<int> result) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    memo_.emplace(n, std::move(result));
+  }
+
+  static FactorMemo* Global() {
+    static FactorMemo singleton;
+    return &singleton;
+  }
+
+  std::unordered_map<int, std::vector<int>> memo_;
+  std::mutex mutex_;
+};
 
 Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
   Instruction inst;
@@ -130,20 +154,18 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
   }
   int n_splits = tiles.size();
   // Step 1. Choose two loops, `x` and `y`
-  int x,y;
-  //select source
-  while(true) {
+  int x, y;
+  // select source
+  while (true) {
     x = tir::SampleInt(rand_state, 0, n_splits);
     if (tiles[x] <= 1) {
       continue;
     }
-
     y = tir::SampleInt(rand_state, 0, n_splits - 1);
     if (y >= x) {
       ++y;
     }
-
-    auto factors = GetFactors(tiles[x]);
+    std::vector<int> factors = FactorMemo::Factorize(tiles[x]);
     // Step 2. Choose the divide factor
     int64_t divide_factor;
     if (y != n_splits - 1) {
@@ -157,10 +179,13 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
         }
       }
       if (max_factor_index == 0) {
+        if (n_splits <= 2) {
+          return NullOpt;
+        }
         // Failed on this dst_idx, try next one.
         continue;
       }
-      divide_factor = factors[tir::SampleInt(rand_state, 1, max_factor_index+1)];
+      divide_factor = factors[tir::SampleInt(rand_state, 1, max_factor_index + 1)];
     }
     tiles[x] /= divide_factor;
     tiles[y] *= divide_factor;
