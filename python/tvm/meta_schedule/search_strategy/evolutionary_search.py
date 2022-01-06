@@ -40,8 +40,8 @@ class EvolutionarySearch(SearchStrategy):
         The initial population of traces from measured samples and randomly generated samples.
     init_measured_ratio : int
         The ratio of measured samples in the initial population.
-    init_max_fail_count : int
-        The maximum number to fail trace replaying.
+    init_min_unmeasured : int
+        The minimal size of unmeasured population in the initial sampling.
     genetic_num_iters : int
         The number of iterations for genetic algorithm.
     genetic_mutate_prob : float
