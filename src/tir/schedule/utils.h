@@ -368,6 +368,18 @@ inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& an
  * \brief Check if a Block/For has a specific pair of annotation key and values
  * \param sref The sref to the block or the for loop
  * \param ann_key The annotation key to be checked
+ * \param ann_val The string annotation value to be checked
+ * \return Whether a Block/For has a specific pair of annotation key and values
+ */
+inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const char* ann_val) {
+  Optional<String> result = GetAnn<String>(sref, ann_key);
+  return result.defined() && result.value() == ann_val;
+}
+
+/*!
+ * \brief Check if a Block/For has a specific pair of annotation key and values
+ * \param sref The sref to the block or the for loop
+ * \param ann_key The annotation key to be checked
  * \param ann_val The boolean annotation value to be checked
  * \return Whether a Block/For has a specific pair of annotation key and values
  */
