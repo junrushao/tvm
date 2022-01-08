@@ -112,7 +112,17 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
 
 Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
                                                 Optional<Array<IRModule>> dispatched) {
-  throw;
+  ICHECK(dispatched.defined());
+  ICHECK_EQ(dispatched.value().size(), 1);
+  IRModule prim_mod = dispatched.value()[0];
+  ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
+  ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
+  if (database->HasWorkload(prim_mod)) {
+    Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
+    ICHECK(records.size() == 1) << "No records was found for given workload" << prim_mod;
+    return records[0]->workload->mod;
+  } else
+    return NullOpt;
 }
 
 /**************** FFI ****************/
@@ -146,6 +156,10 @@ TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
 TVM_REGISTER_GLOBAL("meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {
   return TaskExtraction();
 });
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
+    .set_body_typed([](Database database) -> ApplyHistoryBest {
+      return ApplyHistoryBest(database);
+    });
 
 }  // namespace meta_schedule
 }  // namespace tvm
