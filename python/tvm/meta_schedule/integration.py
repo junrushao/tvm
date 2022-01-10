@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
+from tvm.meta_schedule.database.database import Database
 from tvm.relay import Any, Function as RelayFunc, vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
@@ -174,10 +175,16 @@ class TaskExtraction(MetaScheduleContext):
 
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
-    pass
+    """An integration context that allows application of historically best records from a database"""
+
+    database: Database
+    """ The database to be queried from"""
+
+    def __init__(self, database) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
-def extract_task(
+def extract_task_from_relay(
     mod: Union[IRModule, RelayFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,
