@@ -83,10 +83,7 @@ class IndexPatternFinder : public ExprVisitor {
   
   /*!
    * \brief Calculate the new buffer shape after rank promotion.
-   * For each dimension of original shape, it will be split into multiple parts.
-   * The inner array represents the multiple parts of one original dimension,
-   * and the outer array represents the original dimensions
-   * For example, original shape [4, 8] may be split into [[2, 2], [2, 4]]
+   * For each dimension of original shape, it will be compacted.
    * \param indices The access indices of the buffer
    * \param var_range The iter range of the vars in the indices
    * \param rewrite_indices The access indices after rank promotion
@@ -198,135 +195,6 @@ class IndexPatternFinder : public ExprVisitor {
 };
 
 /*!
- * \brief Utilities to perform rank promotion
- */
-class RankPromoter : public StmtExprMutator {
- public:
-  /*!
-   * \brief Flatten the buffer shape like performing inverse rank promotion.
-   * For example, [[i0, i1], [j0, j1]] to [i0 * i1, j0 * j1]
-   * \param new_shape The buffer shape in the special form as returned by getRankPromotedShape
-   * \return The buffer shape after flatten
-   */
-  static Array<PrimExpr> FlattenNewShape(const Array<Array<PrimExpr>>& new_shape) {
-    Array<PrimExpr> ret;
-    ret.reserve(new_shape.size());
-    for (int i = 0; i < static_cast<int>(new_shape.size()); i++) {
-      PrimExpr prod = 1;
-      for (int j = 0; j < static_cast<int>(new_shape[i].size()); j++) {
-        prod *= new_shape[i][j];
-      }
-      ret.push_back(prod);
-    }
-    return ret;
-  }
-  /**
-   * \brief Rewrite the index given the shape after rank promotion
-   * \param indices The original indices
-   * \param new_shape The buffer shape after rank promotion
-   * \return The new indices
-   */
-  static Array<PrimExpr> RewriteIndex(const Array<PrimExpr>& indices,
-                                      const Array<Array<PrimExpr>>& new_shape) {
-    Array<PrimExpr> new_indices;
-    ICHECK_EQ(indices.size(), new_shape.size());
-    for (int i = 0; i < static_cast<int>(indices.size()); i++) {
-      PrimExpr index = indices[i];
-      // The indices transformed from one original dimension
-      Array<PrimExpr> index_dim(new_shape[i].size(), 0);
-      for (int j = static_cast<int>(new_shape[i].size()) - 1; j >= 0; j--) {
-        index_dim.Set(j, floormod(index, new_shape[i][j]));
-        index = floordiv(index, new_shape[i][j]);
-      }
-      for (int j = 0; j < static_cast<int>(new_shape[i].size()); j++) {
-        new_indices.push_back(index_dim[j]);
-      }
-    }
-    return new_indices;
-  }
-  /*!
-   * \brief Rewrite the index after buffer flattening
-   * \param indices The original indices
-   * \param new_shape The shape before buffer flattening
-   * \return The indices after buffer flattening
-   */
-  static Array<PrimExpr> RewriteBackIndex(const Array<PrimExpr>& indices,
-                                          const Array<Array<PrimExpr>>& new_shape) {
-    Array<PrimExpr> new_indices;
-    int offset = 0;
-    for (int i = 0; i < static_cast<int>(new_shape.size()); i++) {
-      PrimExpr index = 0;
-      for (int j = 0; j < static_cast<int>(new_shape[i].size()); j++) {
-        index *= new_shape[i][j];
-        index += indices[offset + j];
-      }
-      new_indices.push_back(index);
-      offset += new_shape[i].size();
-    }
-    return new_indices;
-  }
-  RankPromoter(const Buffer& src, const Buffer& dst, const Array<Array<PrimExpr>>& new_shape,
-               const Array<Array<PrimExpr>>& relaxed_new_shape, const Array<Range>& relaxed_region)
-      : src_(src),
-        dst_(dst),
-        new_shape_(new_shape),
-        relaxed_new_shape_(relaxed_new_shape),
-        relaxed_region_(relaxed_region) {}
-
-  static Stmt RewriteBody(Stmt stmt, const Buffer& src, const Buffer& dst,
-                          const Array<Array<PrimExpr>>& new_shape,
-                          const Array<Array<PrimExpr>>& relaxed_new_shape,
-                          const Array<Range>& relaxed_region) {
-    RankPromoter promoter(src, dst, new_shape, relaxed_new_shape, relaxed_region);
-    return promoter(stmt);
-  }
-
- private:
-  Stmt VisitStmt_(const BufferStoreNode* _store) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
-    if (store->buffer.same_as(src_)) {
-      ObjectPtr<BufferStoreNode> new_store = make_object<BufferStoreNode>(*store.get());
-      new_store->buffer = dst_;
-      new_store->indices = ConvertIndices(new_store->indices);
-      return BufferStore(new_store);
-    }
-    return std::move(store);
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
-    if (load->buffer.same_as(src_)) {
-      ObjectPtr<BufferLoadNode> new_load = make_object<BufferLoadNode>(*load.get());
-      new_load->buffer = dst_;
-      new_load->indices = ConvertIndices(new_load->indices);
-      return BufferLoad(new_load);
-    }
-    return std::move(load);
-  }
-
-  /*!
-   * \brief Rewrite the indices after performing buffer rank promotion +
-   * buffer compacting + buffer flattening.
-   * \param indices The origina indices
-   * \return The indices after these transformations
-   */
-  Array<PrimExpr> ConvertIndices(const Array<PrimExpr>& indices) {
-    Array<PrimExpr> rewrite_indices = RewriteIndex(indices, new_shape_);
-    arith::Analyzer analyzer;
-    for (int i = 0; i < static_cast<int>(rewrite_indices.size()); i++) {
-      rewrite_indices.Set(i, analyzer.Simplify(rewrite_indices[i] - relaxed_region_[i]->min));
-    }
-    return RewriteBackIndex(rewrite_indices, relaxed_new_shape_);
-  }
-
-  const Buffer& src_;
-  const Buffer& dst_;
-  Array<Array<PrimExpr>> new_shape_;
-  Array<Array<PrimExpr>> relaxed_new_shape_;
-  Array<Range> relaxed_region_;
-};
-
-/*!
  * \brief Insert a cache stage to the compute location
  * \param stmt the stmt
  * \param is_write_cache whether to write a read cache or write cache
@@ -405,12 +273,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
     new_loop_vars.push_back(new_loop_var);
     subst_map.Set(loop->loop_var, new_loop_var);
   }
-  // Step 3.1 create a buffer for the cache
+  // Step 2.1 create a buffer for the cache
   Buffer new_buffer = WithScope(orig_buffer, storage_scope);
   BufferNode* buffer_ptr = new_buffer.CopyOnWrite();
   buffer_ptr->shape = new_shape;
   *alloc_buffer = new_buffer;
-  // Step 3.2 generate a body that writes to the cache
+  // Step 2.2 generate a body that writes to the cache
   Array<PrimExpr> subst_indices;
   Array<PrimExpr> subst_cache_indices;
   if (is_write_cache) {
@@ -454,7 +322,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
     new_loop->annotations={};
     generate_body = For(new_loop);
   }
-  // Step 3.3 rewrite the original body to load from cache
+  // Step 2.3 rewrite the original body to load from cache
   Stmt rewrite_body = is_write_cache
                           ? BufferStore(new_buffer, BufferLoad(another_buffer, buf_load->indices),
                                         cache_indices)
