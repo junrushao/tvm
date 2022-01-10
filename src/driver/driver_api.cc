@@ -36,6 +36,9 @@
 #include <mutex>
 #include <stack>
 
+#include "../printer/text_printer.h"
+#include <tvm/ir/transform.h>
+
 namespace tvm {
 
 // Register build pipeline related options
@@ -187,6 +190,14 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
+Pass Print() {
+  auto pass_func = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+    LOG(INFO) << tir::AsTVMScript(f);
+    return f;
+  };
+  return tir::transform::CreatePrimFuncPass(pass_func, 0, "tir.Print", {});
+}
+
 Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
@@ -271,6 +282,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
   // PHASE 3
   pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::RenormalizeSplitPattern());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
   pass_list.push_back(tir::transform::HoistIfThenElse());

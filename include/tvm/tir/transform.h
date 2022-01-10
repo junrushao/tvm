@@ -496,6 +496,11 @@ TVM_DLL Pass InjectSoftwarePipeline();
  */
 TVM_DLL Pass LowerAutoCopy();
 
+/*!
+ * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+ * \return The pass.
+ */
+TVM_DLL Pass RenormalizeSplitPattern();
 
 }  // namespace transform
 }  // namespace tir

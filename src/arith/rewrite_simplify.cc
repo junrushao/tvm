@@ -192,6 +192,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE(truncdiv(x, c1) * c1 + truncmod(x, c1), x);
     // floor div
     TVM_TRY_REWRITE(floordiv(x, c1) * c1 + floormod(x, c1), x);
+    TVM_TRY_REWRITE_IF(floordiv(floormod(x, c2) + c1, c2) + floordiv(x, c2), floordiv(x + c1, c2),
+                       c2.Eval()->value > 0);
 
     // canonicalization rule
     // will try rewrite again after canonicalization.
