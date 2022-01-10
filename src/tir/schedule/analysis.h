@@ -332,14 +332,6 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref);
 bool HasSingleChild(const StmtSRef& loop_or_block_sref);
 
 /*!
- * \brief Check if a block is the direct children of the root block
- * \param self The TIR schedule class
- * \param block_sref The block to be analyzed
- * \return A boolean flag indicating if the block is the subroot block
- */
-bool IsSubrootBlock(const tir::ScheduleState& self, const tir::StmtSRef& block_sref);
-
-/*!
  * \brief Get the lowest common ancestor of an array of blocks or loops on the sref tree
  * \param srefs The block srefs or loop srefs whose lowest common ancestor is to be queried
  * \return The lowest common ancestor of the input block srefs or loop srefs
@@ -348,12 +340,14 @@ bool IsSubrootBlock(const tir::ScheduleState& self, const tir::StmtSRef& block_s
 StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs);
 
 /*!
- * \brief Collect all the feasible compute locations among the loops above the block
- * \param self The TIR schedule class
- * \param block_sref The input block
- * \return All the feasible compute locations among the loops above the block
+ * \brief Collect all the feasible compute-at locations of the input block
+ * \param self The schedule state
+ * \param block_sref The block whose compute-at locations are to be collected
+ * \return All the feasible compute-at locations of the input block, given as an array of loop srefs
+ * and an array of their indices among the outer loops of the input block
  */
-Array<StmtSRef> CollectComputeLocation(const ScheduleState& self, const StmtSRef& block_sref);
+std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref);
 
 /******** Tensorization ********/
 
@@ -452,7 +446,7 @@ class TensorizeInfo : public ObjectRef {
 /*!
  * \brief Check if the given block can be tensorized, and in the meantime gather the necessary
  * information for tensorization
- * \param self The TIR schedule
+ * \param self The schedule state
  * \param block_sref The block to be analyzed
  * \param desc_func The target function for tensorization
  * \return The necessary information used for tensorization, or NullOpt if the block cannot be

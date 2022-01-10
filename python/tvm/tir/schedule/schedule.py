@@ -375,19 +375,19 @@ class Schedule(Object):
         block: BlockRV,
         decision: Optional[int] = None,
     ) -> LoopRV:
-        """Sample a compute-at location on a BlockRV so that its producer can compute at that loop
+        """Sample a compute-at location of the given block
 
         Parameters
         ----------
         block : BlockRV
-            The consumer block to be computed at
+            The block whose compute-at location is to be sampled
         decision : Optional[int]
             The sampling decision
 
         Returns
         -------
         result : LoopRV
-            The sampled loop to be computed at
+            The sampled loop where the input block is to be computed at
         """
         return _ffi_api.ScheduleSampleComputeLocation(  # pylint: disable=no-member
             self,

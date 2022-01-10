@@ -796,11 +796,6 @@ bool HasSingleChild(const StmtSRef& loop_or_block_sref) {
   return true;
 }
 
-bool IsSubrootBlock(const tir::ScheduleState& self, const tir::StmtSRef& block_sref) {
-  tir::StmtSRef parent_block_sref = GetScopeRoot(self, block_sref, false, false);
-  return parent_block_sref->parent == nullptr;
-}
-
 StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs) {
   CHECK(!srefs.empty()) << "ValueError: The input array is required to have at least one sref";
 
@@ -822,24 +817,81 @@ StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs) {
   return GetRef<StmtSRef>(p);
 }
 
-Array<StmtSRef> CollectComputeLocation(const ScheduleState& self, const StmtSRef& block_sref) {
-  Array<StmtSRef> loop_srefs = GetLoops(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(loop_srefs.size());
-  bool visited_reduce = false;
-  for (const StmtSRef& loop_sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
-    IterVarType iter_type = GetLoopIterType(loop_sref);
+std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref) {
+  Array<StmtSRef> location_srefs;
+  std::vector<int> location_indices;
+
+  // Step 1. Add the "compute-root" candidate. Add the "compute-inline" candidate if the block can
+  // be inlined.
+  if (CanComputeInline(self, block_sref)) {
+    location_srefs.push_back(StmtSRef::InlineMark());
+    location_indices.push_back(-2);
+  }
+  location_srefs.push_back(StmtSRef::RootMark());
+  location_indices.push_back(-1);
+
+  // Step 2. If the block has no consumer, there is no more candidate.
+  Array<StmtSRef> consumers = GetConsumers(self, block_sref);
+  if (consumers.empty()) {
+    return std::make_pair(location_srefs, location_indices);
+  }
+  // Step 3. Get the deepest loop that the input block can be computed at (namely "boundary"). If
+  // such a loop cannot be found, there is no more candidate and we just return.
+  StmtSRef loop_boundary = consumers.size() > 1 ? GetSRefLowestCommonAncestor(consumers)
+                                                : GetRef<StmtSRef>(consumers[0]->parent);
+  if (loop_boundary->StmtAs<BlockNode>() != nullptr) {
+    return std::make_pair(location_srefs, location_indices);
+  }
+
+  // Step 4. Collect the loops outside the first consumer and locate the boundary loop. The position
+  // of the boundary loop reveals the number of possible additional candidates.
+  Array<StmtSRef> loop_srefs = GetLoops(consumers[0]);
+  int lca_pos = std::find(loop_srefs.begin(), loop_srefs.end(), loop_boundary) - loop_srefs.begin();
+  ICHECK_LT(lca_pos, static_cast<int>(loop_srefs.size()));
+  int n_candidate = lca_pos + 1;
+
+  // Step 5. Find the position of the deepest data-parallel loop among the candidate loops. This
+  // position is used for removing the unwanted candidates from the perspective of performance.
+  std::vector<IterVarType> loop_iter_types;
+  loop_iter_types.reserve(n_candidate);
+  int i_last_datapar = -1;
+  for (int i = 0; i < n_candidate; ++i) {
+    IterVarType iter_type = GetLoopIterType(loop_srefs[i]);
+    loop_iter_types.push_back(iter_type);
     if (iter_type == IterVarType::kDataPar) {
+      i_last_datapar = i;
+    }
+  }
+  // Step 6. Check and add the candidates in turn according to the following rules:
+  //  - skip the unit loops (loops with extent 1);
+  //  - do not consider the data-parallel loops after a not-data-parallel loop;
+  //  - do not consider the trailing not-data-parallel loops.
+  location_srefs.reserve(n_candidate + 2);
+  location_indices.reserve(n_candidate + 2);
+  bool visited_reduce = false;
+  for (int i = 0; i < n_candidate; ++i) {
+    const int64_t* loop_extent = GetLoopIntExtent(loop_srefs[i]);
+    if (loop_extent != nullptr && *loop_extent == 1) {
+      continue;
+    }
+
+    if (loop_iter_types[i] == IterVarType::kDataPar) {
       if (visited_reduce) {
         break;
       }
     } else {
       visited_reduce = true;
+      if (i > i_last_datapar) {
+        break;
+      }
     }
-    result.push_back(loop_sref);
+
+    location_srefs.push_back(loop_srefs[i]);
+    location_indices.push_back(i);
   }
-  return result;
+
+  return std::make_pair(location_srefs, location_indices);
 }
 
 /******** Tensorization ********/

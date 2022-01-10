@@ -30,7 +30,7 @@
 #include "tvm/tir/transform.h"
 /*!
  * \brief Automatically do memory optimizations for auto copy blocks
- * \file lower_auto_copy.cc
+ * \file memhammer_lower_auto_copy.cc
  */
 
 namespace tvm {

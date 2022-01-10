@@ -347,51 +347,38 @@ std::vector<int64_t> SamplePerfectTile(
 
 tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
-                                    const tir::StmtSRef& block_sref, Optional<Integer>* decision) {
-  // Find all possible compute-at locations
-  Array<tir::StmtSRef> loop_srefs = tir::CollectComputeLocation(self, block_sref);
-  int n = loop_srefs.size();
-  // Extract non-unit loops
-  std::vector<int> choices;
-  choices.reserve(n);
-  for (int i = 0; i < n; ++i) {
-    const int64_t* extent = tir::GetLoopIntExtent(loop_srefs[i]);
-    if (extent != nullptr) {
-      choices.push_back(i);
-    }
-  }
-  // The decision made, by default it is -1
-  int i = -1;
+                                    const StmtSRef& block_sref, Optional<Integer>* decision) {
+  // Step 1. Collect all possible compute-at locations.
+  Array<tir::StmtSRef> location_srefs;
+  std::vector<int> location_indices;
+  std::tie(location_srefs, location_indices) = CollectComputeLocation(self, block_sref);
+  ICHECK_EQ(location_srefs.size(), location_indices.size());
+
+  // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the
+  // location candidates. Otherwise, pick the location before the previous decision.
+  // Step 3. If there was not a previous decision, sample a decision from the collected locations.
   if (decision->defined()) {
-    // Handle existing decision
-    const auto* int_imm = decision->as<IntImmNode>();
-    int64_t decided = int_imm->value;
-    if (decided == -2 || decided == -1) {
-      i = decided;
+    int64_t old_decision = Downcast<Integer>(*decision)->value;
+    auto it = std::lower_bound(location_indices.begin(), location_indices.end(), old_decision);
+    int idx = it - location_indices.begin();
+
+    if (it != location_indices.end() && *it == old_decision) {
+      *decision = Integer(old_decision);
+      return location_srefs[idx];
+    } else if (it != location_indices.begin()) {
+      *decision = Integer(*--it);
+      return location_srefs[idx - 1];
     } else {
-      for (int choice : choices) {
-        if (choice <= decided) {
-          i = choice;
-        } else {
-          break;
-        }
-      }
+      *decision = Integer(-1);
+      return StmtSRef::RootMark();
     }
   } else {
-    // Sample possible combinations
-    i = SampleInt(rand_state, -2, choices.size());
-    if (i >= 0) {
-      i = choices[i];
-    }
+    int sampled_idx = SampleInt(rand_state, 0, location_indices.size());
+    *decision = Integer(location_indices[sampled_idx]);
+    return location_srefs[sampled_idx];
   }
-  *decision = Integer(i);
-  if (i == -2) {
-    return tir::StmtSRef::InlineMark();
-  }
-  if (i == -1) {
-    return tir::StmtSRef::RootMark();
-  }
-  return loop_srefs[i];
+  ICHECK(false) << "Cannot reach here";
+  throw;
 }
 
 /******** InstructionKind Registration ********/

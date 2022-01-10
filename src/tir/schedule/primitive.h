@@ -101,11 +101,12 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision);
 /*!
- * \brief Sample a compute-at location on a BlockRV so that its producer can compute at that loop
+ * \brief Sample a compute-at location of the given block
  * \param self The schedule state
  * \param rand_state The random state
- * \param block_rv The consumer block to be computed at
- * \return The sampled loop to be computed at
+ * \param block_sref The sref of the block whose compute-at location is to be sampled
+ * \param decision The sampling decision
+ * \return The sampled loop where the input block is to be computed at
  */
 TVM_DLL tir::StmtSRef SampleComputeLocation(
     tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,

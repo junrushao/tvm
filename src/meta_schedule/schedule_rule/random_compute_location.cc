@@ -23,30 +23,39 @@ namespace meta_schedule {
 
 class RandomComputeLocationNode : public ScheduleRuleNode {
  public:
-  bool IsFreeBlock(const tir::Schedule sch, const tir::StmtSRef& block_sref) const {
+  bool CheckConditions(const tir::Schedule sch, const tir::BlockRV& block_rv) const {
+    const tir::StmtSRef& block_sref = sch->GetSRef(block_rv);
+    const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+
+    // Cond 1. The block is not the root block.
     if (block_sref->parent == nullptr) {
       return false;
     }
-    if (!tir::IsSubrootBlock(sch->state(), block_sref)) {
+    // Cond 2. The block should be the direct child block of the root block.
+    if (GetScopeRoot(sch->state(), block_sref,          //
+                     /*require_stage_pipeline=*/false,  //
+                     /*require_subtree_compact_dataflow=*/false)
+            ->parent != nullptr) {
       return false;
     }
-    tir::ScheduleState state = sch->state();
-    if (!tir::IsCompleteBlock(state, block_sref,
-                              tir::GetScopeRoot(state, block_sref, false, false))) {
-      return false;
-    }
+    // Cond 3 & 4. The block has at least one outer loop, and the outermost loop has only one child
+    // block.
     Array<tir::StmtSRef> loop_srefs = tir::GetLoops(block_sref);
-    for (const tir::StmtSRef& loop_sref : loop_srefs) {
-      if (!tir::HasSingleChild(loop_sref)) {
-        return false;
-      }
+    if (loop_srefs.empty()) {
+      return false;
     }
-    Array<PrimExpr> binds = tir::GetBlockRealize(state, block_sref)->iter_values;
-    for (const PrimExpr& bind : binds) {
-      if (!bind->IsInstance<IntImmNode>() && !bind->IsInstance<tir::VarNode>()) {
-        return false;
-      }
+    if (tir::GetChildBlockSRefOnSRefTree(sch->state(), loop_srefs[0]).size() > 1) {
+      return false;
     }
+    // Cond 5. The block is not tiled. We check this condition by examine the block's annotation.
+    if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined()) {
+      return false;
+    }
+    // Cond 6. The block has at lease one consumer.
+    if (tir::GetConsumers(sch->state(), sch->GetSRef(block_rv)).empty()) {
+      return false;
+    }
+
     return true;
   }
 
@@ -55,18 +64,44 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
-    tir::StmtSRef block_sref = sch->GetSRef(block_rv);
-    if (!IsFreeBlock(sch, block_sref)) {
+    if (!CheckConditions(sch, block_rv)) {
       return {sch};
     }
-    Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
-    if (consumers.size() != 1) {
-      return {sch};
+
+    // Step 1. If the producer of the input block needs a random compute-at location (specified by
+    // the annotation), we colect the producer first, and transform the producer block later.
+    // - The reason we collect the producer before transforming the input block is that, if the
+    // decision of Sample-Compute-Location is "compute-inline" for the input block, we can no longer
+    // access the input block. Hence we collect its producer ahead of time.
+    // - Note that only single producer is allowed in this case.
+    Array<tir::BlockRV> producers{nullptr};
+    if (tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
+                    true)) {
+      producers = sch->GetProducers(block_rv);
+      sch->Unannotate(block_rv, tir::attr::meta_schedule_random_compute_producer);
+      ICHECK_EQ(producers.size(), 1);
     }
-    tir::BlockRV consumer = consumers[0];
-    // Try to compute `block_rv` at `consumer`
+
+    // Step 2. Transform the input block.
+    tir::Schedule res = RandomlyComputeAt(sch, block_rv);
+
+    // Step 3. Transform the producer block if compute-location sampling is needed.
+    if (producers.defined()) {
+      res = RandomlyComputeAt(res, producers[0]);
+    }
+
+    return {res};
+  }
+
+  /*!
+   * \brief Keep sampling a compute-at location for the input block until success.
+   * \param sch The TIR schedule
+   * \param block_rv The block whose compute-at location is to be sampled
+   * \return The TIR schedule after transformation
+   */
+  tir::Schedule RandomlyComputeAt(const tir::Schedule& sch, const tir::BlockRV& block_rv) {
     for (;;) {
-      tir::LoopRV compute_at_loc = sch->SampleComputeLocation(consumer);
+      tir::LoopRV compute_at_loc = sch->SampleComputeLocation(block_rv);
       try {
         sch->ComputeAt(block_rv, compute_at_loc, true);
       } catch (const dmlc::Error& e) {
@@ -79,7 +114,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
       }
       break;
     }
-    return {sch};
+    return sch;
   }
 
  public:
