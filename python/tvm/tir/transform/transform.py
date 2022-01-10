@@ -761,6 +761,7 @@ def InjectSoftwarePipeline():
     """
     return _ffi_api.InjectSoftwarePipeline()  # type: ignore
 
+
 def LowerAutoCopy():
     """Automatically do memory optimizations for auto copy blocks
 
@@ -771,3 +772,13 @@ def LowerAutoCopy():
     """
     return _ffi_api.LowerAutoCopy()
 
+
+def RenomalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()
