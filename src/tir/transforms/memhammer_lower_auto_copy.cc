@@ -550,7 +550,7 @@ class AutoPadder {
       }
       StmtExprVisitor::VisitExpr_(op);
     }
-    
+
     /*!
      * \brief Take a typical warp and collect the iteration space for load_matrix_sync and
      * store_matrix_sync

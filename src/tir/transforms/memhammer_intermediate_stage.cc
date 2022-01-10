@@ -73,14 +73,12 @@ class IndexPatternFinder : public ExprVisitor {
  public:
   IndexPatternFinder(const Map<Var, Range>& var_range, Array<PrimExpr>* resulting_index)
       : var_range_(var_range), resulting_index_(resulting_index) {}
-  struct Operator{
-    enum class OpKind{
-      Mul, FloorDiv, FloorMod
-    };
+  struct Operator {
+    enum class OpKind { Mul, FloorDiv, FloorMod };
     OpKind kind;
     int64_t operand;
   };
-  
+
   /*!
    * \brief Calculate the new buffer shape after rank promotion.
    * For each dimension of original shape, it will be compacted.
@@ -90,8 +88,8 @@ class IndexPatternFinder : public ExprVisitor {
    * \return The new buffer shape after rank promotion.
    */
   static Array<PrimExpr> getRankPromotedShape(Array<PrimExpr> indices,
-                                                     const Map<Var, Range>& var_range,
-                                                     Array<PrimExpr>* rewrite_indices) {
+                                              const Map<Var, Range>& var_range,
+                                              Array<PrimExpr>* rewrite_indices) {
     Map<Var, arith::IntSet> var_dom = AsIntSet(var_range);
     Array<PrimExpr> new_shape;
     for (const PrimExpr& expr : indices) {
@@ -101,12 +99,12 @@ class IndexPatternFinder : public ExprVisitor {
       Array<PrimExpr> access_shape = extractor.access_shape_;
       PrimExpr product_shape = 1;
       for (PrimExpr e : access_shape) {
-        product_shape*=e;
+        product_shape *= e;
       }
       new_shape.push_back(product_shape);
-      PrimExpr flatten_index=0;
+      PrimExpr flatten_index = 0;
       for (int i = 0; i < static_cast<int>(access_shape.size()); i++) {
-        flatten_index = flatten_index*access_shape[i]+indices_dim[i];
+        flatten_index = flatten_index * access_shape[i] + indices_dim[i];
       }
       rewrite_indices->push_back(flatten_index);
     }
@@ -114,15 +112,13 @@ class IndexPatternFinder : public ExprVisitor {
   }
 
  private:
-  inline int gcd(int a, int b){
-    return b>0? gcd(b, a%b):a;
-  }
+  inline int gcd(int a, int b) { return b > 0 ? gcd(b, a % b) : a; }
   void VisitExpr_(const VarNode* op) final {
     if (Optional<Range> range = var_range_.Get(GetRef<Var>(op))) {
       PrimExpr index = GetRef<Var>(op);
       int64_t max = range.value()->extent.as<IntImmNode>()->value;
       int64_t extent = max;
-      for (int i = static_cast<int>(operator_stack.size()) -1; i >= 0; i--) {
+      for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {
         Operator o = operator_stack[i];
         switch (o.kind) {
           case Operator::OpKind::Mul:
@@ -130,8 +126,8 @@ class IndexPatternFinder : public ExprVisitor {
             index = index * Integer(o.operand);
             break;
           case Operator::OpKind::FloorDiv:
-            max = (max+o.operand-1)/o.operand;
-            if(extent>max){
+            max = (max + o.operand - 1) / o.operand;
+            if (extent > max) {
               extent = max;
             }
             index = floordiv(index, Integer(o.operand));
@@ -140,7 +136,7 @@ class IndexPatternFinder : public ExprVisitor {
             if (max % extent == 0) {
               int64_t step = max / extent;
               int coef = gcd(step, o.operand);
-              int new_operand = o.operand/coef;
+              int new_operand = o.operand / coef;
               if (extent > new_operand) {
                 extent = new_operand;
               }
@@ -153,13 +149,13 @@ class IndexPatternFinder : public ExprVisitor {
             index = floormod(index, Integer(o.operand));
         }
       }
-      ICHECK(extent>=1);
+      ICHECK(extent >= 1);
       if (extent > 1) {
         if (max % extent == 0) {
           access_shape_.push_back(Integer(extent));
           resulting_index_->push_back(floordiv(index, max / extent));
         } else {
-          //todo: enable further careful analysis
+          // todo: enable further careful analysis
           access_shape_.push_back(Integer(max));
           resulting_index_->push_back(index);
         }
@@ -187,7 +183,7 @@ class IndexPatternFinder : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
     operator_stack.pop_back();
   }
-  
+
   Map<Var, Range> var_range_;
   Array<PrimExpr> access_shape_;
   Array<PrimExpr>* resulting_index_;
@@ -293,11 +289,10 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
   for (PrimExpr e : cache_indices) {
     subst_cache_indices.push_back(Substitute(e, subst_map));
   }
-  Stmt generate_body = is_write_cache
-                           ? BufferStore(orig_buffer, BufferLoad(new_buffer, subst_cache_indices),
-                                         subst_indices)
-                           : BufferStore(new_buffer, BufferLoad(orig_buffer, subst_indices),
-                                         subst_cache_indices);
+  Stmt generate_body =
+      is_write_cache
+          ? BufferStore(orig_buffer, BufferLoad(new_buffer, subst_cache_indices), subst_indices)
+          : BufferStore(new_buffer, BufferLoad(orig_buffer, subst_indices), subst_cache_indices);
   if (predicate.defined()) {
     // generated by coalescing
     CHECK_EQ(loops_under_compute_location.size(), 2);
@@ -315,20 +310,19 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
   for (int i = static_cast<int>(relaxed_thread_loops.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = relaxed_thread_loops[i];
     ObjectPtr<ForNode> new_loop = make_object<ForNode>(*orig_loop);
-    new_loop->loop_var = new_loop_vars[i+loops_under_compute_location.size()];
+    new_loop->loop_var = new_loop_vars[i + loops_under_compute_location.size()];
     new_loop->body = generate_body;
-    new_loop->kind=ForKind::kSerial;
+    new_loop->kind = ForKind::kSerial;
     new_loop->thread_binding = NullOpt;
-    new_loop->annotations={};
+    new_loop->annotations = {};
     generate_body = For(new_loop);
   }
   // Step 2.3 rewrite the original body to load from cache
-  Stmt rewrite_body = is_write_cache
-                          ? BufferStore(new_buffer, BufferLoad(another_buffer, buf_load->indices),
-                                        cache_indices)
-                          : BufferStore(another_buffer, BufferLoad(new_buffer, cache_indices),
-                                        buf_store->indices);
-  if(predicate.defined()) {
+  Stmt rewrite_body =
+      is_write_cache
+          ? BufferStore(new_buffer, BufferLoad(another_buffer, buf_load->indices), cache_indices)
+          : BufferStore(another_buffer, BufferLoad(new_buffer, cache_indices), buf_store->indices);
+  if (predicate.defined()) {
     rewrite_body = IfThenElse(predicate.value(), rewrite_body);
   }
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
@@ -356,7 +350,7 @@ Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraint
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
                                         constraints.outer_loops, &cache_buffer)
                            .first;
-  if(cache_buffer.defined()) {
+  if (cache_buffer.defined()) {
     output->alloc_buffer.push_back(cache_buffer);
   }
   return after_caching;

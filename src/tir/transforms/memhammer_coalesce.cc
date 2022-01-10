@@ -74,8 +74,8 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   PrimExpr tot_threads = threadIdx_x * threadIdx_y * threadIdx_z;
   PrimExpr data_bits = constraints.data_bits;
   PrimExpr vector_len = max(1, vector_bytes * 8 / data_bits);
-  PrimExpr outer_loop_extent = indexdiv(loop->extent + tot_threads * vector_len-1, tot_threads *
-                                                                                       vector_len);
+  PrimExpr outer_loop_extent =
+      indexdiv(loop->extent + tot_threads * vector_len - 1, tot_threads * vector_len);
   Array<PrimExpr> factors{outer_loop_extent};
   std::vector<std::string> thread_axis;
   // generate thread binding loops
@@ -112,7 +112,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
       return NullOpt;
     }
   });
-  
+
   PrimExpr predicate = substitute_value < loop->extent;
   if (!analyzer.CanProve(predicate)) {
     body = IfThenElse(predicate, body);
