@@ -31,7 +31,7 @@ logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
 @pytest.mark.skip("Integration test")
-@pytest.mark.parametrize("model_name", ["resnet18"])
+@pytest.mark.parametrize("model_name", ["resnet18", "mobilenet_v2", "bert_base"])
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("target", ["llvm --num-cores=16", "nvidia/geforce-rtx-3070"])
 def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str):
@@ -47,6 +47,9 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
         input_shape = (1, 3, 300, 300)
     elif MODEL_TYPES[model_name] == MODEL_TYPE.VIDEO_CLASSIFICATION:
         input_shape = (batch_size, 3, 3, 299, 299)
+    elif MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
+        seq_length = 128
+        input_shape = (batch_size, seq_length)
     else:
         raise ValueError("Unsupported model: " + model_name)
     output_shape: Tuple[int, int] = (batch_size, 1000)
@@ -71,7 +74,7 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
             work_dir=work_dir,
         )
         for i, sch in enumerate(schs):
-            print("-" * 10 + f" Part {i}/{len(schs)} " + "-" * 10)
+            print("-" * 10 + f" Part {i+1}/{len(schs)} " + "-" * 10)
             if sch is None:
                 print("No valid schedule found!")
             else:
@@ -80,5 +83,6 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("resnet18", 1, "nvidia/geforce-rtx-3070")
+    # test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
+    # test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("bert_base", 1, "llvm --num-cores=16")
