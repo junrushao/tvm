@@ -624,6 +624,11 @@ def PlanAndUpdateBufferAllocationLocation():
     return _ffi_api.PlanAndUpdateBufferAllocationLocation()  # type: ignore
 
 
+def ApplyBlockBoundPredicate():
+    """# Todo"""
+    return _ffi_api.ApplyBlockBoundPredicate()  # type: ignore
+
+
 def ConvertBlocksToOpaque():
     """Substitute all the block vars with the PrimExprs they are bound to, indicated by
     the corresponding iter_values in BlockRealize, and then convert the blocks into

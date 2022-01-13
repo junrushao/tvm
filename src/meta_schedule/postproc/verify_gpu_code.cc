@@ -77,6 +77,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::LowerCrossThreadReduction());
           pass_list.push_back(tir::transform::LowerInitBlock());
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+          pass_list.push_back(tir::transform::ApplyBlockBoundPredicate());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::Simplify());

@@ -383,6 +383,13 @@ TVM_DLL Pass LowerInitBlock();
  */
 TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 
+/*! // Todo
+ * \brief
+ *
+ * \return TVM_DLL
+ */
+TVM_DLL Pass ApplyBlockBoundPredicate();
+
 /*!
  * \brief Substitute all the block vars with the PrimExprs they are bound to, indicated by the
  *        corresponding iter_values in BlockRealize, for opaque blocks by removing all
