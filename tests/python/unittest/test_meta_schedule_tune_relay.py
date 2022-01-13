@@ -83,6 +83,9 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
 
 if __name__ == """__main__""":
-    # test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
-    # test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("resnet18", 1, "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("mobilenet_v2", 1, "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
     test_meta_schedule_tune_relay("bert_base", 1, "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("bert_base", 1, "nvidia/geforce-rtx-3070")
