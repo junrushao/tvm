@@ -625,7 +625,14 @@ def PlanAndUpdateBufferAllocationLocation():
 
 
 def ApplyBlockBoundPredicate():
-    """# Todo"""
+    """Narrow the extents of some loops by checking whether some constraints in the block iter
+    bound predicates can be directly applied on the loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
     return _ffi_api.ApplyBlockBoundPredicate()  # type: ignore
 
 

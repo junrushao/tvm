@@ -383,10 +383,10 @@ TVM_DLL Pass LowerInitBlock();
  */
 TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 
-/*! // Todo
- * \brief
- *
- * \return TVM_DLL
+/*!
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
+ * \return The pass.
  */
 TVM_DLL Pass ApplyBlockBoundPredicate();
 

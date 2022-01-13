@@ -97,8 +97,8 @@ class BoundPredicateParserSimplifier : public ExprMutator {
 };
 
 /*!
- * \brief Substitute expr via BlockRealize value bindings and convert each block into opaque
- *        blocks. // Todo
+ * \brief Narrow the extents of some loops by checking whether some constraints in the block iter
+ * bound predicates can be directly applied on the loops.
  */
 class LoopExtentMutator : public StmtMutator {
  private:
@@ -155,8 +155,9 @@ class LoopExtentMutator : public StmtMutator {
     return For(p_new_loop);
   }
 
-  /*! \brief */  // Todo
+  /*! \brief The bounds of loop vars, provided by the block iter bound predicate */
   Map<Var, arith::IntSet> bound_intset_;
+  /*! \brief The analyzer */
   arith::Analyzer ana_;
 };
 
