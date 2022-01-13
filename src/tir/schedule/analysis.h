@@ -630,6 +630,14 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
+ * \brief Checks if the given block has been applied by multi-level tiling. We check this by examine
+ * the block's annotation.
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block has been multi-level tiled.
+ */
+bool HasBeenMultiLevelTiled(const StmtSRef& block_sref);
+
+/*!
  * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.
  * \param self The schedule state.
  * \param block_sref The block to be checked.

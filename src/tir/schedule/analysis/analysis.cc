@@ -1927,6 +1927,10 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   return total_unused_block_vars >= 1;
 }
 
+bool HasBeenMultiLevelTiled(const StmtSRef& block_sref) {
+  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined();
+}
+
 std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::ScheduleState& self,
                                                                  const tir::StmtSRef& block_sref) {
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
@@ -1976,12 +1980,16 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
     return false;
   }
 
-  // Cond 3. The block is a reduction block and has trivial binding.
+  // Cond 3. The block satisfies all the following properties
+  //  - it is a reduction block;
+  //  - it has trivial bindings;
+  //  - it has not been tiled by multi-level tiling.
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
                                             /*require_stage_pipeline=*/false,  //
                                             /*require_subtree_compact_dataflow=*/false);
-  if (!(IsReductionBlock(self, block_sref, scope_sref) &&  //
-        IsTrivialBinding(self, block_sref))) {
+  if (!IsReductionBlock(self, block_sref, scope_sref)  //
+      || !IsTrivialBinding(self, block_sref)           //
+      || HasBeenMultiLevelTiled(block_sref)) {
     return false;
   }
 

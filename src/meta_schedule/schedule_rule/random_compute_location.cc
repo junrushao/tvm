@@ -47,8 +47,8 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     if (tir::GetChildBlockSRefOnSRefTree(sch->state(), loop_srefs[0]).size() > 1) {
       return false;
     }
-    // Cond 5. The block is not tiled. We check this condition by examine the block's annotation.
-    if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined()) {
+    // Cond 5. The block is not tiled.
+    if (tir::HasBeenMultiLevelTiled(block_sref)) {
       return false;
     }
     // Cond 6. The block has at lease one consumer.

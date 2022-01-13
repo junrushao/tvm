@@ -150,7 +150,6 @@ class DefaultCUDA:
         )
 
         return [
-            M.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512]),
             M.MultiLevelTiling(
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
@@ -177,6 +176,7 @@ class DefaultCUDA:
                 require_ordered=False,
                 disallow_op=None,
             ),
+            M.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512]),
             M.ParallelizeVectorizeUnroll(
                 max_jobs_per_core=-1,  # disable parallelize
                 max_vectorize_extent=-1,  # disable vectorize

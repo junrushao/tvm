@@ -42,9 +42,9 @@ def get(target: Target) -> List[ScheduleRule]:
         ]
     if target.kind.name == "cuda":
         return [
-            cross_thread_reduction(target),
             multi_level_tiling(target),
             auto_inline_after_tiling(target),
+            cross_thread_reduction(target),
             parallel_vectorize_unroll(target),
         ]
     raise NotImplementedError(f"{target.kind.name} is not supported")
