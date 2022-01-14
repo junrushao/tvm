@@ -249,11 +249,11 @@ class ScopeReconstructor : private StmtMutator {
           analyzer->Bind(var, Range::FromMinExtent(0, iter_dom->extent));
         }
         if (pred_bound.HasLowerBound()) {
-          PrimExpr lower_bound = iter_dom->min + var >= pred_bound.min();
+          PrimExpr lower_bound = block_->iter_vars[i]->var >= pred_bound.min();
           predicate = predicate && lower_bound;
         }
         if (pred_bound.HasUpperBound()) {
-          PrimExpr upper_bound = iter_dom->min + var < pred_bound.max() + 1;
+          PrimExpr upper_bound = block_->iter_vars[i]->var < pred_bound.max() + 1;
           predicate = predicate && upper_bound;
         }
       } else {

@@ -752,7 +752,7 @@ def read_out_of_bound_after_compute_at(A: T.Buffer[(16,), "float32"], C: T.Buffe
                 v = T.axis.spatial(16, j + ax0)
                 T.reads(A[v])
                 T.writes(B[v])
-                T.block_attr({"require_bound_predicate":j + ax0 >= 0 and j + ax0 < 16})
+                T.block_attr({"require_bound_predicate":v >= 0 and v < 16})
                 B[v] = A[v]
         with T.block("C"):
             v = T.axis.spatial(16, j)
@@ -809,7 +809,7 @@ def tiled_pooling_cache_after_compute_at(a: T.handle, b: T.handle) -> None:
                 w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
                 T.reads(X[h, w])
                 T.writes(cache[h, w])
-                T.block_attr({"require_bound_predicate":hh_0 * 8 - 1 + ax0 >= 0 and hh_0 * 8 - 1 + ax0 < 224 and ww_0 * 8 - 1 + ax1 >= 0 and ww_0 * 8 - 1 + ax1 < 224})
+                T.block_attr({"require_bound_predicate":h >= 0 and h < 224 and w >= 0 and w < 224})
                 cache[h, w] = X[h, w]
         for ax0, ax1 in T.grid(10, 10):
             with T.block("dache"):
@@ -817,7 +817,7 @@ def tiled_pooling_cache_after_compute_at(a: T.handle, b: T.handle) -> None:
                 w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
                 T.reads(X[h, w])
                 T.writes(dache[h, w])
-                T.block_attr({"require_bound_predicate":hh_0 * 8 - 1 + ax0 >= 0 and hh_0 * 8 - 1 + ax0 < 224 and ww_0 * 8 - 1 + ax1 >= 0 and ww_0 * 8 - 1 + ax1 < 224})
+                T.block_attr({"require_bound_predicate":h >= 0 and h < 224 and w >= 0 and w < 224})
                 dache[h, w] = X[h, w]
         for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
             with T.block("compute"):

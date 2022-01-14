@@ -287,6 +287,7 @@ Sequential PassListForPerStoreFeature() {
       tir::transform::LowerCrossThreadReduction(),
       tir::transform::LowerInitBlock(),
       tir::transform::PlanAndUpdateBufferAllocationLocation(),
+      tir::transform::ApplyBlockBoundPredicate(),
       tir::transform::ConvertBlocksToOpaque(),
       tir::transform::UnifyThreadBinding(),
       tir::transform::CompactBufferAllocation(),

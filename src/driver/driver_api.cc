@@ -35,9 +35,9 @@
 #include <algorithm>
 #include <mutex>
 #include <stack>
+#include <tvm/ir/transform.h>
 
 #include "../printer/text_printer.h"
-#include <tvm/ir/transform.h>
 
 namespace tvm {
 
@@ -251,6 +251,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::LowerCrossThreadReduction());
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(tir::transform::ApplyBlockBoundPredicate());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::Simplify());
