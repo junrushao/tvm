@@ -26,6 +26,10 @@ def _target() -> Target:
     return Target("cuda", host="llvm")
 
 
+def _target_with_max_threads_per_block() -> Target:
+    return Target("nvidia/geforce-rtx-3080")
+
+
 def test_meta_schedule_cuda_sketch_matmul():
     # pylint: disable=line-too-long
     expected = [
@@ -289,8 +293,134 @@ def test_meta_schedule_cuda_sketch_conv2d_nchw_bias_bn_relu():  # pylint: disabl
     check_trace(spaces, expected)
 
 
+def test_meta_schedule_cuda_sketch_batchnorm():
+    # pylint: disable=line-too-long
+    expected = [
+        [
+            'b0 = sch.get_block(name="C", func_name="main")',
+            'b1 = sch.get_block(name="root", func_name="main")',
+            "b2, = sch.get_consumers(block=b0)",
+            "l3, = sch.get_loops(block=b2)",
+            "v4 = sch.sample_categorical(candidates=[4, 8, 16, 32, 64, 128, 256, 512], probs=[0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125])",
+            "l5, l6 = sch.split(loop=l3, factors=[None, v4])",
+            'sch.bind(loop=l6, thread_axis="threadIdx.x")',
+            "sch.compute_at(block=b0, loop=l5, preserve_unit_loops=True)",
+            'sch.set_scope(block=b0, buffer_index=0, storage_scope="shared")',
+            "l7, l8, l9, l10 = sch.get_loops(block=b0)",
+            "l11 = sch.fuse(l9, l10)",
+            "l12, l13 = sch.split(loop=l11, factors=[None, v4])",
+            'sch.bind(loop=l13, thread_axis="threadIdx.x")',
+            "v14 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v14)',
+        ],
+        [
+            'b0 = sch.get_block(name="root", func_name="main")',
+            "v1 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.unroll_explicit", ann_val=v1)',
+        ],
+    ]
+    # pylint: enable=line-too-long
+    ctx = create_context(
+        create_prim_func(
+            te_workload.norm_bmn(
+                B=1,
+                M=256,
+                N=256,
+            )
+        ),
+        target=_target_with_max_threads_per_block(),
+    )
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    assert len(spaces) == 2
+    check_trace(spaces, expected)
+
+
+def test_meta_schedule_cuda_sketch_softmax():
+    # pylint: disable=line-too-long
+    expected = [
+        [
+            'b0 = sch.get_block(name="T_softmax_maxelem", func_name="main")',
+            'b1 = sch.get_block(name="T_softmax_exp", func_name="main")',
+            'b2 = sch.get_block(name="T_softmax_expsum", func_name="main")',
+            'b3 = sch.get_block(name="root", func_name="main")',
+            "sch.compute_inline(block=b1)",
+            "b4, = sch.get_consumers(block=b2)",
+            "l5, l6 = sch.get_loops(block=b4)",
+            "v7 = sch.sample_categorical(candidates=[4, 8, 16, 32, 64, 128, 256, 512], probs=[0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125])",
+            "l8, l9 = sch.split(loop=l6, factors=[None, v7])",
+            'sch.bind(loop=l9, thread_axis="threadIdx.x")',
+            "sch.compute_at(block=b2, loop=l5, preserve_unit_loops=True)",
+            'sch.set_scope(block=b2, buffer_index=0, storage_scope="shared")',
+            "l10, l11, l12 = sch.get_loops(block=b2)",
+            "l13, l14 = sch.split(loop=l12, factors=[None, v7])",
+            'sch.bind(loop=l14, thread_axis="threadIdx.x")',
+            "b15, b16 = sch.get_consumers(block=b0)",
+            "l17, l18, l19, l20 = sch.get_loops(block=b15)",
+            "sch.compute_at(block=b0, loop=l17, preserve_unit_loops=True)",
+            'sch.set_scope(block=b0, buffer_index=0, storage_scope="shared")',
+            "l21, l22, l23 = sch.get_loops(block=b0)",
+            "l24, l25 = sch.split(loop=l23, factors=[None, v7])",
+            'sch.bind(loop=l25, thread_axis="threadIdx.x")',
+            "v26 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b3, ann_key="meta_schedule.unroll_explicit", ann_val=v26)',
+        ],
+        [
+            'b0 = sch.get_block(name="T_softmax_exp", func_name="main")',
+            'b1 = sch.get_block(name="T_softmax_expsum", func_name="main")',
+            'b2 = sch.get_block(name="root", func_name="main")',
+            "sch.compute_inline(block=b0)",
+            "b3, = sch.get_consumers(block=b1)",
+            "l4, l5 = sch.get_loops(block=b3)",
+            "v6 = sch.sample_categorical(candidates=[4, 8, 16, 32, 64, 128, 256, 512], probs=[0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125])",
+            "l7, l8 = sch.split(loop=l5, factors=[None, v6])",
+            'sch.bind(loop=l8, thread_axis="threadIdx.x")',
+            "sch.compute_at(block=b1, loop=l4, preserve_unit_loops=True)",
+            'sch.set_scope(block=b1, buffer_index=0, storage_scope="shared")',
+            "l9, l10, l11 = sch.get_loops(block=b1)",
+            "l12, l13 = sch.split(loop=l11, factors=[None, v6])",
+            'sch.bind(loop=l13, thread_axis="threadIdx.x")',
+            "v14 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b2, ann_key="meta_schedule.unroll_explicit", ann_val=v14)',
+        ],
+        [
+            'b0 = sch.get_block(name="T_softmax_maxelem", func_name="main")',
+            'b1 = sch.get_block(name="T_softmax_exp", func_name="main")',
+            'b2 = sch.get_block(name="root", func_name="main")',
+            "sch.compute_inline(block=b1)",
+            "v3 = sch.sample_categorical(candidates=[4, 8, 16, 32, 64, 128, 256, 512], probs=[0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125])",
+            "l4, l5 = sch.get_loops(block=b0)",
+            "l6, l7 = sch.split(loop=l5, factors=[None, v3])",
+            'sch.bind(loop=l7, thread_axis="threadIdx.x")',
+            "v8 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b2, ann_key="meta_schedule.unroll_explicit", ann_val=v8)',
+        ],
+        [
+            'b0 = sch.get_block(name="T_softmax_exp", func_name="main")',
+            'b1 = sch.get_block(name="root", func_name="main")',
+            "sch.compute_inline(block=b0)",
+            "v2 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001])",
+            'sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v2)',
+        ],
+    ]
+    # pylint: enable=line-too-long
+    ctx = create_context(
+        create_prim_func(
+            te_workload.softmax_mn(
+                m=256,
+                n=256,
+            )
+        ),
+        target=_target_with_max_threads_per_block(),
+    )
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    assert len(spaces) == 4
+    check_trace(spaces, expected)
+
+
 if __name__ == "__main__":
     test_meta_schedule_cuda_sketch_matmul()
     test_meta_schedule_cuda_sketch_matmul_relu()
     test_meta_schedule_cuda_sketch_conv2d_nchw()
     test_meta_schedule_cuda_sketch_conv2d_nchw_bias_bn_relu()
+    test_meta_schedule_cuda_sketch_batchnorm()
+    test_meta_schedule_cuda_sketch_softmax()
