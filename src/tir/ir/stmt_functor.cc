@@ -700,8 +700,7 @@ Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vm
 }
 
 void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                   const std::function<bool(const ObjectRef&)>& fvisit,
-                   bool visit_init_block) {
+                   const std::function<bool(const ObjectRef&)>& fvisit, bool visit_init_block) {
   class PreOrderVisitor : public StmtExprVisitor {
    public:
     explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f, bool visit_init_block)

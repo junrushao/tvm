@@ -47,7 +47,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (const auto* c2 = op->b.as<IntImmNode>()) {
         if (const auto* c1c2 = inner->b.as<IntImmNode>()) {
           if (c1c2->value % c2->value == 0) {
-            return analyzer_->Simplify(FloorMod(FloorDiv(inner->a, op->b), IntImm(op->b.dtype(), c1c2->value / c2->value)));
+            return analyzer_->Simplify(FloorMod(FloorDiv(inner->a, op->b),
+                                                IntImm(op->b.dtype(), c1c2->value / c2->value)));
           }
         }
       }
@@ -79,7 +80,8 @@ Pass RenormalizeSplitPattern() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RenormalizeSplitPattern", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RenormalizeSplitPattern").set_body_typed(RenormalizeSplitPattern);
+TVM_REGISTER_GLOBAL("tir.transform.RenormalizeSplitPattern")
+    .set_body_typed(RenormalizeSplitPattern);
 
 }  // namespace transform
 

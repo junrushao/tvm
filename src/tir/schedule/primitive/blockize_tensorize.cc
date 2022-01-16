@@ -500,8 +500,9 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   }
   arith::Analyzer analyzer;
   DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
-  Array<Array<arith::IterMark>> division = arith::SubspaceDivide(
-      block_realize->iter_values, iters, inner_iters, block_realize->predicate, false, &analyzer, diag_ctx);
+  Array<Array<arith::IterMark>> division =
+      arith::SubspaceDivide(block_realize->iter_values, iters, inner_iters,
+                            block_realize->predicate, false, &analyzer, diag_ctx);
   if (division.empty()) {
     // It is possible to blockize if we can not do perfect subspace division if we can divide
     // the block var bindings into two categories
