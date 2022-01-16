@@ -28,6 +28,7 @@ class MODEL_TYPE(Enum):  # pylint: disable=invalid-name
     VIDEO_CLASSIFICATION = (2,)
     SEGMENTATION = (3,)
     OBJECT_DETECTION = (4,)
+    TEXT_CLASSIFICATION = (5,)
 
 
 # Specify the type of each model
@@ -95,6 +96,11 @@ MODEL_TYPES = {
     "r3d_18": MODEL_TYPE.VIDEO_CLASSIFICATION,
     "mc3_18": MODEL_TYPE.VIDEO_CLASSIFICATION,
     "r2plus1d_18": MODEL_TYPE.VIDEO_CLASSIFICATION,
+    # Text classification
+    "bert_tiny": MODEL_TYPE.TEXT_CLASSIFICATION,
+    "bert_base": MODEL_TYPE.TEXT_CLASSIFICATION,
+    "bert_medium": MODEL_TYPE.TEXT_CLASSIFICATION,
+    "bert_large": MODEL_TYPE.TEXT_CLASSIFICATION,
 }
 
 
@@ -121,6 +127,8 @@ def get_torch_model(
 
     import torch  # type: ignore # pylint: disable=import-error,import-outside-toplevel
     from torchvision import models  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+    import transformers  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+    import os  # type: ignore # pylint: disable=import-error,import-outside-toplevel
 
     def do_trace(model, inp):
         model_trace = torch.jit.trace(model, inp)
@@ -136,6 +144,50 @@ def get_torch_model(
         model = getattr(models.detection, model_name)()
     elif MODEL_TYPES[model_name] == MODEL_TYPE.VIDEO_CLASSIFICATION:
         model = getattr(models.video, model_name)()
+    elif MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        config_dict = {
+            "bert_tiny": transformers.BertConfig(
+                num_hidden_layers=6,
+                hidden_size=512,
+                intermediate_size=2048,
+                num_attention_heads=8,
+                return_dict=False,
+            ),
+            "bert_base": transformers.BertConfig(
+                num_hidden_layers=12,
+                hidden_size=768,
+                intermediate_size=3072,
+                num_attention_heads=12,
+                return_dict=False,
+            ),
+            "bert_medium": transformers.BertConfig(
+                num_hidden_layers=12,
+                hidden_size=1024,
+                intermediate_size=4096,
+                num_attention_heads=16,
+                return_dict=False,
+            ),
+            "bert_large": transformers.BertConfig(
+                num_hidden_layers=24,
+                hidden_size=1024,
+                intermediate_size=4096,
+                num_attention_heads=16,
+                return_dict=False,
+            ),
+        }
+        configuration = config_dict[model_name]
+        model = transformers.BertModel(configuration)
+        input_name = "input_ids"
+        A = torch.randint(10000, input_shape)
+
+        model.eval()
+        scripted_model = torch.jit.trace(model, [A], strict=False)
+
+        input_name = "input_ids"
+        shape_list = [(input_name, input_shape)]
+        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+        return mod, params
     else:
         raise ValueError("Unsupported model in Torch model zoo.")
 
