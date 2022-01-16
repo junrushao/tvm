@@ -17,21 +17,18 @@
  * under the License.
  */
 
+#include <tvm/arith/iter_affine_map.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "../schedule/utils.h"
-#include "ir_utils.h"
-#include "memhammer_rewrite_rule.h"
-#include "tvm/arith/iter_affine_map.h"
-#include "tvm/runtime/registry.h"
-#include "tvm/target/target.h"
-#include "tvm/tir/expr.h"
-#include "tvm/tir/op.h"
-#include "tvm/tir/stmt_functor.h"
-#include "tvm/tir/transform.h"
-/*!
- * \brief Automatically do memory optimizations for auto copy blocks
- * \file memhammer_lower_auto_copy.cc
- */
+#include "./ir_utils.h"
+#include "./memhammer_rewrite_rule.h"
 
 namespace tvm {
 namespace tir {
@@ -54,7 +51,7 @@ static WmmaToShared wmma_to_shared;
  * and choose the one with minimal conflict. However, this algorithm has exponential complexity.
  * Suppose we have d dimensions and the padding size is 0-31, we need to calculate bank
  * conflict for 32^{d-1} times.
- * We propose a fast incremental algorithm that works for affine inputs, and it only caluculate
+ * We propose a fast incremental algorithm that works for affine inputs, and it only calculate
  * bank conflict for 32*{d-1} times. To be specific, we first decide the optimal padding size for
  * dimension d-2, then for dimension d-3, ..., finally for dimension 0. It involves 2 steps.
  *
@@ -550,7 +547,7 @@ class AutoPadder {
       }
       StmtExprVisitor::VisitExpr_(op);
     }
-    
+
     /*!
      * \brief Take a typical warp and collect the iteration space for load_matrix_sync and
      * store_matrix_sync
@@ -684,7 +681,7 @@ class AutoCopyMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     Block block;
-    //only rewrite the block annotated with "auto_copy"
+    // only rewrite the block annotated with "auto_copy"
     if (is_one(Downcast<PrimExpr>(op->annotations.Get("auto_copy").value_or(Integer(0))))) {
       block = runtime::Downcast<Block>(StmtMutator::VisitStmt_(op));
       ICHECK(block->reads.size() == 1 && block->writes.size() == 1);
@@ -764,6 +761,7 @@ class ThreadExtentCollector : public StmtVisitor {
 };
 
 namespace transform {
+
 Pass LowerAutoCopy() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
@@ -776,6 +774,7 @@ Pass LowerAutoCopy() {
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerAutoCopy").set_body_typed(LowerAutoCopy);
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
