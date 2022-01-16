@@ -917,7 +917,7 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
                   << "Fail to collect constraints from iteration predicate: " << predicate);
     return Array<IterSumExpr>();
   }
- 
+
   // We have to make sure when we visit an iterator, all the constraints related with its successors
   // in the iter var graph has been visited, where the expression of this iterator will contain the
   // expression of its successor, so we sort them by their sizes.
@@ -1308,7 +1308,8 @@ class IterMapToExprNormalizer : public ExprMutator {
     } else if (analyzer_->CanProve(expr->source->extent == expr->lower_factor * expr->extent)) {
       return floordiv(source, expr->lower_factor) * expr->scale;
     } else {
-      return floordiv(floormod(source, expr->lower_factor * expr->extent), expr->lower_factor) * expr->scale;
+      return floordiv(floormod(source, expr->lower_factor * expr->extent), expr->lower_factor) *
+             expr->scale;
     }
   }
 

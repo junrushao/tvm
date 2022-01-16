@@ -204,7 +204,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       Entry a = VisitExpr(op->a);
       int64_t coeff = ZeroAwareGCD(a.coeff, c2);
       return Entry(coeff, a.base % c2);
-    } 
+    }
     return Everything();
   }
 

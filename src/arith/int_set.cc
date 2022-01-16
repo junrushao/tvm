@@ -787,7 +787,6 @@ Array<IntSet> EvalSet(const Array<PrimExpr>& exprs, const Map<Var, IntSet>& dom_
   return result;
 }
 
-
 IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   IntervalSetEvaluator m(&ana, dom_map);

@@ -35,7 +35,6 @@
 #include <algorithm>
 #include <mutex>
 #include <stack>
-#include <tvm/ir/transform.h>
 
 #include "../printer/text_printer.h"
 

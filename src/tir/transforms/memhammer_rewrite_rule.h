@@ -16,41 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../../include/tvm/arith/iter_affine_map.h"
-#include "../../../include/tvm/runtime/registry.h"
-#include "../../../include/tvm/target/target.h"
-#include "../../../include/tvm/tir/expr.h"
-#include "../../../include/tvm/tir/op.h"
-#include "../../../include/tvm/tir/stmt_functor.h"
-#include "../../../include/tvm/tir/transform.h"
+#include <tvm/arith/iter_affine_map.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include "../schedule/utils.h"
 
 namespace tvm {
 namespace tir {
 
-/*! \brief The set containing all possible constraints of a data copy*/
+/*! \brief The set containing all possible constraints of a data copy */
 struct ConstraintSet {
-  /*! \brief The extents of the thread binding loops*/
+  /*! \brief The extents of the thread binding loops */
   Map<String, Integer> thread_extent;
-  /*! \brief The outer loops surrounding the data copy*/
+  /*! \brief The outer loops surrounding the data copy */
   Array<For> outer_loops;
-  /*! \brief The read region of the data copy*/
+  /*! \brief The read region of the data copy */
   BufferRegion read_region;
-  /*! \brief The write region of the data copy*/
+  /*! \brief The write region of the data copy */
   BufferRegion write_region;
-  /*! \brief The dtype size in bits*/
+  /*! \brief The dtype size in bits */
   Integer data_bits;
-  /*! \brief Whether to insert a local stage in the data copy*/
+  /*! \brief Whether to insert a local stage in the data copy */
   Integer add_local_stage = Integer(0);
-  /*! \brief The vectorization length in bytes*/
+  /*! \brief The vectorization length in bytes */
   Integer vector_bytes = 1;
 };
 
-/*! \brief The set containing all possible outpus of a rewrite rule*/
+/*! \brief The set containing all possible outputs of a rewrite rule */
 struct OutputSet {
-  /*! \brief New buffers allocated after rewrite*/
+  /*! \brief New buffers allocated after rewrite */
   Array<Buffer> alloc_buffer;
-  /*! \brief The minimal padding size of a buffer in base 2 logarithm*/
+  /*! \brief The minimal padding size of a buffer in base 2 logarithm */
   Map<Buffer, Integer> padding_min;
 };
 
@@ -58,7 +59,8 @@ struct OutputSet {
  * \brief Rules to rewrite a data copy.
  */
 class RewriteRule {
- private:
+ protected:
+  RewriteRule() = default;
   /*!
    * \brief Rewrite the stmt under certain constraints
    * \param stmt The stmt
