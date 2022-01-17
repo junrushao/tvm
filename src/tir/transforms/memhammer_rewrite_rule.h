@@ -45,6 +45,27 @@ struct ConstraintSet {
   Integer add_local_stage = Integer(0);
   /*! \brief The vectorization length in bytes */
   Integer vector_bytes = 1;
+
+  ConstraintSet() = default;
+
+  explicit ConstraintSet(Map<String, Integer> thread_extent,  //
+                         Array<For> outer_loops,              //
+                         BufferRegion read_region,            //
+                         BufferRegion write_region,           //
+                         int data_bits,                       //
+                         const Map<String, ObjectRef>& ann)
+      : thread_extent(thread_extent),
+        outer_loops(outer_loops),
+        read_region(read_region),
+        write_region(write_region),
+        data_bits(data_bits) {
+    if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
+      this->add_local_stage = Downcast<Integer>(add_local_stage.value());
+    }
+    if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
+      this->vector_bytes = Downcast<Integer>(vector_bytes.value());
+    }
+  }
 };
 
 /*! \brief The set containing all possible outputs of a rewrite rule */
@@ -60,7 +81,7 @@ struct OutputSet {
  */
 class RewriteRule {
  protected:
-  RewriteRule() = default;
+  /* RewriteRule() = default; */
   /*!
    * \brief Rewrite the stmt under certain constraints
    * \param stmt The stmt
@@ -101,6 +122,7 @@ inline bool IsCopyBetweenScope(const Buffer& src_buffer, const Buffer& tgt_buffe
  */
 class CoalescedAccess : public RewriteRule {
  public:
+  CoalescedAccess() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -117,6 +139,7 @@ class CoalescedAccess : public RewriteRule {
  */
 class InverseMapping : public RewriteRule {
  public:
+  InverseMapping() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -131,6 +154,7 @@ class InverseMapping : public RewriteRule {
  */
 class CreateLocalStage : public RewriteRule {
  public:
+  CreateLocalStage() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -147,6 +171,7 @@ class CreateLocalStage : public RewriteRule {
  */
 class WmmaToGlobal : public RewriteRule {
  public:
+  WmmaToGlobal() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -161,6 +186,7 @@ class WmmaToGlobal : public RewriteRule {
  */
 class SharedToWmma : public RewriteRule {
  public:
+  SharedToWmma() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -177,6 +203,7 @@ class SharedToWmma : public RewriteRule {
  */
 class WmmaToShared : public RewriteRule {
  public:
+  WmmaToShared() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
