@@ -40,13 +40,11 @@ struct ConstraintSet {
   /*! \brief The write region of the data copy */
   BufferRegion write_region;
   /*! \brief The dtype size in bits */
-  Integer data_bits;
+  int data_bits;
   /*! \brief Whether to insert a local stage in the data copy */
-  Integer add_local_stage = Integer(0);
+  int add_local_stage = 0;
   /*! \brief The vectorization length in bytes */
-  Integer vector_bytes = 1;
-
-  ConstraintSet() = default;
+  int vector_bytes = 1;
 
   explicit ConstraintSet(Map<String, Integer> thread_extent,  //
                          Array<For> outer_loops,              //
@@ -60,10 +58,10 @@ struct ConstraintSet {
         write_region(write_region),
         data_bits(data_bits) {
     if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
-      this->add_local_stage = Downcast<Integer>(add_local_stage.value());
+      this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
     }
     if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
-      this->vector_bytes = Downcast<Integer>(vector_bytes.value());
+      this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
     }
   }
 };

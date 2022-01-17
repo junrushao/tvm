@@ -694,12 +694,12 @@ class AutoCopyMutator : public StmtExprMutator {
     return stmt;
   }
 
-  /*! \brief Calculating optimal padding size */
-  AutoPadder padder;
   /*! \brief Thread extents collected. */
   Map<String, Integer> thread_extent_;
   /*! \brief The outer loops during recursive visit */
   Array<For> outer_loops_;
+  /*! \brief Calculating optimal padding size */
+  AutoPadder padder;
 
   /*! \brief All rewrite rules. */
   const std::array<RewriteRule*, 6> rules = {
