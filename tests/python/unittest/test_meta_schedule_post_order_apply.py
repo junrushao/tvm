@@ -29,6 +29,7 @@ from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
+from tvm import register_func
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
@@ -49,6 +50,22 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
+
+@tvm.script.ir_module
+class MatmulCustomized:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                T.block_attr({"rule": "tvm.meta_schedule.test.custom_search_space"})
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 @tvm.script.ir_module
 class DuplicateMatmul:
@@ -336,6 +353,32 @@ def test_meta_schedule_post_order_apply_remove_block():
             or str(sch_trace) == correct_trace([16, 64], [64, 16], [16, 64], [64, 16])
             or str(sch_trace) == correct_trace([2, 512], [2, 512], [16, 64], [64, 16])
         )
+
+
+def test_meta_schedule_post_order_apply_custom_search_space():
+    class DontCallThisRule(PyScheduleRule):
+        def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+            pass
+
+        def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+            raise Exception("This rule should not be called!")
+
+    @register_func("tvm.meta_schedule.test.custom_search_space")
+    def custom_search_space_func(sch: Schedule, block: BlockRV):
+        raise ValueError("Customized search space triggered!")
+
+    mod = MatmulCustomized
+    context = TuneContext(
+        mod=mod,
+        target=Target("llvm"),
+        task_name="Custom Search Space Task",
+        sch_rules=[DontCallThisRule()],
+    )
+    function_called = False
+    post_order_apply = PostOrderApply()
+    post_order_apply.initialize_with_tune_context(context)
+    with pytest.raises(ValueError, match="Customized search space triggered!"):
+        _ = post_order_apply.generate_design_space(mod)
 
 
 if __name__ == "__main__":
