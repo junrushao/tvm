@@ -237,10 +237,6 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
   const ConstraintSet& constraints_;
 };
 
-std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String storage_scope,
-                                          For compute_location, const Array<For>& outer_loops,
-                                          Buffer* alloc_buffer);
-
 Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt body;

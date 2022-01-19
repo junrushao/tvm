@@ -211,5 +211,20 @@ class WmmaToShared : public RewriteRule {
   }
 };
 
+/*!
+ * \brief Insert a cache stage to the compute location
+ * \param stmt the stmt
+ * \param is_write_cache whether to write a read cache or write cache
+ * \param storage_scope the storage scope of the new cache
+ * \param compute_location the compute location.
+ * \param outer_loops the outer loops of this stmt
+ * \param alloc_buffer the new cache block
+ * \return a pair. The first is the stmt after transformation.
+ *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
+ */
+std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String storage_scope,
+                                          Optional<For> compute_location,
+                                          const Array<For>& outer_loops, Buffer* alloc_buffer);
+
 }  // namespace tir
 }  // namespace tvm
