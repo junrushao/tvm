@@ -59,14 +59,34 @@ class MatmulCustomized:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
-        for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
-                T.block_attr({"rule": "tvm.meta_schedule.test.custom_search_space"})
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vi, vj] = 0.0
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        with T.block("root"):
+            for i, j, k in T.grid(1024, 1024, 1024):
+                with T.block("matmul"):
+                    T.block_attr({"rule": "tvm.meta_schedule.test.custom_search_space"})
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
+
+@tvm.script.ir_module
+class MatmulCustomizedNoneRule:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        with T.block("root"):
+            T.block_attr({"rule": "None"})
+            for i, j, k in T.grid(1024, 1024, 1024):
+                with T.block("matmul"):
+                    T.block_attr({"rule": "None"})
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+                
 @tvm.script.ir_module
 class DuplicateMatmul:
     @T.prim_func
@@ -356,13 +376,6 @@ def test_meta_schedule_post_order_apply_remove_block():
 
 
 def test_meta_schedule_post_order_apply_custom_search_space():
-    class DontCallThisRule(PyScheduleRule):
-        def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-            pass
-
-        def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
-            raise Exception("This rule should not be called!")
-
     @register_func("tvm.meta_schedule.test.custom_search_space")
     def custom_search_space_func(sch: Schedule, block: BlockRV):
         raise ValueError("Customized search space triggered!")
@@ -372,13 +385,33 @@ def test_meta_schedule_post_order_apply_custom_search_space():
         mod=mod,
         target=Target("llvm"),
         task_name="Custom Search Space Task",
-        sch_rules=[DontCallThisRule()],
+        sch_rules=[],
     )
     function_called = False
     post_order_apply = PostOrderApply()
     post_order_apply.initialize_with_tune_context(context)
     with pytest.raises(ValueError, match="Customized search space triggered!"):
         _ = post_order_apply.generate_design_space(mod)
+
+
+def test_meta_schedule_post_order_apply_custom_search_space_none_rule():
+    class DontCallThisRule(PyScheduleRule):
+        def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+            pass
+
+        def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+            raise RuntimeError("This schedule rule should not be called!")
+
+    mod = MatmulCustomizedNoneRule
+    context = TuneContext(
+        mod=mod,
+        target=Target("llvm"),
+        task_name="Custom Search Space Task",
+        sch_rules=[DontCallThisRule()],
+    )
+    post_order_apply = PostOrderApply()
+    post_order_apply.initialize_with_tune_context(context)
+    _ = post_order_apply.generate_design_space(mod)
 
 
 if __name__ == "__main__":
