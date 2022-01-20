@@ -62,7 +62,7 @@ class MatmulCustomized:
         with T.block("root"):
             for i, j, k in T.grid(1024, 1024, 1024):
                 with T.block("matmul"):
-                    T.block_attr({"rule": "tvm.meta_schedule.test.custom_search_space"})
+                    T.block_attr({"schedule_rule": "tvm.meta_schedule.test.custom_search_space"})
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = 0.0
@@ -78,10 +78,10 @@ class MatmulCustomizedNoneRule:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         with T.block("root"):
-            T.block_attr({"rule": "None"})
+            T.block_attr({"schedule_rule": "None"})
             for i, j, k in T.grid(1024, 1024, 1024):
                 with T.block("matmul"):
-                    T.block_attr({"rule": "None"})
+                    T.block_attr({"schedule_rule": "None"})
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = 0.0
