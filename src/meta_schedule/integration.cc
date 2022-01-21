@@ -120,7 +120,6 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
   prim_mod = (*parse_mod_func)(prim_mod);
   if (database->HasWorkload(prim_mod)) {
-    LOG(INFO) << "Applied history best for " << task_name << "!";
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     // todo(@zxybazh): check if records always exists when the database has the workload
     if (records.size() == 1) {
