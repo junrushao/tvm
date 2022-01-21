@@ -120,8 +120,8 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
             params=params,
             target=target,
             config=ReplayTraceConfig(
-                num_trials_per_iter=32,
-                num_trials_total=32,
+                num_trials_per_iter=2,
+                num_trials_total=2,
             ),
             work_dir=work_dir,
             database=database,
