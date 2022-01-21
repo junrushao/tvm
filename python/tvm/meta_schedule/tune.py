@@ -19,16 +19,20 @@
 import logging
 import os.path
 from typing import Callable, Dict, List, Optional, Union
-from tvm.ir.base import structural_equal, structural_hash
 
+import tvm
+from tvm import relay
+from tvm._ffi.registry import register_func
+from tvm.relay import Function as RelayFunc
+from tvm.relay.backend.executor_factory import ExecutorFactoryModule
+from tvm.ir.base import structural_equal, structural_hash
 from tvm.ir.module import IRModule
 from tvm.runtime import NDArray
-from tvm.meta_schedule.integration import extract_task_from_relay
 from tvm.target.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
-from tvm.relay import Function as RelayFunc
 
+from .integration import extract_task_from_relay, ApplyHistoryBest
 from .builder import Builder, LocalBuilder
 from .cost_model import CostModel, XGBModel
 from .database import Database, JSONDatabase, TuningRecord
@@ -216,6 +220,7 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
+    @register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
     def _mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
         if isinstance(mod, PrimFunc):
             mod = mod.with_attr("global_symbol", "main")
@@ -223,6 +228,11 @@ class Parse:
             mod = IRModule({"main": mod})
         if not isinstance(mod, IRModule):
             raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
+        # in order to make sure the mod can be found in ApplyHistoryBest
+        # different func name can cause structural unequal
+        if "main" not in mod.global_var_map_:
+            (func_name,) = [global_var for global_var in mod.global_var_map_]
+            mod = IRModule({"main": mod[func_name]})
         return mod
 
     @staticmethod
@@ -615,7 +625,7 @@ def tune_relay(
     postprocs: Optional[TypePostproc] = None,
     mutator_probs: Optional[TypeMutatorProb] = None,
     num_threads: Optional[int] = None,
-) -> List[Optional[Schedule]]:
+) -> ExecutorFactoryModule:
     """Tune a TIR IRModule with a given target.
 
     Parameters
@@ -647,8 +657,8 @@ def tune_relay(
 
     Returns
     -------
-    schs : List[Optional[Schedule]]
-        The tuned schedules.
+    lib : ExecutorFactoryModule
+        The built runtime module for the given relay workload.
     """
 
     logger.info("Working directory: %s", work_dir)
@@ -660,11 +670,10 @@ def tune_relay(
     # parse the tuning contexts
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
-        mod = Parse._mod(task.dispatched[0])
         tune_contexts.append(
             Parse._tune_context(
                 tune_context=None,
-                mod=mod,
+                mod=Parse._mod(task.dispatched[0]),
                 target=target,
                 config=config,
                 task_name=task.task_name,
@@ -704,16 +713,9 @@ def tune_relay(
     )
     # pylint: enable=protected-access
     task_scheduler.tune()
-    schs: List[Schedule] = []
-    for task in tasks:
-        mod = task.mod
-        workload = database.commit_workload(mod)
-        bests: List[TuningRecord] = database.get_top_k(workload, top_k=1)
-        if not bests:
-            schs.append(None)
-        else:
-            assert len(bests) == 1
-            sch = Schedule(mod)
-            bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
-            schs.append(sch)
-    return schs
+    with ApplyHistoryBest(database):
+        with tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            return relay.build(mod, target=target, params=params)

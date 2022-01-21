@@ -17,17 +17,61 @@
 # pylint: disable=missing-docstring
 import logging
 import tempfile
-from typing import List, Tuple
-
 import pytest
+import numpy as np
+from typing import Tuple, List
+
+import tvm
+from tvm import relay
+from tvm.ir import IRModule
+from tvm.runtime.ndarray import cpu, gpu
+from tvm.target.target import Target
+from tvm.contrib import graph_executor
 from tvm.meta_schedule import ReplayTraceConfig
+from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.testing import MODEL_TYPE, MODEL_TYPES, get_torch_model
 from tvm.meta_schedule.tune import tune_relay
-from tvm.target.target import Target
-from tvm.tir import Schedule
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
+
+
+class DummyDatabase(PyDatabase):
+    def __init__(self):
+        super().__init__()
+        self.records = []
+        self.workload_reg = []
+
+    def has_workload(self, mod: IRModule) -> Workload:
+        for workload in self.workload_reg:
+            if tvm.ir.structural_equal(workload.mod, mod):
+                return True
+        return False
+
+    def commit_tuning_record(self, record: TuningRecord) -> None:
+        self.records.append(record)
+
+    def commit_workload(self, mod: IRModule) -> Workload:
+        for workload in self.workload_reg:
+            if tvm.ir.structural_equal(workload.mod, mod):
+                return workload
+        workload = Workload(mod)
+        self.workload_reg.append(workload)
+        return workload
+
+    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+        return list(
+            filter(
+                lambda x: x.workload == workload,
+                sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
+            )
+        )[: int(top_k)]
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def print_results(self) -> None:
+        print("\n".join([str(r) for r in self.records]))
 
 
 @pytest.mark.skip("Integration test")
@@ -39,19 +83,31 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
         pytest.skip("inception_v3 does not handle batch_size of 1")
 
     input_shape: Tuple[int, ...]
-    if MODEL_TYPES[model_name] == MODEL_TYPE.IMAGE_CLASSIFICATION:
-        input_shape = (batch_size, 3, 299, 299)
-    elif MODEL_TYPES[model_name] == MODEL_TYPE.SEGMENTATION:
-        input_shape = (batch_size, 3, 299, 299)
-    elif MODEL_TYPES[model_name] == MODEL_TYPE.OBJECT_DETECTION:
-        input_shape = (1, 3, 300, 300)
-    elif MODEL_TYPES[model_name] == MODEL_TYPE.VIDEO_CLASSIFICATION:
-        input_shape = (batch_size, 3, 3, 299, 299)
-    elif MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
+    input_name = "input0"
+    if MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
         seq_length = 128
+        input_name = "input_ids"
         input_shape = (batch_size, seq_length)
+        data = tvm.nd.array(
+            np.random.randint(0, 30521, size=input_shape),
+            device=cpu() if target.startswith("llvm") else gpu(),
+        )  # embedding size
     else:
-        raise ValueError("Unsupported model: " + model_name)
+        if MODEL_TYPES[model_name] == MODEL_TYPE.IMAGE_CLASSIFICATION:
+            input_shape = (batch_size, 3, 299, 299)
+        elif MODEL_TYPES[model_name] == MODEL_TYPE.SEGMENTATION:
+            input_shape = (batch_size, 3, 299, 299)
+        elif MODEL_TYPES[model_name] == MODEL_TYPE.OBJECT_DETECTION:
+            input_shape = (1, 3, 300, 300)
+        elif MODEL_TYPES[model_name] == MODEL_TYPE.VIDEO_CLASSIFICATION:
+            input_shape = (batch_size, 3, 3, 299, 299)
+        else:
+            raise ValueError("Unsupported model: " + model_name)
+        data = tvm.nd.array(
+            np.random.randn(*input_shape).astype("float32"),
+            device=cpu() if target.startswith("llvm") else gpu(),
+        )
+
     output_shape: Tuple[int, int] = (batch_size, 1000)
 
     mod, params = get_torch_model(
@@ -63,23 +119,33 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
     with tempfile.TemporaryDirectory() as work_dir:
         target = Target(target)
-        schs: List[Schedule] = tune_relay(
+        database = DummyDatabase()
+        rt_mod: tvm.module = tune_relay(
             mod=mod,
             params=params,
             target=target,
             config=ReplayTraceConfig(
-                num_trials_per_iter=32,
-                num_trials_total=32,
+                num_trials_per_iter=2,
+                num_trials_total=2,
             ),
             work_dir=work_dir,
+            database=database,
         )
-        for i, sch in enumerate(schs):
-            print("-" * 10 + f" Part {i+1}/{len(schs)} " + "-" * 10)
-            if sch is None:
-                print("No valid schedule found!")
-            else:
-                print(sch.mod.script())
-                print(sch.trace)
+        # Compile without meta-scheduler for correctness check
+        with tvm.transform.PassContext(opt_level=0):
+            rt_mod2 = relay.build(mod, target=target, params=params)
+
+        def get_output(data, lib):
+            dev = tvm.cpu()
+            module = graph_executor.GraphModule(lib["default"](dev))
+            module.set_input(input_name, data)
+            module.run()
+            return module.get_output(0).numpy()
+
+        # Check correctness
+        actual_output = get_output(data, rt_mod)
+        expected_output = get_output(data, rt_mod2)
+        assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
 if __name__ == """__main__""":

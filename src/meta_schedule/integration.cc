@@ -117,12 +117,16 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
+  const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
+  prim_mod = (*parse_mod_func)(prim_mod);
   if (database->HasWorkload(prim_mod)) {
+    LOG(INFO) << "Applied history best for " << task_name << "!";
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     ICHECK(records.size() == 1) << "No records was found for given workload" << prim_mod;
     return records[0]->workload->mod;
-  } else
+  } else {
     return NullOpt;
+  }
 }
 
 /**************** FFI ****************/
