@@ -24,7 +24,7 @@ from typing import Tuple, List
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
-from tvm.runtime.ndarray import cpu, gpu
+from tvm.runtime.ndarray import cpu, cuda
 from tvm.target.target import Target
 from tvm.contrib import graph_executor
 from tvm.meta_schedule import ReplayTraceConfig
@@ -84,14 +84,12 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
     input_shape: Tuple[int, ...]
     input_name = "input0"
+    dev = tvm.cpu() if str(target).startswith("llvm") else cuda()
     if MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
         seq_length = 128
         input_name = "input_ids"
         input_shape = (batch_size, seq_length)
-        data = tvm.nd.array(
-            np.random.randint(0, 30521, size=input_shape),
-            device=cpu() if target.startswith("llvm") else gpu(),
-        )  # embedding size
+        data = tvm.nd.array(np.random.randint(0, 30521, size=input_shape), dev)  # embedding size
     else:
         if MODEL_TYPES[model_name] == MODEL_TYPE.IMAGE_CLASSIFICATION:
             input_shape = (batch_size, 3, 299, 299)
@@ -103,10 +101,7 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
             input_shape = (batch_size, 3, 3, 299, 299)
         else:
             raise ValueError("Unsupported model: " + model_name)
-        data = tvm.nd.array(
-            np.random.randn(*input_shape).astype("float32"),
-            device=cpu() if target.startswith("llvm") else gpu(),
-        )
+        data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
 
     output_shape: Tuple[int, int] = (batch_size, 1000)
 
@@ -125,8 +120,8 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
             params=params,
             target=target,
             config=ReplayTraceConfig(
-                num_trials_per_iter=2,
-                num_trials_total=2,
+                num_trials_per_iter=32,
+                num_trials_total=32,
             ),
             work_dir=work_dir,
             database=database,
@@ -136,7 +131,6 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
             rt_mod2 = relay.build(mod, target=target, params=params)
 
         def get_output(data, lib):
-            dev = tvm.cpu()
             module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input(input_name, data)
             module.run()
@@ -149,9 +143,9 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
+    # test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
     test_meta_schedule_tune_relay("resnet18", 1, "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("mobilenet_v2", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("bert_base", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("bert_base", 1, "nvidia/geforce-rtx-3070")
+    # test_meta_schedule_tune_relay("mobilenet_v2", 1, "llvm --num-cores=16")
+    # test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
+    # test_meta_schedule_tune_relay("bert_base", 1, "llvm --num-cores=16")
+    # test_meta_schedule_tune_relay("bert_base", 1, "nvidia/geforce-rtx-3070")
