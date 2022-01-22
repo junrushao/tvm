@@ -57,7 +57,7 @@ class MultiLevelTiling(ScheduleRule):
         Whether to apply tensor core wmma intrinsic for the computation
     max_innermost_factor : Optional[int]
         The maximum size of the innermost factor. None means no limit
-    vector_load_max_len : Optional[int]
+    vector_load_lens : Optional[List[int]]
         The length of vector lane in vectorized cooperative fetching.
         None means disable vectorization
     reuse_read : Optional[ReuseType]
@@ -72,7 +72,7 @@ class MultiLevelTiling(ScheduleRule):
         tile_binds: Optional[List[str]] = None,
         use_tensor_core: bool = False,
         max_innermost_factor: Optional[int] = None,
-        vector_load_max_len: Optional[int] = None,
+        vector_load_lens: Optional[List[int]] = None,
         reuse_read: Optional[ReuseType] = None,
         reuse_write: Optional[ReuseType] = None,
     ) -> None:
@@ -82,7 +82,7 @@ class MultiLevelTiling(ScheduleRule):
             tile_binds,
             use_tensor_core,
             max_innermost_factor,
-            vector_load_max_len,
+            vector_load_lens,
             reuse_read.as_dict() if reuse_read is not None else None,
             reuse_write.as_dict() if reuse_write is not None else None,
         )

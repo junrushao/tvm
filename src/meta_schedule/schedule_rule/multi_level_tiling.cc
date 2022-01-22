@@ -322,7 +322,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief The maximum size of the innermost factor */
   int max_innermost_factor;
   /*! \brief The length of vector lane in vectorized cooperative fetching */
-  int vector_load_max_len;
+  std::vector<int> vector_load_lens;
   /*! \brief Data reuse configuration for reading */
   ReuseConfig reuse_read_;
   /*! \brief Data reuse configuration for writing */
@@ -337,7 +337,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
     v->Visit("tile_binds", &tile_binds);
     v->Visit("use_tensor_core", &use_tensor_core);
     v->Visit("max_innermost_factor", &max_innermost_factor);
-    v->Visit("vector_load_max_len", &vector_load_max_len);
+    // `vector_load_lens` is not visited
     // `reuse_read_` is not visited
     // `reuse_write_` is not visited
     // `s_indices_` is not visited
@@ -491,12 +491,14 @@ inline std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const 
       LoopRV fused = sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
                                              buffer_loops.end()});
       // Annotate cooperative fetching
-      if (vector_load_max_len > 0) {
-        // cooperative fetch + vectorized loading
-        // Split into inner and outer, vectorize the inner loop
-        Array<ExprRV> factors = sch->SamplePerfectTile(fused, 2, vector_load_max_len);
-        // Add cooperative fetching
-        sch->Annotate(cache_read_block, tir::attr::meta_schedule_cooperative_fetch, factors[1]);
+      if (!vector_load_lens.empty()) {
+        int n = vector_load_lens.size();
+        double prob = 1.0 / n;
+        ExprRV vector_load_len =
+            sch->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
+                                   Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
+        sch->Annotate(cache_read_block, tir::attr::meta_schedule_cooperative_fetch,
+                      vector_load_len);
       }
     }
     State new_state = state;
@@ -545,7 +547,7 @@ inline std::vector<State> MultiLevelTilingNode::FuseWriteReuse(State state) cons
 ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<String>> tile_binds,
                                             bool use_tensor_core,
                                             Optional<Integer> max_innermost_factor,
-                                            Optional<Integer> vector_load_max_len,
+                                            Optional<Array<Integer>> vector_load_lens,
                                             Optional<Map<String, ObjectRef>> reuse_read,
                                             Optional<Map<String, ObjectRef>> reuse_write) {
   ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>();
@@ -561,7 +563,9 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
     tir::TensorIntrin::Get("wmma_fill");
   }
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
-  n->vector_load_max_len = vector_load_max_len.value_or(Integer(-1))->value;
+  n->vector_load_lens = vector_load_lens.defined()
+                            ? support::AsVector<Integer, int>(vector_load_lens.value())
+                            : std::vector<int>();
   n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
   n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
   for (int i = 0, len = structure.size(); i < len; ++i) {

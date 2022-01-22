@@ -124,7 +124,7 @@ def test_tune_matmul_cuda_tensor_core():
                     tile_binds=["blockIdx.x", "blockIdx.y", "threadIdx.y"],
                     use_tensor_core=True,
                     max_innermost_factor=64,
-                    vector_load_max_len=4,
+                    vector_load_lens=[1, 2, 3, 4],
                     reuse_read=schedule_rule.ReuseType(
                         req="must",
                         levels=[4],
