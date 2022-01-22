@@ -111,7 +111,7 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
             structure="SSRSRS",
             tile_binds=None,
             max_innermost_factor=64,
-            vector_load_max_len=None,
+            vector_load_lens=None,
             reuse_read=None,
             reuse_write=ReuseType(
                 req="may",
@@ -124,7 +124,7 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
             structure="SSSRRSRS",
             tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
             max_innermost_factor=64,
-            vector_load_max_len=4,
+            vector_load_lens=[1, 2, 3, 4],
             reuse_read=ReuseType(
                 req="must",
                 levels=[4],
@@ -147,7 +147,7 @@ def multi_level_tiling_tensor_core(target: Target) -> ScheduleRule:
             tile_binds=["blockIdx.x", "blockIdx.y", "threadIdx.y"],
             use_tensor_core=True,
             max_innermost_factor=64,
-            vector_load_max_len=4,
+            vector_load_lens=[1, 2, 3, 4],
             reuse_read=ReuseType(
                 req="must",
                 levels=[4],
