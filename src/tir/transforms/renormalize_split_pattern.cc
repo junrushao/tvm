@@ -29,11 +29,24 @@
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../arith/pattern_match.h"
 
 namespace tvm {
 namespace tir {
 
 using namespace arith;
+
+// macro for doing simple rewrite
+#define TVM_TRY_REWRITE(SrcExpr, ResExpr) \
+  if ((SrcExpr).Match(ret)) {             \
+    return (ResExpr).Eval();              \
+  }
+
+// macro rewrite + recursive_rewrite only if CondExor is true after match.
+#define TVM_TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
+  if ((SrcExpr).Match(ret) && (CondExpr)) {                      \
+    return RecursiveRewrite((ResExpr).Eval());                   \
+  }
 
 class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
@@ -42,22 +55,112 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const FloorDivNode* op) final {
     PrimExpr a = VisitExpr(op->a);
     PrimExpr b = VisitExpr(op->b);
+    PrimExpr ret = floordiv(a, b);
+    // Pattern var to match any expression
+    PVar<PrimExpr> x, y, z;
+    // Pattern var match IntImm
+    PVar<IntImm> c1, c2, c3;
+    // Pattern var for lanes in broadcast and ramp
+    PVar<int> lanes;
+
     // floordiv(floormod(x, c1 * c2), c2) = floormod(floordiv(x, c2), c1)
-    if (const auto* inner = op->a.as<FloorModNode>()) {
-      if (const auto* c2 = op->b.as<IntImmNode>()) {
-        if (const auto* c1c2 = inner->b.as<IntImmNode>()) {
-          if (c1c2->value % c2->value == 0) {
-            return analyzer_->Simplify(FloorMod(FloorDiv(inner->a, op->b),
-                                                IntImm(op->b.dtype(), c1c2->value / c2->value)));
-          }
+    TVM_TRY_RECURSIVE_REWRITE_IF(floordiv(floormod(x, c3), c2),
+                                 floormod(floordiv(x, c2), floordiv(c3, c2)),
+                                 c3.Eval()->value % c2.Eval()->value == 0);
+    TVM_TRY_RECURSIVE_REWRITE_IF(
+        floordiv(floormod(x, broadcast(c3, lanes)), broadcast(c2, lanes)),
+        floormod(floordiv(x, broadcast(c2, lanes)), broadcast(floordiv(c3, c2), lanes)),
+        c3.Eval()->value % c2.Eval()->value == 0);
+
+    // floordiv(x*c1*c3 + y, c2*c3) = floordiv(x*c1 + floordiv(y, c3), c2)
+    if ((floordiv(x * c1 + y, c2)).Match(ret)) {
+      int64_t c1_val = c1.Eval()->value;
+      int64_t c2_val = c2.Eval()->value;
+      if (c1_val > 0 && c2_val > 0) {
+        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        if (c3 > 1) {
+          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval(), c3), c2_div));
         }
       }
     }
-    if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
-    } else {
-      return FloorDiv(a, b);
+    if ((floordiv(x * broadcast(c1, lanes) + y, broadcast(c2, lanes))).Match(ret)) {
+      int64_t c1_val = c1.Eval()->value;
+      int64_t c2_val = c2.Eval()->value;
+      if (c1_val > 0 && c2_val > 0) {
+        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        if (c3 > 1) {
+          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          return RecursiveRewrite(floordiv(
+              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
+              Broadcast(c2_div, lanes.Eval())));
+        }
+      }
     }
+
+    // floordiv(x*c1*c3 + y + z, c2*c3) = floordiv(x*c1 + floordiv(y + z, c3), c2)
+    if ((floordiv(x * c1 + y + z, c2)).Match(ret)) {
+      int64_t c1_val = c1.Eval()->value;
+      int64_t c2_val = c2.Eval()->value;
+      if (c1_val > 0 && c2_val > 0) {
+        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        if (c3 > 1) {
+          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
+        }
+      }
+    }
+    if ((floordiv(x * broadcast(c1, lanes) + y + z, broadcast(c2, lanes))).Match(ret)) {
+      int64_t c1_val = c1.Eval()->value;
+      int64_t c2_val = c2.Eval()->value;
+      if (c1_val > 0 && c2_val > 0) {
+        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        if (c3 > 1) {
+          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          return RecursiveRewrite(floordiv(
+              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval() + z.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
+              Broadcast(c2_div, lanes.Eval())));
+        }
+      }
+    }
+
+    return ret;
+  }
+
+  PrimExpr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+
+  PrimExpr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+
+  PrimExpr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+
+  PrimExpr VisitExpr_(const LTNode* op) {
+    PrimExpr a = VisitExpr(op->a);
+    PrimExpr b = VisitExpr(op->b);
+    PrimExpr ret = tir::LT(a, b);
+    // Pattern var to match any expression
+    PVar<PrimExpr> x;
+    // Pattern var match IntImm
+    PVar<IntImm> c1, c2;
+    TVM_TRY_RECURSIVE_REWRITE_IF(x<c2, floordiv(x, c2) < 1, c2.Eval()->value> 0);
+    return ret;
+  }
+
+  PrimExpr VisitExpr_(const NotNode* op) {
+    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+    // Pattern var to match any expression
+    PVar<PrimExpr> x, y;
+    TVM_TRY_REWRITE(!(!x), x);
+    TVM_TRY_REWRITE(!(x <= y), y < x);
+    TVM_TRY_REWRITE(!(x >= y), x < y);
+    TVM_TRY_REWRITE(!(x < y), y <= x);
+    TVM_TRY_REWRITE(!(x > y), x <= y);
+    return ret;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -66,6 +169,23 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
     return IRMutatorWithAnalyzer::VisitStmt_(op);
   }
+
+  // Recursive rewrite x
+  // we limit maximum depth of recursive rewrite allowed to
+  // avoid infinite loop
+  PrimExpr RecursiveRewrite(const PrimExpr& x) {
+    if (recur_depth_ >= kMaxRecurDepth) return x;
+    ++recur_depth_;
+    PrimExpr res = this->VisitExpr(x);
+    --recur_depth_;
+    return res;
+  }
+
+ private:
+  // counter to record recursive rewrite depth.
+  int recur_depth_{0};
+  // maximum number of recursion allowed during a single pass.
+  static const constexpr int kMaxRecurDepth = 5;
 };
 
 namespace transform {
