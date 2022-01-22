@@ -131,6 +131,7 @@ def get_torch_model(
     import os  # type: ignore # pylint: disable=import-error,import-outside-toplevel
 
     def do_trace(model, inp):
+        model.eval()
         model_trace = torch.jit.trace(model, inp)
         model_trace.eval()
         return model_trace
@@ -178,14 +179,12 @@ def get_torch_model(
         }
         configuration = config_dict[model_name]
         model = transformers.BertModel(configuration)
-        input_name = "input_ids"
         A = torch.randint(10000, input_shape)
 
         model.eval()
         scripted_model = torch.jit.trace(model, [A], strict=False)
 
-        input_name = "input_ids"
-        shape_list = [(input_name, input_shape)]
+        shape_list = [("input_ids", input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
         return mod, params
     else:

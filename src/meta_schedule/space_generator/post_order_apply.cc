@@ -40,7 +40,18 @@ class BlockCollector : public tir::StmtVisitor {
         blocks_to_collect_.clear();
         VisitStmt(func->body);
         for (const String& block_name : blocks_to_collect_) {
-          results_.push_back(sch_->GetBlock(block_name, func_name_));
+          tir::BlockRV block_rv = sch_->GetBlock(block_name, func_name_);
+          // pick out the blocks with annotation for customized search space
+          if (Optional<ObjectRef> custom_sch_rule_name_opt =
+                  tir::GetAnn<String>(sch_->GetSRef(block_rv), "schedule_rule")) {
+            String custom_sch_rule_name = Downcast<String>(custom_sch_rule_name_opt.value());
+            if (custom_sch_rule_name != "None") {
+              const auto* custom_sch_rule_func = runtime::Registry::Get(custom_sch_rule_name);
+              (*custom_sch_rule_func)(sch_, block_rv);
+            }
+          } else {
+            results_.push_back(block_rv);
+          }
         }
       }
     }

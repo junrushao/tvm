@@ -138,7 +138,7 @@ void TaskSchedulerNode::Tune() {
     } else {
       SetTaskStopped(task_id);
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      LOG(INFO) << "Task #" << task_id + 1 << " has finished. Remaining task(s): " << running_tasks;
     }
   }
   ICHECK_EQ(running_tasks, 0) << "Not all tasks are finished";
