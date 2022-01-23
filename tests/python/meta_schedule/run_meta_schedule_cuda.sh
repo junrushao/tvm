@@ -4,7 +4,7 @@ RPC_HOST="192.168.6.66"
 RPC_PORT="4445"
 RPC_KEY="jetson-agx-xavier"
 TARGET="nvidia/jetson-agx-xavier"
-LOG_DIR=/tmp/logs/ms-cuda/
+LOG_DIR=$HOME/logs/ms-cuda/
 NUM_TRIALS=2000
 
 mkdir -p $LOG_DIR
@@ -25,19 +25,17 @@ run () {
         2>&1 | tee "$work_dir/$name.log"
 }
 
-# Single op
 run C1D
 run C2D
-run C3D
 run CAP
 run DEP
 run DIL
 run GMM
 run GRP
-run NRM
-run SFM
 run T2D
-# Subgraph
 run C2d-BN-RELU
 run TBG
 
+run C3D
+run NRM
+run SFM
