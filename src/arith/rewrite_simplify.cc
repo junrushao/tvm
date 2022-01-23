@@ -773,6 +773,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x * c1 + y, c2), x * floordiv(c1, c2) + floordiv(y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
+    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
+
     TVM_TRY_REWRITE_IF(floordiv(min(x * c1, y), c2), min(x * floordiv(c1, c2), floordiv(y, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
@@ -782,6 +787,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(y + x * c1, c2), floordiv(y, c2) + x * floordiv(c1, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
+    TVM_TRY_REWRITE_IF(floordiv(y + x * c1, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
+          
     TVM_TRY_REWRITE_IF(floordiv(min(y, x * c1), c2), min(floordiv(y, c2), x * floordiv(c1, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
