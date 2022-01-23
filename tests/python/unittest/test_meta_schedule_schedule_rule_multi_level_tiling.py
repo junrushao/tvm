@@ -186,6 +186,8 @@ def test_cuda_matmul():
             'sch.bind(loop=l32, thread_axis="vthread.x")',
             "l33 = sch.fuse(l12, l22)",
             'sch.bind(loop=l33, thread_axis="threadIdx.x")',
+            'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32)',
+            'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)',
             'b34 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
             "sch.compute_at(block=b34, loop=l28, preserve_unit_loops=True)",
             "l35, l36, l37, l38, l39, l40 = sch.get_loops(block=b34)",
@@ -202,7 +204,7 @@ def test_cuda_matmul():
         ]
     ]
     # pylint: enable=line-too-long
-    target = Target("cuda", host="llvm")
+    target = Target("cuda --max_threads_per_block=1024 --thread_warp_size=32", host="llvm")
     ctx = _create_context(
         create_prim_func(
             te_workload.matmul(

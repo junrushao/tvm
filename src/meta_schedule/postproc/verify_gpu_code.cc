@@ -21,6 +21,56 @@
 #include "../utils.h"
 
 namespace tvm {
+namespace tir {
+
+class ThreadExtentChecker : private StmtVisitor {
+ public:
+  static bool Check(const Stmt& stmt) {
+    try {
+      ThreadExtentChecker().VisitStmt(stmt);
+      return true;
+    } catch (const dmlc::Error& e) {
+      return false;
+    }
+  }
+
+ private:
+  void VisitStmt_(const ForNode* loop) {
+    if (IsThreadIdx(GetThreadScope(loop))) {
+      if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
+        thread_extent_product *= *p_ext;
+        StmtVisitor::VisitStmt_(loop);
+        thread_extent_product /= *p_ext;
+        return;
+      } else {
+        throw dmlc::Error("Dynamic thread extent");
+      }
+    }
+    StmtVisitor::VisitStmt_(loop);
+  }
+
+  void VisitStmt_(const BlockNode* block) {
+    if (Optional<Integer> low_inclusive =
+            GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
+      if (Optional<Integer> high_inclusive =
+              GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
+        int64_t low = low_inclusive.value()->value;
+        int64_t high = high_inclusive.value()->value;
+        if (!(low <= thread_extent_product && thread_extent_product <= high)) {
+          throw dmlc::Error("Thread extent");
+        }
+      }
+    }
+    StmtVisitor::VisitStmt_(block);
+  }
+
+  int64_t thread_extent_product = 1;
+};
+
+}  // namespace tir
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*! \brief Verify the correctness of the generated GPU code. */
@@ -66,6 +116,9 @@ class VerifyGPUCodeNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
+        if (!tir::ThreadExtentChecker::Check(prim_func->body)) {
+          return false;
+        }
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
