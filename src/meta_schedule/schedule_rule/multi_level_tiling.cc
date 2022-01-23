@@ -19,6 +19,7 @@
 #include <unordered_map>
 
 #include "../utils.h"
+#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
@@ -287,7 +288,17 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   }
 
   // Do nothing; Inherited from ScheduleRuleNode
-  void InitializeWithTuneContext(const TuneContext& context) final {}
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("max_threads_per_block")) {
+      this->max_threads_per_block_ = v.value()->value;
+      if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
+        this->thread_warp_size_ = v.value()->value;
+      } else {
+        LOG(INFO) << "'thread_warp_size' is not defined in the target";
+      }
+    }
+  }
+
   // Entry of the mega rule; Inherited from ScheduleRuleNode
   Array<Schedule> Apply(const Schedule& sch, const BlockRV& block_rv) final {
     if (!NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
@@ -331,6 +342,10 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   std::vector<int> s_indices_;
   /*! \brief The indices of reduction tiles in `structure` */
   std::vector<int> r_indices_;
+  /*! \brief The size of the thread warp */
+  int thread_warp_size_;
+  /*! \brief The maximum number of threads to be used size of a thread warp */
+  int max_threads_per_block_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);
@@ -342,6 +357,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
     // `reuse_write_` is not visited
     // `s_indices_` is not visited
     // `r_indices_` is not visited
+    // `thread_warp_size_` is not visited
+    // `max_threads_per_block` is not visited
   }
 
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
@@ -419,11 +436,20 @@ inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const 
   std::vector<IterVarType> iter_types = GetBlockVarTypes(sch->GetSRef(state.block_rv));
   ICHECK_EQ(loops.size(), iter_types.size());
   // Step 2. For each loop axis, tile it
+  int64_t spatial_loop_product = 1;
   std::vector<Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
+    LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
+      if (spatial_loop_product != -1) {
+        if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(loop).get())) {
+          spatial_loop_product *= *extent;
+        } else {
+          spatial_loop_product = -1;
+        }
+      }
     } else if (iter_types[i] == IterVarType::kCommReduce) {
       idx = &r_indices_;
     } else {
@@ -431,7 +457,6 @@ inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const 
     }
     // Do the split
     int n_tiles = idx->size();
-    LoopRV loop = loops[i];
     Array<ExprRV> factors = sch->SamplePerfectTile(
         /*loop=*/loop,
         /*n=*/n_tiles,
@@ -453,6 +478,17 @@ inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const 
     tiles[i] = {fused};
   }
   state.tiles = Array<Array<LoopRV>>{tiles.begin(), tiles.end()};
+  if (this->thread_warp_size_ != -1) {
+    int64_t low_inclusive = 1;
+    int64_t high_inclusive = this->max_threads_per_block_;
+    if (spatial_loop_product > 2 * this->thread_warp_size_) {
+      low_inclusive = this->thread_warp_size_;
+    }
+    sch->Annotate(block_rv, tir::attr::meta_schedule_thread_extent_low_inclusive,
+                  Integer(low_inclusive));
+    sch->Annotate(block_rv, tir::attr::meta_schedule_thread_extent_high_inclusive,
+                  Integer(high_inclusive));
+  }
   return {state};
 }
 
@@ -578,6 +614,8 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
       LOG(FATAL) << "ValueError: Invalid tiling structure: " << structure;
     }
   }
+  n->thread_warp_size_ = -1;
+  n->max_threads_per_block_ = -1;
   return ScheduleRule(n);
 }
 
