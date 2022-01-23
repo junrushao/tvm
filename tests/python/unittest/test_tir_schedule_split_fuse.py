@@ -205,7 +205,7 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     for i0, i1, i2, j0, j1, k0, k1 in T.grid(1000, 2, 3, 1, 129, 3, 43):
         with T.block("B"):
-            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j0 * 129 + j1 < 128 and k0 * 43 + k1 < 128)
+            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j1 < 128 and k0 * 43 + k1 < 128)
             vi = T.axis.S(128, i0 * 6 + i1 * 3 + i2)
             vj = T.axis.S(128, j1)
             vk = T.axis.S(128, k0 * 43 + k1)
