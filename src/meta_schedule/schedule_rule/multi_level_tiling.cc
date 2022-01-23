@@ -19,7 +19,6 @@
 #include <unordered_map>
 
 #include "../utils.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
