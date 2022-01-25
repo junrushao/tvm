@@ -386,4 +386,10 @@ def test_auto_padding():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_coalesce_vectorize()
+    test_inverse()
+    test_local_stage()
+    test_rewrite_shared_to_wmma()
+    test_rewrite_wmma_to_shared()
+    test_rewrite_wmma_to_global()
+    test_auto_padding()

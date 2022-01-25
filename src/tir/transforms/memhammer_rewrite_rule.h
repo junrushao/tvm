@@ -40,11 +40,30 @@ struct ConstraintSet {
   /*! \brief The write region of the data copy */
   BufferRegion write_region;
   /*! \brief The dtype size in bits */
-  Integer data_bits;
+  int data_bits;
   /*! \brief Whether to insert a local stage in the data copy */
-  Integer add_local_stage = Integer(0);
+  int add_local_stage = 0;
   /*! \brief The vectorization length in bytes */
-  Integer vector_bytes = 1;
+  int vector_bytes = 1;
+
+  explicit ConstraintSet(Map<String, Integer> thread_extent,  //
+                         Array<For> outer_loops,              //
+                         BufferRegion read_region,            //
+                         BufferRegion write_region,           //
+                         int data_bits,                       //
+                         const Map<String, ObjectRef>& ann)
+      : thread_extent(thread_extent),
+        outer_loops(outer_loops),
+        read_region(read_region),
+        write_region(write_region),
+        data_bits(data_bits) {
+    if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
+      this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
+    }
+    if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
+      this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
+    }
+  }
 };
 
 /*! \brief The set containing all possible outputs of a rewrite rule */
@@ -60,7 +79,7 @@ struct OutputSet {
  */
 class RewriteRule {
  protected:
-  RewriteRule() = default;
+  /* RewriteRule() = default; */
   /*!
    * \brief Rewrite the stmt under certain constraints
    * \param stmt The stmt
@@ -101,6 +120,7 @@ inline bool IsCopyBetweenScope(const Buffer& src_buffer, const Buffer& tgt_buffe
  */
 class CoalescedAccess : public RewriteRule {
  public:
+  CoalescedAccess() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -117,6 +137,7 @@ class CoalescedAccess : public RewriteRule {
  */
 class InverseMapping : public RewriteRule {
  public:
+  InverseMapping() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -131,6 +152,7 @@ class InverseMapping : public RewriteRule {
  */
 class CreateLocalStage : public RewriteRule {
  public:
+  CreateLocalStage() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -147,6 +169,7 @@ class CreateLocalStage : public RewriteRule {
  */
 class WmmaToGlobal : public RewriteRule {
  public:
+  WmmaToGlobal() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -161,6 +184,7 @@ class WmmaToGlobal : public RewriteRule {
  */
 class SharedToWmma : public RewriteRule {
  public:
+  SharedToWmma() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -177,6 +201,7 @@ class SharedToWmma : public RewriteRule {
  */
 class WmmaToShared : public RewriteRule {
  public:
+  WmmaToShared() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
     Buffer src_buffer = constraints.read_region->buffer;
@@ -185,6 +210,21 @@ class WmmaToShared : public RewriteRule {
                               runtime::StorageRank::kShared);
   }
 };
+
+/*!
+ * \brief Insert a cache stage to the compute location
+ * \param stmt the stmt
+ * \param is_write_cache whether to write a read cache or write cache
+ * \param storage_scope the storage scope of the new cache
+ * \param compute_location the compute location.
+ * \param outer_loops the outer loops of this stmt
+ * \param alloc_buffer the new cache block
+ * \return a pair. The first is the stmt after transformation.
+ *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
+ */
+std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String storage_scope,
+                                          Optional<For> compute_location,
+                                          const Array<For>& outer_loops, Buffer* alloc_buffer);
 
 }  // namespace tir
 }  // namespace tvm

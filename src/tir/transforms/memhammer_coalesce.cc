@@ -17,17 +17,18 @@
  * under the License.
  */
 #include "../../runtime/thread_storage_scope.h"
-#include "memhammer_rewrite_rule.h"
+#include "./memhammer_rewrite_rule.h"
+
 namespace tvm {
 namespace tir {
+
 /*!
  * \brief Fuse consecutive loops
- * \param stmt the outer-most loop
+ * \param body the outer-most loop
  * \return the fused loop
  */
-Stmt FuseNestLoops(const Stmt& stmt) {
+Stmt FuseNestLoops(Stmt body) {
   std::vector<const ForNode*> loops;
-  Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
     body = loop->body;
@@ -52,9 +53,8 @@ Stmt FuseNestLoops(const Stmt& stmt) {
   for (int i = 0; i < n; i++) {
     fused_extent *= loops[i]->extent;
   }
-  Stmt new_stmt = Substitute(body, f_substitute);
-  new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
-  return new_stmt;
+  return For(fused_var, 0, fused_extent, ForKind::kSerial,
+             Substitute(std::move(body), f_substitute));
 }
 
 /*!
@@ -65,72 +65,71 @@ Stmt FuseNestLoops(const Stmt& stmt) {
  * \return The stmt after transformation
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
-  Stmt body = stmt;
-  const ForNode* loop = body.as<ForNode>();
-  PrimExpr vector_bytes = constraints.vector_bytes;
-  PrimExpr threadIdx_x = constraints.thread_extent.Get("threadIdx.x").value_or(Integer(1));
-  PrimExpr threadIdx_y = constraints.thread_extent.Get("threadIdx.y").value_or(Integer(1));
-  PrimExpr threadIdx_z = constraints.thread_extent.Get("threadIdx.z").value_or(Integer(1));
-  PrimExpr tot_threads = threadIdx_x * threadIdx_y * threadIdx_z;
-  PrimExpr data_bits = constraints.data_bits;
-  PrimExpr vector_len = max(1, vector_bytes * 8 / data_bits);
-  if (!loop || !is_zero(indexmod(loop->extent, (vector_len * tot_threads)))) {
-    LOG(FATAL) << "the number of elements must be a multiple of thread num";
-  }
-  PrimExpr outer_loop_extent = indexdiv(loop->extent, tot_threads * vector_len);
-  Array<PrimExpr> factors{outer_loop_extent};
-  std::vector<std::string> thread_axis;
+  const ForNode* loop = TVM_TYPE_AS(loop, stmt, ForNode);
+  int loop_extent = Downcast<Integer>(loop->extent)->value;
+  int vector_bytes = constraints.vector_bytes;
+  int data_bits = constraints.data_bits;
+  int vector_len = std::max(1, vector_bytes * 8 / data_bits);
+  int tot_threads = 1;
   // generate thread binding loops
-  if (!is_one(threadIdx_z)) {
-    factors.push_back(threadIdx_z);
+  std::vector<int> factors{-1};
+  std::vector<std::string> thread_axis;
+  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.z")) {
+    int t = o_t.value()->value;
+    tot_threads *= t;
+    factors.push_back(t);
     thread_axis.push_back("threadIdx.z");
   }
-  if (!is_one(threadIdx_y)) {
-    factors.push_back(threadIdx_y);
+  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.y")) {
+    int t = o_t.value()->value;
+    tot_threads *= t;
+    factors.push_back(t);
     thread_axis.push_back("threadIdx.y");
   }
-  if (!is_one(threadIdx_x)) {
-    factors.push_back(threadIdx_x);
+  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.x")) {
+    int t = o_t.value()->value;
+    tot_threads *= t;
+    factors.push_back(t);
     thread_axis.push_back("threadIdx.x");
   }
   // generate vectorized loop
   factors.push_back(vector_len);
+  // generate outer loop
+  ICHECK_EQ(loop_extent % (tot_threads * vector_len), 0);
+  factors[0] = loop_extent / (tot_threads * vector_len);
+  // create new loop vars
   int n = factors.size();
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     new_loop_vars.push_back(loop->loop_var.copy_with_suffix("_" + std::to_string(i)));
   }
-
+  // substitute fused loop var with new loop vars
   PrimExpr substitute_value = 0;
   for (int i = 0; i < n; i++) {
     substitute_value *= factors[i];
     substitute_value += new_loop_vars[i];
   }
-  body = Substitute(loop->body, [&](const Var& v) -> Optional<PrimExpr> {
+  // Construct the new loop nest
+  Stmt body = Substitute(loop->body, [&](const Var& v) -> Optional<PrimExpr> {
     if (v.same_as(loop->loop_var)) {
       return substitute_value;
     } else {
       return NullOpt;
     }
   });
-
-  For new_loop = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, body);
-
+  body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
   for (int i = n - 2; i >= 1; i--) {
-    new_loop =
-        For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(new_loop),
-            IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]));
+    body = For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(body),
+               IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]));
   }
-
-  new_loop = For(new_loop_vars[0], 0, outer_loop_extent, ForKind::kSerial, new_loop);
-  return std::move(new_loop);
+  return For(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
 }
 
 Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                               OutputSet* output) const {
   Stmt after_fuse = FuseNestLoops(stmt);
-  Stmt after_split = SplitBindVectorize(after_fuse, constraints);
+  Stmt after_split = SplitBindVectorize(std::move(after_fuse), constraints);
   return after_split;
 }
 

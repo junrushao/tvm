@@ -644,14 +644,7 @@ class AutoPadder {
 
 class AutoCopyMutator : public StmtExprMutator {
  public:
-  AutoCopyMutator(const Map<String, Integer>& thread_extent) : thread_extent_(thread_extent) {
-    rules.push_back(&inverse_mapping);
-    rules.push_back(&coalesced_access);
-    rules.push_back(&create_local_stage);
-    rules.push_back(&shared_to_wmma);
-    rules.push_back(&wmma_to_global);
-    rules.push_back(&wmma_to_shared);
-  }
+  explicit AutoCopyMutator(Map<String, Integer> thread_extent) : thread_extent_(thread_extent) {}
   /**
    * \brief Replace old buffers with padded buffers in the stmt
    * \param stmt The stmt to rewrite
@@ -660,55 +653,37 @@ class AutoCopyMutator : public StmtExprMutator {
   Stmt RewritePaddingBody(const Stmt& stmt) { return padder.RewriteBufferAccess(stmt); }
 
  private:
-  /**
-   * \brief Add constraints that helps the rewrite rules.
-   * \param constraints Original constraints collected from block annotation.
-   */
-  void InitializeConstraints(ConstraintSet* constraints,
-                             const Map<String, ObjectRef> user_annotations) {
-    constraints->outer_loops = outer_loops_;
-    constraints->data_bits = Integer(data_bits_);
-    constraints->thread_extent = thread_extent_;
-    constraints->read_region = read_region_;
-    constraints->write_region = write_region_;
-    if (Optional<ObjectRef> vector_bytes = user_annotations.Get("vector_bytes")) {
-      constraints->vector_bytes = Downcast<Integer>(vector_bytes.value());
-    }
-    if (Optional<ObjectRef> add_local_stage = user_annotations.Get("local_stage")) {
-      constraints->add_local_stage = Downcast<Integer>(add_local_stage.value());
-    }
-  }
-
   Stmt VisitStmt_(const BlockNode* op) final {
-    Block block;
+    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
     // only rewrite the block annotated with "auto_copy"
-    if (is_one(Downcast<PrimExpr>(op->annotations.Get("auto_copy").value_or(Integer(0))))) {
-      block = runtime::Downcast<Block>(StmtMutator::VisitStmt_(op));
-      ICHECK(block->reads.size() == 1 && block->writes.size() == 1);
-      read_region_ = block->reads[0];
-      write_region_ = block->writes[0];
-      data_bits_ = read_region_->buffer->dtype.bits();
+    if (GetAnn<Integer>(op, "auto_copy").value_or(0)->value == 0) {
       BlockNode* n = block.CopyOnWrite();
-      ConstraintSet constraints;
-      OutputSet outputs;
-      InitializeConstraints(&constraints, block->annotations);
-      for (RewriteRule* rule : rules) {
-        n->body = rule->Apply(n->body, constraints, &outputs);
-      }
-      for (const Buffer& buffer : outputs.alloc_buffer) {
-        n->alloc_buffers.push_back(buffer);
-      }
-      for (const auto& p : outputs.padding_min) {
-        Integer m = padder.padding_min_.Get(p.first).value_or(1);
-        padder.padding_min_.Set(p.first, Downcast<Integer>(max(p.second, m)));
-      }
-      padder.AnalyzeSharedMemoryAccess(block->body, outer_loops_, data_bits_, thread_extent_);
-      n->alloc_buffers = padder.PadSharedMemory(n->alloc_buffers);
-    } else {
-      block = runtime::Downcast<Block>(StmtMutator::VisitStmt_(op));
-      BlockNode* n = block.CopyOnWrite();
-      n->alloc_buffers = padder.PadSharedMemory(n->alloc_buffers);
+      n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
+      return std::move(block);
     }
+    ICHECK_EQ(block->reads.size(), 1);
+    ICHECK_EQ(block->writes.size(), 1);
+    int data_bits = block->reads[0]->buffer->dtype.bits();
+    ConstraintSet constraints(this->thread_extent_,  //
+                              this->outer_loops_,    //
+                              block->reads[0],       //
+                              block->writes[0],      //
+                              data_bits,             //
+                              block->annotations);
+    BlockNode* n = block.CopyOnWrite();
+    OutputSet outputs;
+    for (RewriteRule* rule : rules) {
+      n->body = rule->Apply(std::move(n->body), constraints, &outputs);
+    }
+    for (const Buffer& buffer : outputs.alloc_buffer) {
+      n->alloc_buffers.push_back(buffer);
+    }
+    for (const auto& p : outputs.padding_min) {
+      Integer m = padder.padding_min_.Get(p.first).value_or(1);
+      padder.padding_min_.Set(p.first, Downcast<Integer>(max(p.second, m)));
+    }
+    padder.AnalyzeSharedMemoryAccess(block->body, outer_loops_, data_bits, thread_extent_);
+    n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
     return std::move(block);
   }
 
@@ -719,16 +694,22 @@ class AutoCopyMutator : public StmtExprMutator {
     return stmt;
   }
 
+  /*! \brief Thread extents collected. */
+  Map<String, Integer> thread_extent_;
+  /*! \brief The outer loops during recursive visit */
+  Array<For> outer_loops_;
   /*! \brief Calculating optimal padding size */
   AutoPadder padder;
+
   /*! \brief All rewrite rules. */
-  std::vector<RewriteRule*> rules;
-  /*! \brief Below are the constraints collected from program structure.*/
-  Map<String, Integer> thread_extent_;
-  int data_bits_ = -1;
-  BufferRegion read_region_;
-  BufferRegion write_region_;
-  Array<For> outer_loops_;
+  const std::array<RewriteRule*, 6> rules = {
+      &inverse_mapping,     //
+      &coalesced_access,    //
+      &create_local_stage,  //
+      &shared_to_wmma,      //
+      &wmma_to_global,      //
+      &wmma_to_shared,
+  };
 };
 
 /*!
@@ -744,8 +725,10 @@ class ThreadExtentCollector : public StmtVisitor {
 
  private:
   void VisitStmt_(const BlockNode* op) final {
-    if (is_one(Downcast<PrimExpr>(op->annotations.Get("warp_execution").value_or(Integer(0))))) {
-      thread_extent_.Set("threadIdx.x", Integer(32));
+    if (Optional<Integer> warp_execution = GetAnn<Integer>(op, "warp_execution")) {
+      if (warp_execution.value()->value != 0) {
+        thread_extent_.Set("threadIdx.x", Integer(32));
+      }
     }
     StmtVisitor::VisitStmt_(op);
   }
