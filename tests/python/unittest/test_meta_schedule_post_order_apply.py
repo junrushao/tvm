@@ -627,7 +627,6 @@ def test_meta_schedule_post_order_apply_custom_search_space_none_rule():
     _ = post_order_apply.generate_design_space(mod)
 
 
-@pytest.mark.xfail  # for compute_at bug
 def test_meta_schedule_post_order_apply_custom_search_space_winograd():
     @register_func("tvm.meta_schedule.test.custom_search_space.winograd")
     def custom_search_space_winograd_func(sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -692,8 +691,7 @@ def test_meta_schedule_post_order_apply_custom_search_space_winograd():
         sch.annotate(block_or_loop=b76, ann_key="auto_unroll_explicit", ann_val=v77)
 
         b78 = sch.get_block(name="input_tile")
-        (b79,) = sch.get_consumers(block=b78)
-        l80 = sch.sample_compute_location(block=b79, decision=4)
+        l80 = sch.sample_compute_location(block=b78, decision=4)
         sch.compute_at(block=b78, loop=l80, preserve_unit_loops=True)
 
         b81 = sch.get_block(name="data_pad")
@@ -781,16 +779,16 @@ def test_meta_schedule_post_order_apply_custom_search_space_winograd():
             "v85 = sch.sample_categorical(candidates=[0, 16, 64, 512], probs=[0.25, 0.25, 0.25, 0.25], decision=1)",
             'sch.annotate(block_or_loop=b84, ann_key="auto_unroll_explicit", ann_val=v85)',
             'b86 = sch.get_block(name="input_tile", func_name="main")',
-            "l87 = sch.sample_compute_location(block=b86, decision=-1)",
+            "l87 = sch.sample_compute_location(block=b86, decision=4)",
             "sch.compute_at(block=b86, loop=l87, preserve_unit_loops=True)",
             'b88 = sch.get_block(name="data_pad", func_name="main")',
-            "l89 = sch.sample_compute_location(block=b88, decision=-1)",
-            "sch.compute_at(block=b88, loop=l89, preserve_unit_loops=True)",
+            "b89, = sch.get_consumers(block=b88)",
+            "l90 = sch.sample_compute_location(block=b89, decision=-2)",
+            "sch.compute_at(block=b88, loop=l90, preserve_unit_loops=True)",
         ],
     )
 
 
-@pytest.mark.xfail  # for compute_at bug
 def test_meta_schedule_post_order_apply_custom_search_space_winograd_cuda():
     @register_func("tvm.meta_schedule.test.custom_search_space.winograd.cuda")
     def custom_search_space_winograd_func_cuda(sch: Schedule, block: BlockRV) -> List[Schedule]:
