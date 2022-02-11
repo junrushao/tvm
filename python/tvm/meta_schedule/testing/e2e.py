@@ -164,7 +164,7 @@ def _get_network(
 def get_network(
     name: str,
     input_shape: List[int],
-    cache_dir: Optional[str] = "./dataset/relay/",
+    cache_dir: Optional[str] = None,
 ) -> Tuple[IRModule, Dict[str, NDArray], Tuple[str, List[int], str]]:
     mod: IRModule
     params_bytearray: bytearray
