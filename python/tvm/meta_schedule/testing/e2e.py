@@ -175,8 +175,7 @@ def get_network(
     params_bytearray: bytearray
     params: Dict[str, NDArray]
     inputs: Tuple[str, List[int], str]
-
-    keyword = f"{name}-{input_shape}.json"
+    keyword = f'{name}-{",".join(str(i) for i in input_shape)}.json'
     if cache_dir is not None:
         path = os.path.join(cache_dir, keyword)
         if os.path.exists(path):

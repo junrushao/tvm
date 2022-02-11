@@ -33,7 +33,7 @@ def test_import():
     # dcgan
     for name in ["dcgan"]:
         for batch_size in [1, 4, 8]:
-            for image_size in [64, 80, 96]:
+            for image_size in [64]:
                 network_keys.append((name, [batch_size, 3, image_size, image_size]))
 
     for i, (name, input_shape) in enumerate(network_keys, 1):
