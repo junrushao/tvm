@@ -112,24 +112,28 @@ def _get_network(
                 hidden_size=512,
                 intermediate_size=2048,
                 num_attention_heads=8,
+                return_dict=False,
             ),
             "bert_base": transformers.BertConfig(
                 num_hidden_layers=12,
                 hidden_size=768,
                 intermediate_size=3072,
                 num_attention_heads=12,
+                return_dict=False,
             ),
             "bert_medium": transformers.BertConfig(
                 num_hidden_layers=12,
                 hidden_size=1024,
                 intermediate_size=4096,
                 num_attention_heads=16,
+                return_dict=False,
             ),
             "bert_large": transformers.BertConfig(
                 num_hidden_layers=24,
                 hidden_size=1024,
                 intermediate_size=4096,
                 num_attention_heads=16,
+                return_dict=False,
             ),
         }
         configuration = config_dict[name]
