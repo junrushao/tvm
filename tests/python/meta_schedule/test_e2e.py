@@ -1,4 +1,3 @@
-from tqdm import tqdm  # type: ignore
 from tvm.meta_schedule.testing.e2e import get_network
 
 
