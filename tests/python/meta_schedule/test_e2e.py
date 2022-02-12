@@ -56,7 +56,9 @@ def test_extract():
     network_keys = _build_dataset()
     for target_kind in ["llvm", "cuda"]:
         for i, (name, input_shape) in enumerate(network_keys, 1):
-            print(f"[{i} / {len(network_keys)}] Extract {name}, input_shape = {input_shape}")
+            print(
+                f"[{i} / {len(network_keys)}] Extract {name} @ {target_kind}, input_shape = {input_shape}"
+            )
             mod, params, _ = get_network(name, input_shape, cache_dir=MODEL_CACHE_DIR)
             filename = f'{name}-{",".join(str(i) for i in input_shape)}-{target_kind}.json'
             extracted_tasks = extract(
@@ -70,5 +72,5 @@ def test_extract():
 
 
 if __name__ == "__main__":
-    # test_import()
+    test_import()
     test_extract()
