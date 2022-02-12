@@ -1,13 +1,15 @@
 import multiprocessing
 import os
 import pickle
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import tvm
 import tvm.relay.testing
 from tvm import relay
 from tvm.ir import IRModule
+from tvm.meta_schedule.integration import ExtractedTask, extract_task_from_relay
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
+from tvm.target import Target
 
 SUPPORTED = [
     # TorchVision
@@ -166,30 +168,72 @@ def _get_network(
     return mod, params_bytearray, inputs
 
 
+def _load_cache(cache_dir: Optional[str], filename: str) -> Optional[List[Any]]:
+    if cache_dir is None:
+        return None
+    path = os.path.join(os.path.expanduser(cache_dir), filename)
+    if not os.path.exists(path):
+        return None
+    print(f"Load from cache: {path}")
+    with open(path, "rb") as i_f:
+        return pickle.load(i_f)
+
+
+def _save_cache(cache_dir: Optional[str], filename: str, objects: List[Any]) -> None:
+    if cache_dir is None:
+        return
+    path = os.path.join(os.path.expanduser(cache_dir), filename)
+    with open(path, "wb") as o_f:
+        pickle.dump(objects, o_f)
+
+
 def get_network(
     name: str,
     input_shape: List[int],
+    *,
     cache_dir: Optional[str] = None,
 ) -> Tuple[IRModule, Dict[str, NDArray], Tuple[str, List[int], str]]:
     mod: IRModule
-    params_bytearray: bytearray
     params: Dict[str, NDArray]
     inputs: Tuple[str, List[int], str]
-    keyword = f'{name}-{",".join(str(i) for i in input_shape)}.json'
-    if cache_dir is not None:
-        path = os.path.join(cache_dir, keyword)
-        if os.path.exists(path):
-            print(f"Load cached network file: {path}")
-            with open(path, "rb") as i_f:
-                mod, params_bytearray, inputs = pickle.load(i_f)
-            params = load_param_dict(params_bytearray)
-            return mod, params, inputs
-    with multiprocessing.Pool(processes=1) as pool:
-        result = pool.map(_get_network, [(name, input_shape)])
+    params_bytearray: bytearray
+
+    filename = f'{name}-{",".join(str(i) for i in input_shape)}.json'
+    cached = _load_cache(cache_dir, filename)
+    if cached is None:
+        with multiprocessing.Pool(processes=1) as pool:
+            result = pool.map(_get_network, [(name, input_shape)])
         ((mod, params_bytearray, inputs),) = result
-        params = load_param_dict(params_bytearray)
-    if cache_dir is not None:
-        path = os.path.join(cache_dir, keyword)
-        with open(path, "wb") as o_f:
-            pickle.dump((mod, params_bytearray, inputs), o_f)
+        cached = [mod, params_bytearray, inputs]
+        _save_cache(cache_dir, filename, cached)
+    mod, params_bytearray, inputs = cached
+    params = load_param_dict(params_bytearray)
     return mod, params, inputs
+
+
+def extract(
+    filename: str,
+    mod: IRModule,
+    target: Target,
+    params: Optional[Dict[str, NDArray]] = None,
+    *,
+    cache_dir: Optional[str] = None,
+    opt_level: int = 3,
+    pass_config: Dict[str, Any] = {
+        "relay.backend.use_meta_schedule": True,
+    },
+    disabled_pass: List[str] = [],
+) -> List[ExtractedTask]:
+    extracted_tasks = _load_cache(cache_dir, filename)
+    if extracted_tasks is None:
+        extracted_tasks = extract_task_from_relay(
+            mod=mod,
+            target=target,
+            params=params,
+            opt_level=opt_level,
+            pass_config=pass_config,
+            disabled_pass=disabled_pass,
+        )
+        extracted_tasks = list(extracted_tasks)
+        _save_cache(cache_dir, filename, extracted_tasks)
+    return extracted_tasks
