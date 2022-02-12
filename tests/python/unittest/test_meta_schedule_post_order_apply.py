@@ -189,24 +189,27 @@ class Conv2d_Winograd:
             bgemm = T.alloc_buffer([6, 6, 9, 128], elem_offset=0, align=128, offset_factor=1)
             A = T.alloc_buffer([6, 4], elem_offset=0, align=128, offset_factor=1)
             inverse = T.alloc_buffer([4, 4, 9, 128], elem_offset=0, align=128, offset_factor=1)
-            for i0_1, i1_1, i2_1, i3_1 in T.grid(1, 16, 16, 128):
+            for i0, i1, i2, i3 in T.grid(1, 16, 16, 128):
                 with T.block("data_pad"):
+                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads([placeholder[i0_1, i1_1, i2_1, i3_1]])
                     T.writes([data_pad[i0_1, i1_1, i2_1, i3_1]])
                     T.block_attr({
                         "schedule_rule": "None",
                     })
                     data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(((((0 <= i1_1) and (i1_1 < 14)) and (0 <= i2_1)) and (i2_1 < 14)), placeholder[i0_1, i1_1, i2_1, i3_1], T.float32(0), dtype="float32")
-            for eps, nu, p, ci in T.grid(6, 6, 9, 128):
+            for i0_2, i1_2, i2_2, i3_2 in T.grid(6, 6, 9, 128):
                 with T.block("input_tile"):
+                    eps, nu, p, ci = T.axis.remap("SSSS", [i0_2, i1_2, i2_2, i3_2])
                     T.reads([data_pad[T.floordiv(p, 9), ((T.floordiv(T.floormod(p, 9), 3)*4) + eps), ((T.floormod(p, 3)*4) + nu), ci]])
                     T.writes([input_tile[eps, nu, p, ci]])
                     T.block_attr({
                         "schedule_rule": "None",
                     })
                     input_tile[eps, nu, p, ci] = data_pad[T.floordiv(p, 9), ((T.floordiv(T.floormod(p, 9), 3)*4) + eps), ((T.floormod(p, 3)*4) + nu), ci]
-            for i, j in T.grid(6, 6):
+            for i0_3, i1_3 in T.grid(6, 6):
                 with T.block("B"):
+                    i, j = T.axis.remap("SS", [i0_3, i1_3])
                     T.writes([B[i, j]])
                     T.block_attr({
                         "const_matrix" : True,
@@ -236,8 +239,9 @@ class Conv2d_Winograd:
                     with T.init():
                         bgemm[eps_2, nu_2, p_2, co] = T.float32(0)
                     bgemm[eps_2, nu_2, p_2, co] = (bgemm[eps_2, nu_2, p_2, co] + (data_pack[eps_2, nu_2, p_2, ci_2]*placeholder_1[eps_2, nu_2, co, ci_2]))
-            for i_1, j_1 in T.grid(6, 4):
+            for i0_6, i1_6 in T.grid(6, 4):
                 with T.block("A"):
+                    i_1, j_1 = T.axis.remap("SS", [i0_6, i1_6])
                     T.writes([A[i_1, j_1]])
                     T.block_attr({
                         "const_matrix" : True,
@@ -256,8 +260,9 @@ class Conv2d_Winograd:
                     with T.init():
                         inverse[vh, vw, p_3, co_1] = T.float32(0)
                     inverse[vh, vw, p_3, co_1] = (inverse[vh, vw, p_3, co_1] + ((bgemm[r_a_1, r_b_1, p_3, co_1]*A[r_a_1, vh])*A[r_b_1, vw]))
-            for n, h, w, co_2 in T.grid(1, 12, 12, 128):
+            for i0_8, i1_8, i2_6, i3_6 in T.grid(1, 12, 12, 128):
                 with T.block("conv2d_winograd"):
+                    n, h, w, co_2 = T.axis.remap("SSSS", [i0_8, i1_8, i2_6, i3_6])
                     T.reads([inverse[T.floormod(h, 4), T.floormod(w, 4), (((n*9) + (T.floordiv(h, 4)*3)) + T.floordiv(w, 4)), co_2]])
                     T.writes([conv2d_winograd[n, h, w, co_2]])
                     T.block_attr({
@@ -283,24 +288,27 @@ class Conv2d_Winograd_Cuda:
             bgemm = T.alloc_buffer([6, 6, 9, 128], elem_offset=0, align=128, offset_factor=1)
             A = T.alloc_buffer([6, 4], elem_offset=0, align=128, offset_factor=1)
             inverse = T.alloc_buffer([4, 4, 9, 128], elem_offset=0, align=128, offset_factor=1)
-            for i0_1, i1_1, i2_1, i3_1 in T.grid(1, 16, 16, 128):
+            for i0, i1, i2, i3 in T.grid(1, 16, 16, 128):
                 with T.block("data_pad"):
+                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.block_attr({
                         "schedule_rule": "None",
                     })
                     T.reads([placeholder[i0_1, i1_1, i2_1, i3_1]])
                     T.writes([data_pad[i0_1, i1_1, i2_1, i3_1]])
                     data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(((((0 <= i1_1) and (i1_1 < 14)) and (0 <= i2_1)) and (i2_1 < 14)), placeholder[i0_1, i1_1, i2_1, i3_1], T.float32(0), dtype="float32")
-            for eps, nu, p, ci in T.grid(6, 6, 9, 128):
+            for i0_2, i1_2, i2_2, i3_2 in T.grid(6, 6, 9, 128):
                 with T.block("input_tile"):
+                    eps, nu, p, ci = T.axis.remap("SSSS", [i0_2, i1_2, i2_2, i3_2])
                     T.block_attr({
                         "schedule_rule": "None",
                     })
                     T.reads([data_pad[T.floordiv(p, 9), ((T.floordiv(T.floormod(p, 9), 3)*4) + eps), ((T.floormod(p, 3)*4) + nu), ci]])
                     T.writes([input_tile[eps, nu, p, ci]])
                     input_tile[eps, nu, p, ci] = data_pad[T.floordiv(p, 9), ((T.floordiv(T.floormod(p, 9), 3)*4) + eps), ((T.floormod(p, 3)*4) + nu), ci]
-            for i, j in T.grid(6, 6):
+            for i0_3, i1_3 in T.grid(6, 6):
                 with T.block("B"):
+                    i, j = T.axis.remap("SS", [i0_3, i1_3])
                     T.writes([B[i, j]])
                     T.block_attr({
                         "const_matrix":True,
@@ -330,8 +338,9 @@ class Conv2d_Winograd_Cuda:
                     with T.init():
                         bgemm[eps_2, nu_2, p_2, co] = T.float32(0)
                     bgemm[eps_2, nu_2, p_2, co] = (bgemm[eps_2, nu_2, p_2, co] + (data_pack[eps_2, nu_2, p_2, ci_2]*placeholder_1[eps_2, nu_2, co, ci_2]))
-            for i_1, j_1 in T.grid(6, 4):
+            for i0_6, i1_6 in T.grid(6, 4):
                 with T.block("A"):
+                    i_1, j_1 = T.axis.remap("SS", [i0_6, i1_6])
                     T.writes([A[i_1, j_1]])
                     T.block_attr({
                         "const_matrix":True,
@@ -350,8 +359,9 @@ class Conv2d_Winograd_Cuda:
                     with T.init():
                         inverse[vh, vw, p_3, co_1] = T.float32(0)
                     inverse[vh, vw, p_3, co_1] = (inverse[vh, vw, p_3, co_1] + ((bgemm[r_a_1, r_b_1, p_3, co_1]*A[r_a_1, vh])*A[r_b_1, vw]))
-            for n, h, w, co_2 in T.grid(1, 12, 12, 128):
+            for i0_8, i1_8, i2_6, i3_6 in T.grid(1, 12, 12, 128):
                 with T.block("conv2d_winograd"):
+                    n, h, w, co_2 = T.axis.remap("SSSS", [i0_8, i1_8, i2_6, i3_6])
                     T.block_attr({
                         "schedule_rule": "None",
                     })
@@ -617,7 +627,6 @@ def test_meta_schedule_post_order_apply_custom_search_space_none_rule():
     _ = post_order_apply.generate_design_space(mod)
 
 
-@pytest.mark.xfail  # for compute_at bug
 def test_meta_schedule_post_order_apply_custom_search_space_winograd():
     @register_func("tvm.meta_schedule.test.custom_search_space.winograd")
     def custom_search_space_winograd_func(sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -682,8 +691,7 @@ def test_meta_schedule_post_order_apply_custom_search_space_winograd():
         sch.annotate(block_or_loop=b76, ann_key="auto_unroll_explicit", ann_val=v77)
 
         b78 = sch.get_block(name="input_tile")
-        (b79,) = sch.get_consumers(block=b78)
-        l80 = sch.sample_compute_location(block=b79, decision=4)
+        l80 = sch.sample_compute_location(block=b78, decision=4)
         sch.compute_at(block=b78, loop=l80, preserve_unit_loops=True)
 
         b81 = sch.get_block(name="data_pad")
@@ -771,16 +779,16 @@ def test_meta_schedule_post_order_apply_custom_search_space_winograd():
             "v85 = sch.sample_categorical(candidates=[0, 16, 64, 512], probs=[0.25, 0.25, 0.25, 0.25], decision=1)",
             'sch.annotate(block_or_loop=b84, ann_key="auto_unroll_explicit", ann_val=v85)',
             'b86 = sch.get_block(name="input_tile", func_name="main")',
-            "l87 = sch.sample_compute_location(block=b86, decision=-1)",
+            "l87 = sch.sample_compute_location(block=b86, decision=4)",
             "sch.compute_at(block=b86, loop=l87, preserve_unit_loops=True)",
             'b88 = sch.get_block(name="data_pad", func_name="main")',
-            "l89 = sch.sample_compute_location(block=b88, decision=-1)",
-            "sch.compute_at(block=b88, loop=l89, preserve_unit_loops=True)",
+            "b89, = sch.get_consumers(block=b88)",
+            "l90 = sch.sample_compute_location(block=b89, decision=-2)",
+            "sch.compute_at(block=b88, loop=l90, preserve_unit_loops=True)",
         ],
     )
 
 
-@pytest.mark.xfail  # for compute_at bug
 def test_meta_schedule_post_order_apply_custom_search_space_winograd_cuda():
     @register_func("tvm.meta_schedule.test.custom_search_space.winograd.cuda")
     def custom_search_space_winograd_func_cuda(sch: Schedule, block: BlockRV) -> List[Schedule]:
