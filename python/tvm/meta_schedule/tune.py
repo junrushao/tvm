@@ -602,6 +602,23 @@ def tune_te(
     )
 
 
+def deduplicate_tune_contexts(tune_contexts: List[TuneContext]) -> List[TuneContext]:
+    results: List[TuneContext] = []
+    hashs: List[int] = []
+    for i, task in enumerate(tune_contexts):
+        struct_hash: int = structural_hash(task.mod)
+        flag: bool = False
+        if struct_hash in hashs:
+            for other_task in tune_contexts[i + 1 :]:
+                if structural_equal(task.mod, other_task.mod):
+                    flag = True
+                    break
+        if not flag:
+            results.append(task)
+            hashs.append(struct_hash)
+    return results
+
+
 def tune_extracted_tasks(
     extracted_tasks: List[ExtractedTask],
     target: Target,
@@ -643,25 +660,12 @@ def tune_extracted_tasks(
         )
     # deduplication
     logger.info(f"Before task deduplication: {len(tune_contexts)} tasks")
-    tasks: List[TuneContext] = []
-    hashs: List[int] = []
-    for i, task in enumerate(tune_contexts):
-        struct_hash: int = structural_hash(task.mod)
-        flag: bool = False
-        if struct_hash in hashs:
-            for other_task in tune_contexts[i + 1 :]:
-                if structural_equal(task.mod, other_task.mod):
-                    flag = True
-                    break
-        if not flag:
-            tasks.append(task)
-            hashs.append(struct_hash)
-    logger.info(f"After task deduplication: {len(tasks)} tasks")
-
+    tune_contexts = deduplicate_tune_contexts(tune_contexts)
+    logger.info(f"After task deduplication: {len(tune_contexts)} tasks")
     # parse the task scheduler
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
-        tasks,
+        tune_contexts,
         builder=Parse._builder(builder),
         runner=Parse._runner(runner),
         database=database,
