@@ -21,22 +21,21 @@ import os.path
 from typing import Callable, Dict, List, Optional, Union
 
 import tvm
-from tvm import relay
 from tvm._ffi.registry import register_func
+from tvm.ir import IRModule, structural_equal, structural_hash
 from tvm.relay import Function as RelayFunc
+from tvm.relay import build as relay_build
 from tvm.relay.backend.executor_factory import ExecutorFactoryModule
-from tvm.ir.base import structural_equal, structural_hash
-from tvm.ir.module import IRModule
 from tvm.runtime import NDArray
-from tvm.target.target import Target
+from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
-from .integration import extract_task_from_relay, ApplyHistoryBest
 from .builder import Builder, LocalBuilder
 from .cost_model import CostModel, XGBModel
 from .database import Database, JSONDatabase, TuningRecord
 from .feature_extractor import PerStoreFeature
+from .integration import ApplyHistoryBest, ExtractedTask, extract_task_from_relay
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
 from .postproc import Postproc
@@ -51,7 +50,6 @@ from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import RoundRobin, TaskScheduler
 from .tune_context import TuneContext
 
-
 logger = logging.getLogger(__name__)
 
 SearchStrategyConfig = Union[
@@ -59,11 +57,11 @@ SearchStrategyConfig = Union[
     ReplayTraceConfig,
     EvolutionarySearchConfig,
 ]
-TypeSpaceGenerator = Callable[[], SpaceGenerator]
-TypeScheduleRule = Callable[[], List[ScheduleRule]]
-TypePostproc = Callable[[], List[Postproc]]
-TypeMutatorProb = Callable[[], Dict[Mutator, float]]
-TypeTaskScheduler = Callable[
+FnSpaceGenerator = Callable[[], SpaceGenerator]
+FnScheduleRule = Callable[[], List[ScheduleRule]]
+FnPostproc = Callable[[], List[Postproc]]
+FnMutatorProb = Callable[[], Dict[Mutator, float]]
+FnTaskScheduler = Callable[
     [
         List[TuneContext],
         Builder,
@@ -81,8 +79,8 @@ class DefaultLLVM:
 
     @staticmethod
     def _sch_rules() -> List[ScheduleRule]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            schedule_rule as M,
+        from tvm.meta_schedule import (
+            schedule_rule as M,  # pylint: disable=import-outside-toplevel
         )
 
         return [
@@ -120,8 +118,8 @@ class DefaultLLVM:
 
     @staticmethod
     def _postproc() -> List[Postproc]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            postproc as M,
+        from tvm.meta_schedule import (
+            postproc as M,  # pylint: disable=import-outside-toplevel
         )
 
         return [
@@ -132,8 +130,8 @@ class DefaultLLVM:
 
     @staticmethod
     def _mutator_probs() -> Dict[Mutator, float]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            mutator as M,
+        from tvm.meta_schedule import (
+            mutator as M,  # pylint: disable=import-outside-toplevel
         )
 
         return {
@@ -149,8 +147,8 @@ class DefaultCUDA:
 
     @staticmethod
     def _sch_rules() -> List[ScheduleRule]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            schedule_rule as M,
+        from tvm.meta_schedule import (
+            schedule_rule as M,  # pylint: disable=import-outside-toplevel
         )
 
         return [
@@ -191,8 +189,8 @@ class DefaultCUDA:
 
     @staticmethod
     def _postproc() -> List[Postproc]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            postproc as M,
+        from tvm.meta_schedule import (
+            postproc as M,  # pylint: disable=import-outside-toplevel
         )
 
         return [
@@ -206,8 +204,8 @@ class DefaultCUDA:
 
     @staticmethod
     def _mutator_probs() -> Dict[Mutator, float]:
-        from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-            mutator as M,
+        from tvm.meta_schedule import (
+            mutator as M,  # pylint: disable=import-outside-toplevel
         )
 
         return {
@@ -282,8 +280,8 @@ class Parse:
         measure_callbacks: Optional[List[MeasureCallback]],
     ) -> List[MeasureCallback]:
         if measure_callbacks is None:
-            from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-                measure_callback as M,
+            from tvm.meta_schedule import (
+                measure_callback as M,  # pylint: disable=import-outside-toplevel
             )
 
             return [
@@ -315,7 +313,7 @@ class Parse:
         return cost_model
 
     @staticmethod
-    def _space_generator(space_generator: Optional[TypeSpaceGenerator]) -> SpaceGenerator:
+    def _space_generator(space_generator: Optional[FnSpaceGenerator]) -> SpaceGenerator:
         if space_generator is None:
             return PostOrderApply()
         if callable(space_generator):
@@ -328,7 +326,7 @@ class Parse:
         return space_generator
 
     @staticmethod
-    def _sch_rules(sch_rules: Optional[TypeScheduleRule], target: Target) -> List[ScheduleRule]:
+    def _sch_rules(sch_rules: Optional[FnScheduleRule], target: Target) -> List[ScheduleRule]:
         if callable(sch_rules):
             return sch_rules()
         if sch_rules is not None:
@@ -342,7 +340,7 @@ class Parse:
         raise ValueError(f"Unsupported target: {target}")
 
     @staticmethod
-    def _postproc(postproc: Optional[TypePostproc], target: Target) -> List[Postproc]:
+    def _postproc(postproc: Optional[FnPostproc], target: Target) -> List[Postproc]:
         if callable(postproc):
             return postproc()
         if postproc is not None:
@@ -357,7 +355,7 @@ class Parse:
 
     @staticmethod
     def _mutator_probs(
-        mutator_probs: Optional[TypeMutatorProb],
+        mutator_probs: Optional[FnMutatorProb],
         target: Target,
     ) -> Dict[Mutator, float]:
         if callable(mutator_probs):
@@ -381,10 +379,10 @@ class Parse:
         target: Target,
         config: SearchStrategyConfig,
         task_name: str,
-        space_generator: Optional[TypeSpaceGenerator],
-        sch_rules: Optional[TypeScheduleRule],
-        postprocs: Optional[TypePostproc],
-        mutator_probs: Optional[TypeMutatorProb],
+        space_generator: Optional[FnSpaceGenerator],
+        sch_rules: Optional[FnScheduleRule],
+        postprocs: Optional[FnPostproc],
+        mutator_probs: Optional[FnMutatorProb],
         num_threads: Optional[int],
     ) -> TuneContext:
         if tune_context is None:
@@ -408,7 +406,7 @@ class Parse:
 
     @staticmethod
     def _task_scheduler(
-        task_scheduler: Union[None, TaskScheduler, TypeTaskScheduler],
+        task_scheduler: Union[None, TaskScheduler, FnTaskScheduler],
         tasks: List[TuneContext],
         builder: Builder,
         runner: Runner,
@@ -454,10 +452,10 @@ def tune_tir(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Optional[Schedule]:
     """Tune a TIR IRModule with a given target.
@@ -470,8 +468,6 @@ def tune_tir(
         The target to tune for.
     config : SearchStrategyConfig
         The search strategy config.
-    task_name : str
-        The name of the task.
     work_dir : Optional[str]
         The working directory to save intermediate results.
     builder : Optional[Builder]
@@ -548,10 +544,10 @@ def tune_te(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Optional[Schedule]:
     """Tune a TE compute DAG with a given target.
@@ -606,6 +602,81 @@ def tune_te(
     )
 
 
+def deduplicate_tune_contexts(tune_contexts: List[TuneContext]) -> List[TuneContext]:
+    results: List[TuneContext] = []
+    hashs: List[int] = []
+    for i, task in enumerate(tune_contexts):
+        struct_hash: int = structural_hash(task.mod)
+        flag: bool = False
+        if struct_hash in hashs:
+            for other_task in tune_contexts[i + 1 :]:
+                if structural_equal(task.mod, other_task.mod):
+                    flag = True
+                    break
+        if not flag:
+            results.append(task)
+            hashs.append(struct_hash)
+    return results
+
+
+def tune_extracted_tasks(
+    extracted_tasks: List[ExtractedTask],
+    target: Target,
+    config: SearchStrategyConfig,
+    work_dir: str,
+    *,
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    task_scheduler: Optional[TaskScheduler] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    num_threads: Optional[int] = None,
+) -> Database:
+    # pylint: disable=protected-access
+    tune_contexts = []
+    target = Parse._target(target)
+    database = Parse._database(database, "default", work_dir)
+    # parse the tuning contexts
+    for task in extracted_tasks:
+        assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
+        tune_contexts.append(
+            Parse._tune_context(
+                tune_context=None,
+                mod=Parse._mod(task.dispatched[0]),
+                target=target,
+                config=config,
+                task_name=task.task_name,
+                space_generator=space,
+                sch_rules=sch_rules,
+                postprocs=postprocs,
+                mutator_probs=mutator_probs,
+                num_threads=num_threads,
+            )
+        )
+    # deduplication
+    logger.info(f"Before task deduplication: {len(tune_contexts)} tasks")
+    tune_contexts = deduplicate_tune_contexts(tune_contexts)
+    logger.info(f"After task deduplication: {len(tune_contexts)} tasks")
+    # parse the task scheduler
+    task_scheduler = Parse._task_scheduler(
+        task_scheduler,
+        tune_contexts,
+        builder=Parse._builder(builder),
+        runner=Parse._runner(runner),
+        database=database,
+        cost_model=Parse._cost_model(cost_model),
+        measure_callbacks=Parse._callbacks(measure_callbacks),
+    )
+    # pylint: enable=protected-access
+    task_scheduler.tune()
+    return database
+
+
 def tune_relay(
     mod: Union[RelayFunc, IRModule],
     target: Union[str, Target],
@@ -613,17 +684,16 @@ def tune_relay(
     work_dir: str,
     *,
     params: Optional[Dict[str, NDArray]] = None,
-    task_name: str = "main",
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
     database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> ExecutorFactoryModule:
     """Tune a TIR IRModule with a given target.
@@ -663,59 +733,26 @@ def tune_relay(
 
     logger.info("Working directory: %s", work_dir)
     extracted_tasks = extract_task_from_relay(mod, target, params)
-    # pylint: disable=protected-access
-    tune_contexts = []
-    target = Parse._target(target)
-    database = Parse._database(database, task_name, work_dir)
-    # parse the tuning contexts
-    for task in extracted_tasks:
-        assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
-        tune_contexts.append(
-            Parse._tune_context(
-                tune_context=None,
-                mod=Parse._mod(task.dispatched[0]),
-                target=target,
-                config=config,
-                task_name=task.task_name,
-                space_generator=space,
-                sch_rules=sch_rules,
-                postprocs=postprocs,
-                mutator_probs=mutator_probs,
-                num_threads=num_threads,
-            )
-        )
-    # deduplication
-    logger.info(f"Before task deduplication: {len(tune_contexts)} tasks")
-    tasks: List[TuneContext] = []
-    hashs: List[int] = []
-    for i, task in enumerate(tune_contexts):
-        struct_hash: int = structural_hash(task.mod)
-        flag: bool = False
-        if struct_hash in hashs:
-            for other_task in tune_contexts[i + 1 :]:
-                if structural_equal(task.mod, other_task.mod):
-                    flag = True
-                    break
-        if not flag:
-            tasks.append(task)
-            hashs.append(struct_hash)
-    logger.info(f"After task deduplication: {len(tasks)} tasks")
-
-    # parse the task scheduler
-    task_scheduler = Parse._task_scheduler(
-        task_scheduler,
-        tasks,
-        builder=Parse._builder(builder),
-        runner=Parse._runner(runner),
+    database = tune_extracted_tasks(
+        extracted_tasks,
+        target,
+        config,
+        work_dir,
+        builder=builder,
+        runner=runner,
         database=database,
-        cost_model=Parse._cost_model(cost_model),
-        measure_callbacks=Parse._callbacks(measure_callbacks),
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        task_scheduler=task_scheduler,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        num_threads=num_threads,
     )
-    # pylint: enable=protected-access
-    task_scheduler.tune()
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
         ):
-            return relay.build(mod, target=target, params=params)
+            return relay_build(mod, target=target, params=params)

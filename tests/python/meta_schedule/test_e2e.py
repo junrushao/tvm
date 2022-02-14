@@ -1,7 +1,13 @@
-from tvm.meta_schedule.testing.e2e import get_network
+from typing import List, Tuple
+
+from tvm.meta_schedule.testing.e2e import extract, get_network
+from tvm.target import Target
+
+MODEL_CACHE_DIR = "~/dataset/relay-models"
+TASK_CACHE_DIR = "~/dataset/tasks-{target_kind}"
 
 
-def test_import():
+def _build_dataset() -> List[Tuple[str, List[int]]]:
     network_keys = []
     for name in [
         "resnet_18",
@@ -36,10 +42,37 @@ def test_import():
             for image_size in [64]:
                 network_keys.append((name, [batch_size, 3, image_size, image_size]))
 
+    return network_keys
+
+
+def test_import():
+    network_keys = _build_dataset()
     for i, (name, input_shape) in enumerate(network_keys, 1):
-        print(f"[{i} / {len(network_keys)}] {name}, input_shape = {input_shape}")
-        get_network(name, input_shape, cache_dir="/tmp/relay/")
+        print(f"[{i} / {len(network_keys)}] Import {name}, input_shape = {input_shape}")
+        get_network(name, input_shape, cache_dir=MODEL_CACHE_DIR)
+
+
+def test_extract():
+    network_keys = _build_dataset()
+    for target_kind in ["llvm", "cuda"]:
+        for i, (name, input_shape) in enumerate(network_keys, 1):
+            print(
+                f"[{i} / {len(network_keys)}] Extract {name} @ {target_kind}, input_shape = {input_shape}"
+            )
+            if name == "resnext_50" and target_kind == "cuda":
+                continue
+            mod, params, _ = get_network(name, input_shape, cache_dir=MODEL_CACHE_DIR)
+            filename = f'{name}-{",".join(str(i) for i in input_shape)}-{target_kind}.json'
+            extracted_tasks = extract(
+                filename=filename,
+                mod=mod,
+                target=Target(target_kind),
+                params=params,
+                cache_dir=TASK_CACHE_DIR.format(target_kind=target_kind),
+            )
+            print(f"{len(extracted_tasks)} task(s) extracted")
 
 
 if __name__ == "__main__":
     test_import()
+    test_extract()
