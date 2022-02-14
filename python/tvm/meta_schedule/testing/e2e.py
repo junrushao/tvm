@@ -95,8 +95,8 @@ def _get_network(
                         {
                             "nn.conv2d": ["NHWC", "default"],
                             "nn.conv3d": ["NDHWC", "default"],
-                            # "nn.max_pool2d": ["NHWC", "default"],
-                            # "nn.avg_pool2d": ["NHWC", "default"],
+                            "nn.max_pool2d": ["NHWC", "default"],
+                            "nn.avg_pool2d": ["NHWC", "default"],
                         }
                     ),
                 ]

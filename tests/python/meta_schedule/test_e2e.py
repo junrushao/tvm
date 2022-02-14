@@ -59,6 +59,8 @@ def test_extract():
             print(
                 f"[{i} / {len(network_keys)}] Extract {name} @ {target_kind}, input_shape = {input_shape}"
             )
+            if name == "resnext_50" and target_kind == "cuda":
+                continue
             mod, params, _ = get_network(name, input_shape, cache_dir=MODEL_CACHE_DIR)
             filename = f'{name}-{",".join(str(i) for i in input_shape)}-{target_kind}.json'
             extracted_tasks = extract(
