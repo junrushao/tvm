@@ -17,7 +17,7 @@
 """Random Feature Extractor."""
 from typing import List, Union, Tuple
 
-import numpy as np
+import numpy as np  # type: ignore
 from tvm.runtime.ndarray import NDArray, array
 
 from ..tune_context import TuneContext

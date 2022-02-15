@@ -86,7 +86,6 @@ struct PrimeTable {
       pow_tab.emplace_back(std::move(tab));
     }
   }
-
   /*!
    * \brief Factorize a number n, and return in a cryptic format
    * \param n The number to be factorized
@@ -300,17 +299,27 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
   CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
-  while (true) {
-    std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
-    if (result.back() <= max_innermost_factor) {
-      return result;
+  std::vector<int32_t> innermost_candidates;
+  innermost_candidates.reserve(max_innermost_factor);
+  for (int32_t i = 1; i <= max_innermost_factor; ++i) {
+    if (extent % i == 0) {
+      innermost_candidates.push_back(i);
     }
   }
+  // N.B. Theoretically sampling evenly breaks the uniform sampling of the global sampling space.
+  // We should do multiple factorization to weight the choices. However, it would lead to slower
+  // sampling speed. On the other hand, considering potential tricks we might do on the innermost
+  // loop, in which sampling uniformly does not help, let's leave it as it is for now, and maybe add
+  // more heuristics in the future
+  int32_t innermost = innermost_candidates[SampleInt(rand_state, 0, innermost_candidates.size())];
+  std::vector<int64_t> result = SamplePerfectTile(rand_state, extent / innermost, n_splits - 1);
+  result.push_back(innermost);
+  return result;
 }
 
 std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
+    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);

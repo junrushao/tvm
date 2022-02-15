@@ -490,6 +490,7 @@ class LoopPropertyError : public ScheduleError {
           CheckGetSingleChildBlockRealizeOnSRefTree(self, self->stmt2ref.at(loop.get()));
           meet_reduction_loop = true;
         }
+        continue;
       } else if (meet_reduction_loop && !is_one(loop->extent)) {
         throw LoopPropertyError(self->mod, loop, kUnboundLoopUnderReductionLoop);
       }
@@ -590,8 +591,8 @@ class BaseBlockCreator {
   }
 
  private:
-  virtual void CreateNormalIters(int idx) = 0;
   virtual void CreateAdditionalIter() = 0;
+  virtual void CreateNormalIters(int idx) = 0;
   virtual void CreateReductionUpdate() = 0;
   virtual void CreateReadWriteRegions() = 0;
 
@@ -822,13 +823,6 @@ class WriteBackBlockCreator : public BaseBlockCreator {
                 [v = rf_loop_->loop_var.get()](const VarNode* var) { return var == v; })) {
       CreateAdditionalIter();
     }
-  }
-
-  void CreateAdditionalIter() final {
-    additional_iter_ = IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name_hint, kCommReduce);
-    iter_vars_.insert(iter_vars_.end(), additional_iter_);
-    iter_values_.insert(iter_values_.end(), rf_loop_->loop_var);
-    var_map_.Set(rf_additional_iter_->var, additional_iter_->var);
   }
 
   void CreateReductionUpdate() final {

@@ -55,7 +55,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     Array<FloatImm> input_latencies;
     for (double latency : latencies)
       input_latencies.push_back(FloatImm(DataType::Float(32), latency));
-    return objective_func(input_latencies);
+    return objective_func(input_latencies)->value;
   }
 
   void _adjust_similarity_group(int task_id) {
@@ -95,8 +95,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
     // Calculate gradients if already warmed up
     double max_gradient = -1e30, min_gradient = 1e30;
     int arg_min_gradient = -1;
+    std::vector<int> tasks_alive;
     for (task_id = 0; task_id < n_tasks; ++task_id) {
       if (!tasks[task_id]->is_stopped) {
+        tasks_alive.push_back(task_id);
         // compute gradient from chain rule : (delta f / delta g_i)
         // here f is given as objective function, default weighted sum
         double delta = 1e-4;
@@ -120,8 +122,13 @@ class GradientBasedNode final : public TaskSchedulerNode {
         // compute (g_i(t_i + \Delta t) - g(t_i)) / (\Delta t)
         // which is approximated by
         // min( - g_i(t_i) / t_i, \Beta \frac{C_i}{max_{k \in N_i}(V_k)} - g_i(t_i))
-        double g_next_1 =
-            task_best_latencies[task_id] - (task_best_latencies[task_id] / task_cnts[task_id]);
+        double g_next_1;
+        if (task_cnts[task_id] > 0) {
+          g_next_1 =
+              task_best_latencies[task_id] - (task_best_latencies[task_id] / task_cnts[task_id]);
+        } else {
+          g_next_1 = beta * 1e30;
+        }
         double g_next_2 = beta * 1e30;
         int group_id = tag_to_group[task_tag[task_id]];
         if (task_groups[group_id].size() > 1) {
@@ -135,7 +142,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
         double forward_grad = g_next - task_best_latencies[task_id];
 
         double gradient = chain_grad * (alpha * backward_grad + (1 - alpha) * forward_grad);
-        ICHECK(gradient <= 0) << "Wrong gradient calculated, should be less than or equal to 0.";
+        ICHECK(gradient <= 0)
+            << "Wrong gradient calculated, should be less than or equal to 0. Chain_grad: "
+            << chain_grad << ", backward_grad: " << backward_grad
+            << ", forward_grad: " << forward_grad << ".";
         if (gradient > max_gradient) {
           max_gradient = gradient;
         }
@@ -145,10 +155,19 @@ class GradientBasedNode final : public TaskSchedulerNode {
         }
       }
     }
+    // all tasks done
+    if (tasks_alive.size() == 0) return -1;
+    // same gradient, sample any task
     if (std::abs(max_gradient - min_gradient) < 1e-6) {
-      arg_min_gradient = tir::SampleInt(&rand_state, 0, n_tasks);
+      task_id = tasks_alive[tir::SampleInt(&rand_state, 0, tasks_alive.size())];
+    } else {
+      task_id = arg_min_gradient;
     }
-    return arg_min_gradient;
+    // check if task is running
+    if (IsTaskRunning(task_id)) {
+      JoinRunningTask(task_id);
+    }
+    return task_id;
   }
 
   void JoinRunningTask(int task_id) final {
@@ -159,7 +178,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     Array<RunnerResult> results;
     task_cnts[task_id]++;
     results.reserve(n);
-    double best_latency = 1e30;
+    double trial_best_latency = 1e30;
     for (const RunnerFuture future : task->runner_futures.value()) {
       RunnerResult result = future->Result();
       results.push_back(result);
@@ -170,13 +189,15 @@ class GradientBasedNode final : public TaskSchedulerNode {
           count += 1;
           sum += run_sec->value;
         }
-        best_latency = std::min(best_latency, sum / count);
+        trial_best_latency = std::min(trial_best_latency, sum / count);
       }
     }
-    task_latency_history[task_id].push_back(best_latency);
-    if (task_latency_history[task_id].size() == 1 || best_latency < task_best_latencies[task_id]) {
-      task_best_latencies[task_id] = best_latency;
+
+    if (task_latency_history[task_id].size() == 0 ||
+        trial_best_latency < task_best_latencies[task_id]) {
+      task_best_latencies[task_id] = trial_best_latency;
     }
+    task_latency_history[task_id].push_back(task_best_latencies[task_id]);
     _adjust_similarity_group(task_id);
     task->search_strategy.value()->NotifyRunnerResults(task, task->measure_candidates.value(),
                                                        results);
@@ -195,20 +216,19 @@ class GradientBasedNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::GradientBased(
-    Array<TuneContext> tasks,                                   //
-    Builder builder,                                            //
-    Runner runner,                                              //
-    Database database,                                          //
-    double alpha,                                               //
-    double beta,                                                //
-    int backward_window_size,                                   //
-    support::LinearCongruentialEngine::TRandState seed,         //
-    Array<FloatImm> task_weights,                               //
-    TaskSchedulerNode::FObjectiveFunc objective_func,           //
-    TaskSchedulerNode::FTagGenerationFunc tag_generation_func,  //
-    Optional<CostModel> cost_model,                             //
-    Optional<Array<MeasureCallback>> measure_callbacks) {
+TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,                            //
+                                           Builder builder,                                     //
+                                           Runner runner,                                       //
+                                           Database database,                                   //
+                                           double alpha,                                        //
+                                           double beta,                                         //
+                                           int backward_window_size,                            //
+                                           support::LinearCongruentialEngine::TRandState seed,  //
+                                           Array<FloatImm> task_weights,                        //
+                                           String objective_func_name,                          //
+                                           String tag_generation_func_name,                     //
+                                           Optional<CostModel> cost_model,                      //
+                                           Optional<Array<MeasureCallback>> measure_callbacks) {
   ObjectPtr<GradientBasedNode> n = make_object<GradientBasedNode>();
   n->alpha = alpha;
   n->beta = beta;
@@ -231,13 +251,17 @@ TaskScheduler TaskScheduler::GradientBased(
   n->task_latency_history.assign(n->tasks.size(), std::vector<double>());
   n->task_weights.assign(n->tasks.size(), 1);
 
-  CHECK(objective_func != nullptr) << "The task objective function is empty!";
-  CHECK(tag_generation_func != nullptr) << "The task tag generation function is empty!";
-  n->objective_func = objective_func;
+  const auto* objective_func_ptr = runtime::Registry::Get(objective_func_name);
+  CHECK(objective_func_ptr) << "The given objective function is undefined!";
+  n->objective_func = *objective_func_ptr;
+
+  const auto* tag_generation_func_ptr = runtime::Registry::Get(tag_generation_func_name);
+  CHECK(tag_generation_func_ptr) << "The given tag generation function is undefined!";
+  TaskSchedulerNode::FTagGenerationFunc tag_generation_func = *tag_generation_func_ptr;
 
   if (task_weights.defined()) {
     CHECK(task_weights.size() == n->tasks.size())
-        << "Given task weights number does not equal to task number!";
+        << "The given task weights number does not equal to task number!";
     int cnt = 0;
     for (const FloatImm& weight : task_weights) {
       n->task_weights[cnt++] = weight->value;

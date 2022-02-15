@@ -70,26 +70,6 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
-/*!
- * \brief The information of a block scope, including the leaf blocks,
- * as well as the loop types (spatial, reduction) for each loop in the scope.
- */
-struct ScopeBlockLoopInfo {
-  /*! \brief A list of the leaf blocks, from left to right */
-  std::vector<BlockRealize> realizes;
-  /*! \brief The loop vars bound to spatial block iters */
-  std::unordered_set<const VarNode*> spatial_vars;
-  /*! \brief The loop vars bound to non-spatial block iters */
-  std::unordered_set<const VarNode*> non_spatial_vars;
-};
-
-/*!
- * \brief Inspect the scope of the given sref
- * \param scope_block The root block of the scope
- * \return The information of the scope
- */
-ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block);
-
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
@@ -254,15 +234,6 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
  * \throw ScheduleError If the input block does not have an affine binding
  */
 void CheckAffineBinding(const ScheduleState& self, Block block);
-
-/*!
- * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
- * from outer to inner.
- * \param self The schedule state
- * \param block_sref The block to be checked
- * \return A boolean flag indicating if the block has a trivial binding
- */
-bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
@@ -647,17 +618,27 @@ bool CanComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
- * \brief Provided the access pattern to a buffer, suggest one of the possible layout
- * transformation to minimize the locality of the access pattern.
- * \param buffer The buffer to be transformed
- * \param indices The access pattern to the buffer
- * \param loops The loops above the buffer
- * \param predicate The predicate of the access
- * \param analyzer Arithmetic analyzer
+ * \brief Checks if a producer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully compute at the specific loop
  */
-Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& indices,
-                                   const Array<For>& loops, const PrimExpr& predicate,
-                                   arith::Analyzer* analyzer);
+bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                  bool preserve_unit_loops);
+
+/*!
+ * \brief Checks if a consumer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully reverse compute at the
+ * specific loop
+ */
+bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
+                         const StmtSRef& loop_sref, bool preserve_unit_loops);
 
 /*!
  * \brief Provided the access pattern to a buffer, suggest one of the possible layout

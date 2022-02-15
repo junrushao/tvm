@@ -15,19 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule CostModel."""
-
-from typing import List
 import ctypes
+from typing import List
 
-import numpy as np
-
+import numpy as np  # type: ignore
 from tvm._ffi import register_object
 from tvm.runtime import Object
 
 from .. import _ffi_api
 from ..runner import RunnerResult
-from ..tune_context import TuneContext
 from ..search_strategy import MeasureCandidate
+from ..tune_context import TuneContext
 from ..utils import _get_hex_address, check_override
 
 

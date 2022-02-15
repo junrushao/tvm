@@ -19,9 +19,11 @@ import math
 
 from typing import TYPE_CHECKING, List, Optional, Callable
 from tvm._ffi import register_object
+from tvm._ffi.registry import register_func
 
 from tvm.ir import IRModule
 from tvm.tir import Schedule
+from tvm.tir.function import PrimFunc
 from ..measure_callback import MeasureCallback
 from ..builder import Builder
 from ..runner import Runner
@@ -35,24 +37,17 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-def derive_similarity_tag(log_base=1.618):
-    def compute(mod: IRModule):
-        ret = ""
-        sch = Schedule(mod)
-        for func in mod.get_global_vars:
-            sref = sch.get_sref(sch.get_block(func))
-            if (
-                sref is not None
-                and sref.stmt is not None
-                and "meta_scheduler_task_scheduler_tag" in sref.stmt.annotations
-            ):
-                ret += sref.stmt.annotations["meta_scheduler_task_scheduler_tag"] + "_"
-        if ret:
-            flop_count = _ffi_api.TaskSchedulerFlopCount(mod)  # type: ignore # pylint: disable=no-member
-            ret += "%d" % int(math.log(flop_count + 1, log_base))
-        return ret
+@register_func("meta_schedule.task_scheduler.derive_similarity_tag")
+def derive_similarity_tag(mod: IRModule, log_base: float = 1.618):
+    ret = ""
+    for var in mod.get_global_vars():
 
-    return compute
+        if "meta_scheduler_task_scheduler_tag" in mod[var].attrs:
+            ret += mod[var].attrs.meta_scheduler_task_scheduler_tag + "_"
+    if ret:
+        flop_count = _ffi_api.TaskSchedulerFlopCount(mod)  # type: ignore # pylint: disable=no-member
+        ret += "%d" % int(math.log(flop_count + 1, log_base))
+    return ret
 
 
 @register_object("meta_schedule.GradientBased")
@@ -71,11 +66,15 @@ class GradientBased(TaskScheduler):
         backward_window_size: int = 3,
         seed: int = -1,
         task_weights: List[float] = None,
-        objective_func: Callable[[List[float]], float] = None,
-        tag_generation_func: Callable[[IRModule], str] = derive_similarity_tag(),
+        objective_func_name: str = "meta_schedule.task_scheduler.objective_func",
+        tag_generation_func_name: str = "meta_schedule.task_scheduler.derive_similarity_tag",
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
     ) -> None:
+        @register_func("meta_schedule.task_scheduler.objective_func")
+        def weighted_sum(l: List[float]) -> float:
+            return sum([l[i] * w for i, w in enumerate(self.task_weights)])
+
         """Constructor.
 
         Parameters
@@ -98,10 +97,10 @@ class GradientBased(TaskScheduler):
             The random seed.
         task_weights: Optional[List[float]]
             The weights of each task.
-        objective_func:
-            The objective function for gradient optimization.
-        tag_generation_func
-            The function to generate similarity tag for workloads.
+        objective_func_name:
+            The name of objective function for gradient optimization.
+        tag_generation_func_name:
+            The name of function to generate similarity tag for workloads.
         cost_model: CostModel
             The cost model of the scheduler.
         measure_callbacks: Optional[List[MeasureCallback]]
@@ -109,24 +108,25 @@ class GradientBased(TaskScheduler):
         """
         if task_weights is None:
             task_weights = [1.0 for _ in tasks]
+        self.task_weights = task_weights
+
         assert len(task_weights) == len(
             tasks
         ), "The given task weights should be same length as tasks."
-        if objective_func is None:
-            objective_func = lambda l: sum([l[i] * w for i, w in enumerate(task_weights)])
+
         self.__init_handle_by_constructor__(
             _ffi_api.TaskSchedulerGradientBased,  # type: ignore # pylint: disable=no-member
             tasks,
             builder,
             runner,
             database,
-            cost_model,
-            measure_callbacks,
-            task_weights,
             alpha,
             beta,
             backward_window_size,
             seed,
-            objective_func,
-            tag_generation_func,
+            task_weights,
+            objective_func_name,
+            tag_generation_func_name,
+            cost_model,
+            measure_callbacks,
         )

@@ -22,7 +22,6 @@ from typing import List
 
 import pytest
 import tvm
-from tvm.tir.schedule import BlockRV, Schedule
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.schedule_rule import PyScheduleRule

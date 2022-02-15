@@ -23,9 +23,6 @@ import math
 import pytest
 
 import tvm
-from tvm._ffi.base import TVMError
-from tvm.ir.module import IRModule
-from tvm.meta_schedule.space_generator.space_generator import PySpaceGenerator
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion

@@ -116,7 +116,8 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits;
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
@@ -147,7 +148,8 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits;
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(AnnotateTraits);

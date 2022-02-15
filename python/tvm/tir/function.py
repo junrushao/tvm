@@ -19,16 +19,16 @@
 from typing import Callable, List, Mapping, Union
 import inspect
 
-from tvm._ffi import get_global_func, register_object
+import tvm._ffi
+import tvm.runtime
+from tvm.runtime import Object
 from tvm.ir import BaseFunc
-from tvm.runtime import Object, convert
-
-from . import _ffi_api
 from .buffer import Buffer
-from .expr import PrimExpr, Var
+from .expr import Var, PrimExpr
+from . import _ffi_api
 
 
-@register_object("tir.PrimFunc")
+@tvm._ffi.register_object("tir.PrimFunc")
 class PrimFunc(BaseFunc):
     """A function declaration expression.
 
@@ -57,7 +57,7 @@ class PrimFunc(BaseFunc):
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
-            x = convert(x) if not isinstance(x, Object) else x
+            x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
                 var = Var(x.name, dtype="handle")
                 param_list.append(var)
@@ -68,13 +68,7 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc,  # type: ignore # pylint: disable=no-member
-            param_list,
-            body,
-            ret_type,
-            buffer_map,
-            attrs,
-            span,
+            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
         )
 
     def with_body(self, new_body, span=None):
@@ -148,7 +142,7 @@ class PrimFunc(BaseFunc):
         func : PrimFunc
             The new function with parameter specialized
         """
-        return _ffi_api.Specialize(self, param_map)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.Specialize(self, param_map)  # type: ignore
 
     def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
         """Print IRModule into TVMScript

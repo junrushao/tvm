@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List
-
-import tempfile
+# pylint: disable=missing-docstring
 import os
 import re
-import sys
 import shutil
+import sys
+import tempfile
+from typing import List
+
+import numpy as np
 import pytest
 
 import tvm
@@ -32,11 +34,6 @@ from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
 from tvm.tir.schedule.schedule import Schedule
-from tvm.meta_schedule.search_strategy import MeasureCandidate
-from tvm.meta_schedule.runner import RunnerResult
-from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
-from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
-from tvm.meta_schedule.tune_context import TuneContext
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module

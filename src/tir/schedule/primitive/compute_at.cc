@@ -26,49 +26,6 @@ using support::NDIntSet;
 /******** Error Classes ********/
 
 /*!
- * \brief Represent the iteration domain to fully cover the required region of Intersect(dom, bound)
- * The bound region may not get directly intersected with dom region, instead we try to generate
- * extra predicates for non-trivial bound. The domain info class can also union with each other.
- */
-struct BlockVarDomainInfo {
-  arith::IntSet dom{arith::IntSet::Nothing()};  // dom is ensured to be bounded
-  arith::IntSet bound{arith::IntSet::Nothing()};
-
-  /*! \brief Relaxed union operation */
-  void Union(const BlockVarDomainInfo& other) {
-    // just relax (d0 ^ b0) v (d1 ^ b1) to (d0 v d1) ^ (b0 v b1)
-    dom = arith::Union({dom, other.dom});
-    bound = arith::Union({bound, other.bound});
-  }
-
-  /*! \brief Simplify domain info */
-  void Simplify(arith::Analyzer* analyzer) {
-    auto to_simplified = [analyzer](const arith::IntSet& set) {
-      PrimExpr min = set.HasLowerBound() ? analyzer->Simplify(set.min()) : set.min();
-      PrimExpr max = set.HasUpperBound() ? analyzer->Simplify(set.max()) : set.max();
-      return arith::IntSet::Interval(min, max);
-    };
-    // if no dom specified, try use bound as dom
-    if (dom.IsNothing()) {
-      if (bound.HasLowerBound() && bound.HasUpperBound()) {
-        bound = to_simplified(bound);
-        std::swap(dom, bound);
-      }
-      return;
-    }
-    // simplify intsets
-    dom = to_simplified(dom);
-    bound = to_simplified(bound);
-    // if can proof the dom is within bound, remove bound
-    auto intersect = to_simplified(arith::Intersect({dom, bound}));
-    if (analyzer->CanProveEqual(dom.min(), intersect.min()) &&
-        analyzer->CanProveEqual(dom.max(), intersect.max())) {
-      bound = arith::IntSet::Nothing();
-    }
-  }
-};
-
-/*!
  * \brief An error raised when not all required blocks are under the given loop.
  * \tparam is_consumer Indicates if all the required blocks are consumers or producers
  */
@@ -360,8 +317,6 @@ class ScopeReconstructor : private StmtMutator {
   Stmt rm_src_stmt_{nullptr};
   /*! \brief The plan to remove the given block by replacing to this loop/block in the AST */
   Stmt rm_tgt_stmt_{nullptr};
-  /*! \brief Bound predicate for the given block to be moved */
-  Optional<PrimExpr> predicate{NullOpt};
 };
 
 /*!
@@ -592,11 +547,9 @@ void CalculateProvidedRequiredRegions(
 /******** Main Implementation ********/
 
 template <bool is_compute_at>
-std::function<void()> ComputeAtOrReverseComputeAtImpl(ScheduleState self,
-                                                      const StmtSRef& block_sref,
-                                                      const StmtSRef& loop_sref,
-                                                      bool preserve_unit_loops,
-                                                      arith::Analyzer* analyzer) {
+void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_sref,
+                                     const StmtSRef& loop_sref, bool preserve_unit_loops,
+                                     arith::Analyzer* analyzer, bool check_only = false) {
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   // Step 1. Bunch of checks
@@ -651,35 +604,32 @@ std::function<void()> ComputeAtOrReverseComputeAtImpl(ScheduleState self,
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
   Block new_scope_root = Downcast<Block>(reconstructor(scope_root));
-  Optional<PrimExpr> bound_predicate = reconstructor.predicate;
-  return [=]() -> void {
-    // Step 7. Do the actual replacement
-    self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
-    // Step 8. Update the cached flags
-    BlockInfo& block_info = self->block_info[block_sref];
-    block_info.affine_binding = IsAffineBinding(
-        /*realize=*/reconstructor.new_block_realize_,
-        /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent)),
-        /*analyzer=*/analyzer);
-    // Step 9. Add bound predicate annotation for the block to be moved if needed
-    if (bound_predicate.defined()) {
-      Annotate(self, block_sref, attr::require_block_var_bound_predicate, bound_predicate.value());
-    }
-  };
+
+  // Step 7. Do the actual replacement
+  if (check_only) {
+    return;
+  }
+  self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
+  // Step 8. Update the cached flags
+  BlockInfo& block_info = self->block_info[block_sref];
+  block_info.affine_binding = IsAffineBinding(
+      /*realize=*/reconstructor.new_block_realize_,
+      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent)),
+      /*analyzer=*/analyzer);
 }
 
 void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
                bool preserve_unit_loops) {
   arith::Analyzer analyzer;
   ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
-                                        &analyzer)();
+                                        &analyzer);
 }
 
 void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
                       bool preserve_unit_loops) {
   arith::Analyzer analyzer;
   ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
-                                         &analyzer)();
+                                         &analyzer);
 }
 
 bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
@@ -687,7 +637,7 @@ bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const S
   arith::Analyzer analyzer;
   try {
     ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
-                                          &analyzer);
+                                          &analyzer, true);
   } catch (const tvm::runtime::Error& e) {
     return false;
   }
@@ -699,7 +649,7 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
   arith::Analyzer analyzer;
   try {
     ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
-                                           &analyzer);
+                                           &analyzer, true);
   } catch (const tvm::runtime::Error& e) {
     return false;
   }

@@ -68,7 +68,7 @@ namespace meta_schedule {
 class TaskSchedulerNode : public runtime::Object {
  public:
   /*! \brief The function type of the objective function. */
-  using FObjectiveFunc = TypedPackedFunc<double(Array<FloatImm>)>;
+  using FObjectiveFunc = TypedPackedFunc<FloatImm(Array<FloatImm>)>;
   /*! \brief The function type of the tag genration function. */
   using FTagGenerationFunc = TypedPackedFunc<String(const IRModule&)>;
 
@@ -264,6 +264,36 @@ class TaskScheduler : public runtime::ObjectRef {
                                           Database database,               //
                                           Optional<CostModel> cost_model,  //
                                           Optional<Array<MeasureCallback>> measure_callbacks);
+  /*!
+   * \brief Create a task scheduler that fetches tasks in a gradient based fashion.
+   * \param tasks The tasks to be tuned.
+   * \param builder The builder of the scheduler.
+   * \param runner The runner of the scheduler.
+   * \param database The database of the scheduler.
+   * \param alpha The parameter alpha to control gradient computation.
+   * \param beta The parameter beta to control gradient computation.
+   * \param backward_window_size The parameter to control backward window size.
+   * \param seed The random seed.
+   * \param task_weights The weights of each task.
+   * \param objective_fun_namec The name of objective function for gradient optimization.
+   * \param tag_generation_func_name The name of function to generate similarity tag for workloads.
+   * \param cost_model The cost model of the scheduler.
+   * \param measure_callbacks The measure callbacks of the scheduler.
+   * \return The task scheduler created.
+   */
+  TVM_DLL static TaskScheduler GradientBased(Array<TuneContext> tasks,                            //
+                                             Builder builder,                                     //
+                                             Runner runner,                                       //
+                                             Database database,                                   //
+                                             double alpha,                                        //
+                                             double beta,                                         //
+                                             int backward_window_size,                            //
+                                             support::LinearCongruentialEngine::TRandState seed,  //
+                                             Array<FloatImm> task_weights,                        //
+                                             String objective_func_name,                          //
+                                             String tag_generation_func_name,                     //
+                                             Optional<CostModel> cost_model,                      //
+                                             Optional<Array<MeasureCallback>> measure_callbacks);
   /*!
    * \brief Create a task scheduler with customized methods on the python-side.
    * \param tasks The tasks to be tuned.

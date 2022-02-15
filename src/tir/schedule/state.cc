@@ -339,10 +339,6 @@ class BlockInfoCollector : private StmtVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/&analyzer_);
-              for (size_t i = 0; i < consumed_region.size(); ++i) {
-                const arith::IntSet consumed_interset = arith::Intersect(
-                    {consumed_region[i], arith::IntSet::FromMinExtent(0, buffer->shape[i])});
-              }
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           &analyzer_)) {
                 region_cover = false;
@@ -902,7 +898,7 @@ class ChildReplacer : private StmtMutator {
   int seq_index_;
 };
 
-void ScheduleStateNode::Replace(const StmtSRef& _src_sref, const Stmt& tgt_stmt,
+void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_stmt,
                                 const Map<Block, Block>& _block_sref_reuse) {
   if (this->debug_mask != 0) {
     const StmtNode* src_stmt = _src_sref->stmt;

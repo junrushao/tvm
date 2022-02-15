@@ -29,7 +29,7 @@ from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
 from tvm.meta_schedule.search_strategy import ReplayTrace
 from tvm.meta_schedule.space_generator import ScheduleFn
-from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin
+from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin, GradientBased
 from tvm.script import tir as T
 from tvm.tir import Schedule
 
@@ -234,7 +234,6 @@ def test_meta_schedule_task_scheduler_multiple():
     )
     round_robin.tune()
     assert len(database) == num_trials_total * len(tasks)
-    print(database.workload_reg)
     for task in tasks:
         assert (
             len(
@@ -322,6 +321,58 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
         ],
     )
     scheduler.tune()
+    assert len(database) == num_trials_total * len(tasks)
+    for task in tasks:
+        assert (
+            len(
+                database.get_top_k(
+                    database.commit_workload(task.mod),
+                    100000,
+                )
+            )
+            == num_trials_total
+        )
+
+
+def test_meta_schedule_task_scheduler_multiple_gradient_based():
+    num_trials_per_iter = 6
+    num_trials_total = 101
+    tasks = [
+        TuneContext(
+            MatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="Matmul",
+            rand_state=42,
+        ),
+        TuneContext(
+            MatmulReluModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="MatmulRelu",
+            rand_state=0xDEADBEEF,
+        ),
+        TuneContext(
+            BatchMatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_batch_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="BatchMatmul",
+            rand_state=0x114514,
+        ),
+    ]
+    database = DummyDatabase()
+    gradient_based = GradientBased(
+        tasks,
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[measure_callback.AddToDatabase()],
+        seed=0x20220214,
+    )
+    gradient_based.tune()
     assert len(database) == num_trials_total * len(tasks)
     for task in tasks:
         assert (

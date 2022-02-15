@@ -530,22 +530,12 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_max.defined()) {
         iter_max = min(predicate_induced_max.value(), iter_max);
       }
-      if (analyzer_->CanProve(iter_min <= iter_max)) {
-        if (!is_zero(iter_min)) {
-          // structured form's offset should be updated
-          flattened_map_.erase(structured_form);
-          structured_form.CopyOnWrite()->base = -iter_min;
-          mark.CopyOnWrite()->source = structured_form;
-          flattened_map_[structured_form] = flattened_form;
-        }
-        mark.CopyOnWrite()->extent = iter_max - iter_min;
-        sum_fuse_map_[flattened_form] = {mark, iter_min};
-        // we need to note down the flattened form of constrained iterators
-        // to check the validity of constraints, see also CheckConstraints()
-        constrained_iters_flattened_.push_back(flattened_form);
-        expr.CopyOnWrite()->args = Array<IterSplitExpr>({split});
-        expr.CopyOnWrite()->base = base + iter_min;
-        return expr;
+      if (!is_zero(iter_min)) {
+        // structured form's offset should be updated
+        flattened_map_.erase(structured_form);
+        structured_form.CopyOnWrite()->base = -iter_min;
+        mark.CopyOnWrite()->source = structured_form;
+        flattened_map_[structured_form] = flattened_form;
       }
       mark.CopyOnWrite()->extent = iter_max - iter_min;
       sum_fuse_map_[flattened_form] = {mark, iter_min};
@@ -621,7 +611,7 @@ class IterMapRewriter : public ExprMutator {
         }
       }
     }
-    if (!base_scale || base_scale.value()->value < 0) {
+    if (!base_scale) {
       diag_ctx_.Emit(Diagnostic::Error(expr->span)
                      << "Fuse iters failed, can not find a valid base scale");
       return NullOpt;
@@ -900,20 +890,7 @@ bool MatchBoundConstraints(PrimExpr pred, Map<Var, Range>& input_iters,
         iter = lhs_expr;
       }
     }
-    // If it is a predicate for input iters
-    if (const auto* var_ptr = iter.as<VarNode>()) {
-      auto it = input_iters.find(GetRef<Var>(var_ptr));
-      if (it == input_iters.end()) {
-        return false;
-      }
-      PrimExpr iter_min = (*it).second->min;
-      PrimExpr iter_max = (*it).second->min + (*it).second->extent;
-      if (lower_bound.defined()) iter_min = max(iter_min, lower_bound.value());
-      if (upper_bound.defined()) iter_max = min(iter_max, upper_bound.value());
-      input_iters.Set(GetRef<Var>(var_ptr), Range(iter_min, iter_max));
-    } else {
-      result.emplace_back(iter, lower_bound, upper_bound, 0);
-    }
+    result.emplace_back(iter, lower_bound, upper_bound, 0);
     if (is_finish) {
       break;
     }

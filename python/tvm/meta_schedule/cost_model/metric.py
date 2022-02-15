@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Cost model metrics for meta schedule"""
-from typing import List
-import numpy as np
+import numpy as np  # type: ignore
 
 
-def max_curve(trial_scores: np.ndarray) -> List[float]:
+def max_curve(trial_scores: np.ndarray) -> np.ndarray:
     """f(n) = max([s[i] fo i < n])
 
     Parameters
@@ -29,8 +28,8 @@ def max_curve(trial_scores: np.ndarray) -> List[float]:
 
     Returns
     -------
-    curve : List[float]
-        function values
+    curve : np.ndarray
+        A vector, the max-curve function values
     """
     ret = np.empty(len(trial_scores))
     keep = -1e9

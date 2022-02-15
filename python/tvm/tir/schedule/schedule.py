@@ -2014,6 +2014,7 @@ class Schedule(Object):
 
     ########## Schedule: Annotation ##########
 
+    @type_checked
     def annotate(
         self,
         block_or_loop: Union[BlockRV, LoopRV],
@@ -2030,6 +2031,45 @@ class Schedule(Object):
             The annotation key
         ann_val : Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]
             The annotation value
+
+        Examples
+        --------
+
+        Before annotate, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_annotate)
+            sch.annotate(sch.get_block("B"), "ann_key", "ann_value")
+            print(sch.mod["main"].script())
+
+        After applying annotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
         """
         if isinstance(ann_val, str):
             ann_val = String(ann_val)
@@ -2037,10 +2077,11 @@ class Schedule(Object):
             ann_val = IntImm("int32", ann_val)
         elif isinstance(ann_val, float):
             ann_val = FloatImm("float32", ann_val)
-        _ffi_api.ScheduleAnnotate(  # pylint: disable=no-member
+        _ffi_api.ScheduleAnnotate(  # type: ignore # pylint: disable=no-member
             self, block_or_loop, ann_key, ann_val
         )
 
+    @type_checked
     def unannotate(self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str) -> None:
         """Unannotate a block/loop's annotation with key ann_key
 
@@ -2050,83 +2091,48 @@ class Schedule(Object):
             The block/loop to be unannotated
         ann_key : str
             The annotation key
-        """
-        _ffi_api.ScheduleUnannotate(self, block_or_loop, ann_key)  # pylint: disable=no-member
-
-    ########## Schedule: Layout transformation ##########
-
-    def transform_layout(
-        self,
-        block: BlockRV,
-        buffer_index: int,
-        is_write_index: bool,
-        index_map: Union[IndexMap, Callable],
-    ) -> None:
-        """Apply a transformation represented by IndexMap to buffer
-
-        Parameters
-        ----------
-        block_rv : BlockRV
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        is_write_index : bool
-            Whether the buffer_index is the index of the block's write region
-        index_map : Union[IndexMap, Callable]
-            The transformation to apply
 
         Examples
         --------
 
-        Before transform_layout, in TensorIR, the IR is:
+        Before unannotate, in TensorIR, the IR is:
 
         .. code-block:: python
 
             @T.prim_func
-            def before_transform_layout(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            def before_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_unannotate)
+            sch.unannotate(sch.get_block("B"), "ann_key")
+            print(sch.mod["main"].script())
+
+        After applying unannotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
                     with T.block("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
-                for i, j in T.grid(128, 128):
-                    with T.block("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        C[vi, vj] = B[vi, vj] + 1.0
 
-        Create the schedule and do transform_layout:
-
-        .. code-block:: python
-
-            sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer_index=0, is_write_index=True,
-                                 index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
-            print(sch.mod["main"].script())
-
-        After applying transform_layout, the IR becomes:
-
-        .. code-block:: python
-
-            @T.prim_func
-            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.alloc_buffer((8, 8, 16, 16), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
-                for i, j in T.grid(128, 128):
-                    with T.block("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
-                for i, j in T.grid(128, 128):
-                    with T.block("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
         """
-        if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
-        _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, is_write_index, index_map
+        _ffi_api.ScheduleUnannotate(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, ann_key
         )
 
     ########## Schedule: Layout transformation ##########

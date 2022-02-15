@@ -755,9 +755,8 @@ def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
                 T.where(j + i < 16)
                 B[v] = A[v]
         with T.block("C"):
-            v = T.axis.spatial(16, j)
-            T.reads(B[v : v + 2])
-            T.writes(C[v])
+            v = T.axis.S(16, j)
+            T.reads([B[v : v + 2]])
             C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v], dtype="float32")
 
 
@@ -1252,29 +1251,6 @@ def test_fail_all_producers_under_loop():
     loop, _ = sch.get_loops(sch.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError, match="requires all the producer"):
         sch.reverse_compute_at(block, loop)
-
-
-def test_compute_at_tiled_pooling_cache():
-    sch = tir.Schedule(tiled_pooling_cache, debug_mask="all")
-    compute = sch.get_block("compute")
-    _, w_o, _, _, _, _ = sch.get_loops(compute)
-    cache = sch.get_block("cache")
-    dache = sch.get_block("dache")
-    sch.compute_at(cache, w_o)
-    sch.compute_at(dache, w_o)
-    tvm.ir.assert_structural_equal(tiled_pooling_cache_after_compute_at, sch.mod["main"])
-    verify_trace_roundtrip(sch=sch, mod=tiled_pooling_cache)
-
-
-def test_reverse_compute_at_floordiv_and_floormod_indices():
-    sch = tir.Schedule(floordiv_and_floormod_indices, debug_mask="all")
-    A = sch.get_block("A")
-    B = sch.get_block("B")
-    sch.reverse_compute_at(B, sch.get_loops(A)[0])
-    tvm.ir.assert_structural_equal(
-        floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
-    )
-    verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
 
 
 if __name__ == "__main__":
