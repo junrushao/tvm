@@ -18,11 +18,11 @@
 
 import logging
 import os.path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm._ffi.registry import register_func
-from tvm.ir import IRModule, structural_equal, structural_hash
+from tvm.ir import IRModule, structural_hash
 from tvm.relay import Function as RelayFunc
 from tvm.relay import build as relay_build
 from tvm.relay.backend.executor_factory import ExecutorFactoryModule
@@ -602,21 +602,24 @@ def tune_te(
     )
 
 
-def deduplicate_tune_contexts(tune_contexts: List[TuneContext]) -> List[TuneContext]:
-    results: List[TuneContext] = []
-    hashs: List[int] = []
-    for i, task in enumerate(tune_contexts):
-        struct_hash: int = structural_hash(task.mod)
-        flag: bool = False
-        if struct_hash in hashs:
-            for other_task in tune_contexts[i + 1 :]:
-                if structural_equal(task.mod, other_task.mod):
-                    flag = True
-                    break
-        if not flag:
-            results.append(task)
-            hashs.append(struct_hash)
-    return results
+def deduplicate_extracted_tasks(
+    extracted_tasks: List[ExtractedTask],
+) -> Tuple[List[ExtractedTask], List[int]]:
+    hash2idx: Dict[int, int] = {}
+    dedup: List[ExtractedTask] = []
+    count: List[int] = []
+
+    for task in extracted_tasks:
+        assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
+        mod = Parse._mod(task.dispatched[0])
+        hash = structural_hash(mod)
+        if hash in hash2idx:
+            count[hash2idx[hash]] += 1
+        else:
+            hash2idx[hash] = len(dedup)
+            dedup.append(task)
+            count.append(1)
+    return dedup, count
 
 
 def tune_extracted_tasks(
@@ -637,11 +640,14 @@ def tune_extracted_tasks(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Database:
+    # deduplication
+    logger.info(f"Before task deduplication: {len(extracted_tasks)} tasks")
+    extracted_tasks, _ = deduplicate_extracted_tasks(extracted_tasks)
+    logger.info(f"After task deduplication: {len(extracted_tasks)} tasks")
     # pylint: disable=protected-access
-    tune_contexts = []
     target = Parse._target(target)
-    database = Parse._database(database, "default", work_dir)
     # parse the tuning contexts
+    tune_contexts = []
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
@@ -658,11 +664,8 @@ def tune_extracted_tasks(
                 num_threads=num_threads,
             )
         )
-    # deduplication
-    logger.info(f"Before task deduplication: {len(tune_contexts)} tasks")
-    tune_contexts = deduplicate_tune_contexts(tune_contexts)
-    logger.info(f"After task deduplication: {len(tune_contexts)} tasks")
     # parse the task scheduler
+    database = Parse._database(database, "default", work_dir)
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
         tune_contexts,
