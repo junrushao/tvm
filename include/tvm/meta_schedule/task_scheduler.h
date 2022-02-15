@@ -67,6 +67,11 @@ namespace meta_schedule {
 */
 class TaskSchedulerNode : public runtime::Object {
  public:
+  /*! \brief The function type of the objective function. */
+  using FObjectiveFunc = TypedPackedFunc<double(Array<FloatImm>)>;
+  /*! \brief The function type of the tag genration function. */
+  using FTagGenerationFunc = TypedPackedFunc<String(const IRModule&)>;
+
   /*! \brief The tasks to be tuned */
   Array<TuneContext> tasks;
   /*! \brief The builder of the scheduler. */
