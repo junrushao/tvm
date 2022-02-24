@@ -304,7 +304,7 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param backward_window_size The parameter to control backward window size.
    * \param seed The random seed.
    * \param task_weights The weights of each task.
-   * \param objective_fun_namec The name of objective function for gradient optimization.
+   * \param objective_func_name The name of objective function for gradient optimization.
    * \param tag_generation_func_name The name of function to generate similarity tag for workloads.
    * \param cost_model The cost model of the scheduler.
    * \param measure_callbacks The measure callbacks of the scheduler.
