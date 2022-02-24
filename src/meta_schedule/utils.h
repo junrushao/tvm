@@ -39,6 +39,7 @@
 #include <tvm/tir/schedule/schedule.h>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../printer/text_printer.h"
