@@ -17,13 +17,11 @@
 """Gradient Based Task Scheduler"""
 import math
 
-from typing import TYPE_CHECKING, List, Optional, Callable
+from typing import TYPE_CHECKING, List, Optional
 from tvm._ffi import register_object
 from tvm._ffi.registry import register_func
 
 from tvm.ir import IRModule
-from tvm.tir import Schedule
-from tvm.tir.function import PrimFunc
 from ..measure_callback import MeasureCallback
 from ..builder import Builder
 from ..runner import Runner
@@ -38,7 +36,21 @@ if TYPE_CHECKING:
 
 
 @register_func("meta_schedule.task_scheduler.derive_similarity_tag")
-def derive_similarity_tag(mod: IRModule, log_base: float = 1.618):
+def derive_similarity_tag(mod: IRModule, log_base: float = 1.618) -> str:
+    """Get the tags for smilarity group creation
+
+    Parameters
+    ---------
+    mod : IRModule
+        The input workload.
+    log_base : float
+        The log base to normalize the flop count.
+
+    Return
+    ------
+    tag : str
+        The generated similarity tag.
+    """
     ret = ""
     for var in mod.get_global_vars():
 
@@ -71,11 +83,8 @@ class GradientBased(TaskScheduler):
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
     ) -> None:
-        @register_func("meta_schedule.task_scheduler.objective_func")
-        def weighted_sum(l: List[float]) -> float:
-            return sum([l[i] * w for i, w in enumerate(self.task_weights)])
-
         """Constructor.
+
         Parameters
         ----------
         tasks : List[TuneContext]
@@ -105,6 +114,12 @@ class GradientBased(TaskScheduler):
         measure_callbacks: Optional[List[MeasureCallback]]
             The list of measure callbacks of the scheduler.
         """
+
+        @register_func("meta_schedule.task_scheduler.objective_func")
+        def weighted_sum(latency: List[float]) -> float:  # pylint: disable= unused-variable,
+            """Get the weighted sum as objective function"""
+            return sum([latency[i] * w for i, w in enumerate(self.task_weights)])
+
         if task_weights is None:
             task_weights = [1.0 for _ in tasks]
         self.task_weights = task_weights
