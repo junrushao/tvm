@@ -24,11 +24,12 @@ namespace meta_schedule {
 /*! \brief The gradient based task scheduler. */
 class GradientBasedNode final : public TaskSchedulerNode {
  public:
-  int backward_window_size;
-  double alpha, beta;
+  int backward_window_size;  // the backward windows size for backward gradient computation
+  double alpha, beta;        // alpha, beta as in gradient computation
+  bool done_round_robin;     // whether the round-robin warm up has been done
 
-  bool done_round_robin;  // whether the warm up round robin has been done
-  int task_id = -1;       // The current task id processed.
+  int task_id = -1;  // the current task id processing
+
   support::LinearCongruentialEngine::TRandState rand_state;  // the random state
   std::vector<int> task_cnts;                                // task tuning counts
   std::vector<double> task_weights;                          // task weights
@@ -36,14 +37,16 @@ class GradientBasedNode final : public TaskSchedulerNode {
   std::vector<double> task_flop_counts;                      // total flop count of the task
   std::vector<std::vector<double>> task_latency_history;     // all task latency history
 
-  std::vector<std::string> task_tag;        // tag of the task for grouping
-  std::map<std::string, int> tag_to_group;  // map to find the group id given task tag
-  std::vector<std::set<int>> task_groups;   // the task ids in a given group
+  std::vector<int> task_group_id;          // group id of the task
+  std::vector<std::set<int>> task_groups;  // the task ids in a given group
 
   TaskSchedulerNode::FObjectiveFunc objective_func;  // the objective function
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TaskSchedulerNode::VisitAttrs(v);
+    v->Visit("backward_window_size", &backward_window_size);
+    v->Visit("alpha", &alpha);
+    v->Visit("beta", &beta);
     v->Visit("task_id", &task_id);
   }
 
@@ -51,6 +54,11 @@ class GradientBasedNode final : public TaskSchedulerNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(GradientBasedNode, TaskSchedulerNode);
 
  protected:
+  /*!
+   * \brief Compute the objective function score for given workload latencies.
+   * \param latencies The current best latencies of each workload.
+   * \return The computed objective function score.
+   */
   double _compute_score(const std::vector<double>& latencies) {
     Array<FloatImm> input_latencies;
     for (double latency : latencies)
@@ -58,32 +66,38 @@ class GradientBasedNode final : public TaskSchedulerNode {
     return objective_func(input_latencies)->value;
   }
 
+  /*!
+   * \brief Adjuest the similarity group information for given task.
+   * \param task_id The id of the task to adjust similarity group.
+   */
   void _adjust_similarity_group(int task_id) {
-    int group_id = tag_to_group[task_tag[task_id]];
-    if (task_groups[group_id].size() <= 1 ||
-        task_groups[group_id].find(task_id) == task_groups[group_id].end())
-      return;
+    int group_id = task_group_id[task_id];
+    if (task_groups[group_id].size() <= 1) return;
 
     double best_flops = -1.0;
-    int max_ct[3] = {-1, -1, -1};  // to find the 2nd largest
+    int max_cnt[3] = {-1, -1, -1};  // to find the 2nd largest
     for (int i : task_groups[group_id]) {
       best_flops = std::max(best_flops, task_flop_counts[i] / task_best_latencies[i]);
-      max_ct[0] = task_cnts[i];
-      std::sort(max_ct, max_ct + 3);
+      max_cnt[0] = task_cnts[i];
+      std::sort(max_cnt, max_cnt + 3);  // place the 2nd largest to #1
     }
     double cur_flops = task_flop_counts[task_id] / task_best_latencies[task_id];
     // if we tune a task for many times but it still cannot achieve
     // a similar speed to the fastest one in its group, this means this task
     // is actually not similar to other tasks in its group.
     // So we will remove it from its original group.
-    if (cur_flops < best_flops / beta && task_cnts[task_id] > 5 + max_ct[1]) {
+
+    if (cur_flops < best_flops / beta && task_cnts[task_id] > 5 + max_cnt[1]) {
       task_groups[group_id].erase(task_id);
+      task_group_id[task_id] = task_groups.size();
+      task_groups.push_back(std::set<int>{task_id});
     }
   }
 
   int NextTaskId() final {
     int n_tasks = this->tasks.size();
     // Check if warmed up with round robin
+    // have to do it manually because the search is async
     if (!done_round_robin) {
       task_id++;
       if (task_id == n_tasks) {
@@ -96,10 +110,11 @@ class GradientBasedNode final : public TaskSchedulerNode {
     double max_gradient = -1e30, min_gradient = 1e30;
     int arg_min_gradient = -1;
     std::vector<int> tasks_alive;
+    tasks_alive.reserve(n_tasks);
     for (task_id = 0; task_id < n_tasks; ++task_id) {
       if (!tasks[task_id]->is_stopped) {
         tasks_alive.push_back(task_id);
-        // compute gradient from chain rule : (delta f / delta g_i)
+        // compute gradient from chain rule : (\Delta f / \Delta g_i)
         // here f is given as objective function, default weighted sum
         double delta = 1e-4;
         std::vector<double> new_latencies(task_best_latencies);
@@ -121,7 +136,9 @@ class GradientBasedNode final : public TaskSchedulerNode {
 
         // compute (g_i(t_i + \Delta t) - g(t_i)) / (\Delta t)
         // which is approximated by
-        // min( - g_i(t_i) / t_i, \Beta \frac{C_i}{max_{k \in N_i}(V_k)} - g_i(t_i))
+        // Min_{ - g_i(t_i) / t_i, \Beta \frac{C_i}{Max_{k \in N_i}(V_k)} - g_i(t_i)}
+
+        // Part I: g_i_[t_i]- g_i(t_i) / t_i
         double g_next_1;
         if (task_cnts[task_id] > 0) {
           g_next_1 =
@@ -129,17 +146,18 @@ class GradientBasedNode final : public TaskSchedulerNode {
         } else {
           g_next_1 = beta * 1e30;
         }
-        double g_next_2 = beta * 1e30;
-        int group_id = tag_to_group[task_tag[task_id]];
-        if (task_groups[group_id].size() > 1) {
-          double best_flops = -1.0;
-          for (int i : task_groups[group_id]) {
-            best_flops = std::max(best_flops, task_flop_counts[i] / task_best_latencies[i]);
-          }
-          g_next_2 = beta * task_flop_counts[task_id] / best_flops;
+        // Part II:  \Beta \frac{C_i}{Max_{k \in N_i}(V_k)}
+        double best_flops = -1.0;
+        int group_id = task_group_id[task_id];
+        for (int groupmate_id : task_groups[group_id]) {
+          best_flops = std::max(best_flops,
+                                task_flop_counts[groupmate_id] / task_best_latencies[groupmate_id]);
         }
+        ICHECK(best_flops > 0) << "Best flops should be greater or equal to zero!";
+        double g_next_2 = beta * task_flop_counts[task_id] / best_flops;
+
         double g_next = std::min(g_next_1, g_next_2);
-        double forward_grad = g_next - task_best_latencies[task_id];
+        double forward_grad = std::min(g_next - task_best_latencies[task_id], 0.0);
 
         double gradient = chain_grad * (alpha * backward_grad + (1 - alpha) * forward_grad);
         ICHECK(gradient <= 0)
@@ -183,13 +201,13 @@ class GradientBasedNode final : public TaskSchedulerNode {
       RunnerResult result = future->Result();
       results.push_back(result);
       if (!result->error_msg.defined() && result->run_secs.defined()) {
-        int count = 0;
         double sum = 0;
+        int count = 0;
         for (const FloatImm& run_sec : result->run_secs.value()) {
           count += 1;
           sum += run_sec->value;
         }
-        trial_best_latency = std::min(trial_best_latency, sum / count);
+        if (count > 0) trial_best_latency = std::min(trial_best_latency, sum / count);
       }
     }
 
@@ -251,6 +269,9 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
   n->task_latency_history.assign(n->tasks.size(), std::vector<double>());
   n->task_weights.assign(n->tasks.size(), 1);
 
+  n->task_groups.reserve(n->tasks.size());
+  n->task_group_id.reserve(n->tasks.size());
+
   const auto* objective_func_ptr = runtime::Registry::Get(objective_func_name);
   CHECK(objective_func_ptr) << "The given objective function is undefined!";
   n->objective_func = *objective_func_ptr;
@@ -268,20 +289,22 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
     }
   }
 
+  std::map<std::string, int> tag_to_group;
+
   int task_id = -1;
   for (const TuneContext& task : tasks) {
-    task_id++;
     task->task_scheduler = n.get();
     IRModule mod = task->mod.value_or({});
-
-    n->task_flop_counts[task_id] = tir::CountFlop(mod);
+    n->task_flop_counts[++task_id] = tir::CountFlop(mod);
     std::string tag = tag_generation_func(mod);
-    n->task_tag.push_back(tag);
-    if (n->tag_to_group.find(tag) == n->tag_to_group.end()) {
-      n->tag_to_group[tag] = n->tag_to_group.size();
+
+    if (tag_to_group.find(tag) == tag_to_group.end()) {
+      tag_to_group[tag] = tag_to_group.size();
       n->task_groups.push_back(std::set<int>());
     }
-    n->task_groups[n->tag_to_group[tag]].insert(task_id);
+    int group_id = tag_to_group[tag];
+    n->task_group_id.push_back(group_id);
+    n->task_groups[group_id].insert(task_id);
   }
   return TaskScheduler(n);
 }

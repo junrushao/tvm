@@ -413,7 +413,7 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
             len(
                 database.get_top_k(
                     database.commit_workload(task.mod),
-                    100000,
+                    1e9,
                 )
             )
             == num_trials_total

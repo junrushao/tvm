@@ -40,11 +40,11 @@ def derive_similarity_tag(mod: IRModule, log_base: float = 1.618) -> str:
     """Get the tags for smilarity group creation
 
     Parameters
-    ---------
+    ----------
     mod : IRModule
         The input workload.
     log_base : float
-        The log base to normalize the flop count.
+        The log base to normalize the flop count. Default natural (1.618).
 
     Return
     ------
@@ -53,7 +53,6 @@ def derive_similarity_tag(mod: IRModule, log_base: float = 1.618) -> str:
     """
     ret = ""
     for var in mod.get_global_vars():
-
         if "meta_scheduler_task_scheduler_tag" in mod[var].attrs:
             ret += mod[var].attrs.meta_scheduler_task_scheduler_tag + "_"
     if ret:
@@ -95,29 +94,41 @@ class GradientBased(TaskScheduler):
             The runner.
         database : Database
             The database.
-        alpha: float
+        alpha : float, default 0.2.
             The parameter alpha to control gradient computation.
-        beta: float
+        beta : float, default 2.0.
              The parameter beta to control gradient computation.
-        backward_window_size: int
+        backward_window_size : int, default 3.
             The parameter to control backward window size.
-        seed: int
+        seed : int, default -1, meaning random seed.
             The random seed.
-        task_weights: Optional[List[float]]
+        task_weights : Optional[List[float]], default None, meaning equal weight.
             The weights of each task.
-        objective_func_name:
+        objective_func_name : str, default "meta_schedule.task_scheduler.objective_func"
             The name of objective function for gradient optimization.
-        tag_generation_func_name:
+        tag_generation_func_name : str,
+            default "meta_schedule.task_scheduler.derive_similarity_tag"
             The name of function to generate similarity tag for workloads.
-        cost_model: CostModel
+        cost_model : CostModel, default None.
             The cost model of the scheduler.
-        measure_callbacks: Optional[List[MeasureCallback]]
+        measure_callbacks : Optional[List[MeasureCallback]], default None.
             The list of measure callbacks of the scheduler.
         """
 
         @register_func("meta_schedule.task_scheduler.objective_func")
         def weighted_sum(latency: List[float]) -> float:  # pylint: disable= unused-variable,
-            """Get the weighted sum as objective function"""
+            """Get the weighted sum as objective function
+
+            Parameters
+            ----------
+            latency : List[float]
+                The current latency of each workload.
+
+            Returns
+            -------
+            result : float
+                The computed objective function value.
+            """
             return sum([latency[i] * w for i, w in enumerate(self.task_weights)])
 
         if task_weights is None:
