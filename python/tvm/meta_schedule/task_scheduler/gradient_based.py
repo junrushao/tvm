@@ -36,15 +36,13 @@ if TYPE_CHECKING:
 
 
 @register_func("meta_schedule.task_scheduler.derive_similarity_tag")
-def derive_similarity_tag(mod: IRModule, log_base: float = 1.618) -> str:
+def derive_similarity_tag(mod: IRModule) -> str:
     """Get the tags for smilarity group creation
 
     Parameters
     ----------
     mod : IRModule
         The input workload.
-    log_base : float
-        The log base to normalize the flop count. Default natural (1.618).
 
     Return
     ------
@@ -57,7 +55,7 @@ def derive_similarity_tag(mod: IRModule, log_base: float = 1.618) -> str:
             ret += mod[var].attrs.meta_scheduler_task_scheduler_tag + "_"
     if ret:
         flop_count = _ffi_api.TaskSchedulerFlopCount(mod)  # type: ignore # pylint: disable=no-member
-        ret += "%d" % int(math.log(flop_count + 1, log_base))
+        ret += "%d" % int(math.log(flop_count + 1, 1.618))
     return ret
 
 

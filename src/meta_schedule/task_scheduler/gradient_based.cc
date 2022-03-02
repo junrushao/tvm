@@ -79,13 +79,13 @@ class GradientBasedNode final : public TaskSchedulerNode {
     for (int i : task_groups[group_id]) {
       best_flops = std::max(best_flops, task_flop_counts[i] / task_best_latencies[i]);
       max_cnt[0] = task_cnts[i];
-      std::sort(max_cnt, max_cnt + 3);  // place the 2nd largest to #1
+      std::sort(max_cnt, max_cnt + 3);  // place the 2nd largest to middle position
     }
     double cur_flops = task_flop_counts[task_id] / task_best_latencies[task_id];
     // if we tune a task for many times but it still cannot achieve
     // a similar speed to the fastest one in its group, this means this task
     // is actually not similar to other tasks in its group.
-    // So we will remove it from its original group.
+    // So we will move it from the current group to a standalone group.
 
     if (cur_flops < best_flops / beta && task_cnts[task_id] > 5 + max_cnt[1]) {
       task_groups[group_id].erase(task_id);
