@@ -19,7 +19,7 @@
 import random
 import weakref
 import sys
-from typing import List
+from typing import List, Set
 
 import pytest
 import tvm
@@ -185,7 +185,7 @@ class DummyDatabase(PyDatabase):
 
 @derived_object
 class MyTaskScheduler(PyTaskScheduler):
-    done = set()
+    done: Set = set()
 
     def next_task_id(self) -> int:
         while len(self.done) != len(self.tasks):
@@ -410,13 +410,7 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
     assert len(database) == num_trials_total * len(tasks)
     for task in tasks:
         assert (
-            len(
-                database.get_top_k(
-                    database.commit_workload(task.mod),
-                    1e9,
-                )
-            )
-            == num_trials_total
+            len(database.get_top_k(database.commit_workload(task.mod), 10000)) == num_trials_total
         )
 
 
