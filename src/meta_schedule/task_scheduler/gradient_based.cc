@@ -299,7 +299,8 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
     std::string tag = tag_generation_func(mod);
 
     if (tag_to_group.find(tag) == tag_to_group.end()) {
-      tag_to_group[tag] = tag_to_group.size();
+      int group_num = tag_to_group.size();
+      tag_to_group[tag] = group_num;
       n->task_groups.push_back(std::set<int>());
     }
     int group_id = tag_to_group[tag];
