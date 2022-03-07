@@ -57,18 +57,17 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
+        "--rpc-workers",
+        type=int,
+        required=True,
+    )
+    args.add_argument(
         "--log-dir",
         type=str,
         required=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    parsed.rpc_workers = RPCConfig(
-        tracker_host=parsed.rpc_host,
-        tracker_port=parsed.rpc_port,
-        tracker_key=parsed.rpc_key,
-        session_timeout_sec=30,
-    ).count_num_servers(allow_missing=True)
     return parsed
 
 
