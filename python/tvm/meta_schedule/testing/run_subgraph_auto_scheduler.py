@@ -92,6 +92,7 @@ def main():
             cache_line_bytes=64,
             max_shared_memory_per_block=int(ARGS.target.attrs["max_shared_memory_per_block"]),
             max_threads_per_block=int(ARGS.target.attrs["max_threads_per_block"]),
+            max_local_memory_per_block=12345678,
             max_vthread_extent=8,
             warp_size=32,
         )

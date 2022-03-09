@@ -29,7 +29,6 @@ from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
@@ -239,8 +238,8 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     from tvm.ir.transform import PassContext
 
     # pylint: enable=import-outside-toplevel
-    with PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
-        return tvm_build(mod, target=target)
+    # with PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
+    return tvm_build(mod, target=target)
 
 
 @register_func("meta_schedule.builder.default_export")
