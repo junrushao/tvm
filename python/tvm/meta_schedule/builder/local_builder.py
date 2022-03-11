@@ -235,10 +235,8 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     """
     # pylint: disable=import-outside-toplevel
     from tvm.driver import build as tvm_build
-    from tvm.ir.transform import PassContext
 
     # pylint: enable=import-outside-toplevel
-    # with PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
     return tvm_build(mod, target=target)
 
 
