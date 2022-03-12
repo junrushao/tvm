@@ -107,6 +107,7 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
                  block = opt_block_rv.value()]() mutable -> void {
+      sch->Unannotate(block, tir::attr::meta_schedule_cooperative_fetch);
       tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
       if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(fused).get())) {
