@@ -137,7 +137,7 @@ struct FactorMemo {
       return *result;
     }
     std::vector<int> result;
-    for (int64_t i = 1; i * i < n; ++i) {
+    for (int64_t i = 1; i * i <= n; ++i) {
       if (n % i == 0) {
         result.push_back(i);
         if (i * i != n) {

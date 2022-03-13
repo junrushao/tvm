@@ -97,10 +97,11 @@ def _parse_args():
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
-FIRST_NUM = 128
+FIRST_NUM = 0
 
 
 def load_db():
+    return
     # pylint: disable=import-outside-toplevel,invalid-name
     import json
     import os
