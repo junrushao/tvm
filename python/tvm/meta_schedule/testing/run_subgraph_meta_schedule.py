@@ -68,6 +68,21 @@ def _parse_args():
         type=int,
         required=True,
     )
+    args.add_argument(
+        "--as-db",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--ms-db",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--ms-wkl",
+        type=str,
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.rpc_config = ms.runner.RPCConfig(
@@ -82,9 +97,130 @@ def _parse_args():
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
+FIRST_NUM = 128
+
+
+def load_db():
+    # pylint: disable=import-outside-toplevel,invalid-name
+    import json
+    import os
+    import tempfile
+
+    def fix_tile(length, tiles):
+        p = 1
+        for x in tiles:
+            p *= x
+        assert length % p == 0
+        return [length // p] + tiles
+
+    TILE_LENS = [
+        # spatial
+        1,
+        8,
+        8,
+        4,
+        4,
+        32,
+        # reduction
+        3,
+        3,
+        4,
+        32,
+    ]
+    TILE_IDX = [
+        # spatial
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        # reduction
+        17,
+        19,
+        21,
+        23,
+    ]
+    VECTOR_LOAD_IDX = [40, 46]
+    UNROLL_IDX = 49
+    # pylint: enable=import-outside-toplevel,invalid-name
+    with open(ARGS.as_db) as json_file:  # pylint: disable=W1514
+        lines = [json.loads(i) for i in json_file.readlines()][:FIRST_NUM]
+    as_decisions = []
+    for trace_id, data in enumerate(lines):
+        insts = data["i"][1][1]
+        tiles = [
+            # spatial
+            insts[1][4],
+            insts[2][4],
+            insts[3][4],
+            insts[4][4],
+            insts[5][4],
+            insts[6][4],
+            # reduction
+            insts[7][4],
+            insts[8][4],
+            insts[9][4],
+            insts[10][4],
+        ]
+        tiles = [[i, fix_tile(len, tile)] for i, len, tile in zip(TILE_IDX, TILE_LENS, tiles)]
+        vector_load = [
+            min(3, insts[-10][4][0] - 1),
+            min(3, insts[-5][4][0] - 1),
+        ]
+        vector_load = [[i, x] for i, x in zip(VECTOR_LOAD_IDX, vector_load)]
+        unroll = [
+            [
+                UNROLL_IDX,
+                {
+                    0: 0,
+                    16: 1,
+                    64: 2,
+                    512: 3,
+                    1024: 4,
+                }[int(insts[-1][-1].split("$")[1])],
+            ]
+        ]
+        as_decisions.append(tiles + vector_load + unroll)
+    with open(ARGS.ms_db) as json_file:  # pylint: disable=W1514
+        line = json.loads(json_file.readline())
+    assert line[1][0][0][51][0] == "EnterPostproc"
+    line[1][0][0] = line[1][0][0][:51]
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        path_tuning_record = os.path.join(work_dir, "records.json")
+        with open(path_tuning_record, "w") as o_f:  # pylint: disable=W1514
+            for decision in as_decisions:
+                line[1][0][1] = decision
+                o_f.write(json.dumps(line) + "\n")
+        database = ms.database.JSONDatabase(
+            path_workload=ARGS.ms_wkl,
+            path_tuning_record=path_tuning_record,
+        )
+
+    prim_func = create_te_workload(ARGS.workload, 0)
+    prim_func = prim_func.with_attr("global_symbol", "main")
+    prim_func = prim_func.with_attr("tir.noalias", True)
+    mod = tvm.ir.IRModule({"main": prim_func})
+    ARGS.records = database.get_top_k(
+        workload=database.commit_workload(mod),
+        top_k=20000,
+    )
+    print("Done!!!")
+
+
+@tvm._ffi.register_func("meta_schedule.inject_traces")  # pylint: disable=protected-access
+def inject_traces(st: int, ed: int):  # pylint: disable=invalid-name
+    result = []
+    for i in range(st, ed):
+        if i < FIRST_NUM:
+            result.append(ARGS.records[i].trace)
+    print(f"[{st}:{ed}): inject {len(result)} traces")
+    return result
 
 
 def main():
+    load_db()
     # if ARGS.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
     #     alloc_repeat = 3
     # else:

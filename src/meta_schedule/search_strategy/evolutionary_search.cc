@@ -430,21 +430,22 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     measured_traces.push_back(record->trace);
   }
   int actual_num = measured_traces.size();
-  ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> results(actual_num, Schedule{nullptr});
-  auto f_proc_measured = [this, &measured_traces, &results, &pp](int thread_id,
-                                                                 int trace_id) -> void {
+  auto f_proc_measured = [this, &measured_traces, &results](int thread_id, int trace_id) -> void {
     PerThreadData& data = self->per_thread_data_.at(thread_id);
     TRandState* rand_state = &data.rand_state;
     const IRModule& mod = data.mod;
     tir::Trace trace = measured_traces.at(trace_id);
-    Schedule& result = results.at(trace_id);
-    ICHECK(!result.defined());
-    if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
-      result = sch.value();
-    } else {
-      LOG(FATAL) << "ValueError: Cannot postprocess the trace:\n" << trace;
-      throw;
+    Schedule& sch = results.at(trace_id);
+    sch = tir::Schedule::Traced(mod,
+                                /*rand_state=*/ForkSeed(rand_state),
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    sch->EnterPostproc();
+    for (Postproc f : self->postprocs_) {
+      if (!f->Apply(sch)) {
+      }
     }
   };
   support::parallel_for_dynamic(0, actual_num, self->num_threads_, f_proc_measured);
@@ -645,7 +646,47 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   inits.insert(inits.end(), unmeasured.begin(), unmeasured.end());
   std::vector<Schedule> bests = EvolveWithCostModel(inits, sample_num);
   LOG(INFO) << "Got " << bests.size() << " candidate(s) with evolutionary search";
-  std::vector<Schedule> picks = PickWithEpsGreedy(unmeasured, bests, sample_num);
+
+  std::vector<Schedule> injected_schedules;
+  {
+    constexpr int thread_id = 0;
+    const runtime::PackedFunc* f = runtime::Registry::Get("meta_schedule.inject_traces");
+    ICHECK(f);
+    Array<tir::Trace> traces = (*f)(st, ed);
+    ThreadedTraceApply pp(self->postprocs_);
+    int i = st;
+    for (tir::Trace trace : traces) {
+      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      TRandState* rand_state = &data.rand_state;
+      const IRModule& mod = data.mod;
+      tir::Schedule sch =
+          tir::Schedule::Traced(mod,
+                                /*rand_state=*/ForkSeed(rand_state),
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+      trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+      sch->EnterPostproc();
+      for (Postproc f : self->postprocs_) {
+        if (!f->Apply(sch)) {
+          LOG(INFO) << "Failed to apply postproc " << f << " @ trace #" << i;
+        }
+      }
+      {
+        IRModule mod = sch->mod();
+        size_t shash = StructuralHash()(mod);
+        if (!self->measured.Has(mod, shash)) {
+          self->measured.Add(mod, shash);
+        }
+      }
+      injected_schedules.push_back(sch);
+      ++i;
+    }
+  }
+  LOG(INFO) << "Injected " << injected_schedules.size() << " trace(s)";
+  std::vector<Schedule> picks =
+      PickWithEpsGreedy(unmeasured, bests, sample_num - injected_schedules.size());
+  LOG(INFO) << "Picked " << picks.size() << " trace(s)";
+  picks.insert(picks.begin(), injected_schedules.begin(), injected_schedules.end());
   LOG(INFO) << "Sending " << picks.size() << " candidates(s) for measurement";
   return AssembleCandidates(picks, self->args_info_);
 }
