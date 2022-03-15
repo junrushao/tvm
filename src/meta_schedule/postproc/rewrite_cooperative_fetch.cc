@@ -109,18 +109,6 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
                  block = opt_block_rv.value()]() mutable -> void {
       sch->Unannotate(block, tir::attr::meta_schedule_cooperative_fetch);
       tir::LoopRV fused = sch->GetLoops(block).back();
-      int64_t fused_extent = -1;
-      if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(fused).get())) {
-        fused_extent = *extent;
-      } else {
-        return;
-      }
-      int64_t split_extent = vector_lane                                      //
-                             * (thread_extent_x == -1 ? 1 : thread_extent_x)  //
-                             * (thread_extent_y == -1 ? 1 : thread_extent_y);
-      if (fused_extent % split_extent != 0) {
-        vector_lane = 1;
-      }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
           Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
