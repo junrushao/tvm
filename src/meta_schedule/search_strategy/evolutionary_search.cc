@@ -309,8 +309,10 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   std::unique_ptr<State> state_ = nullptr;
   /*! \brief The token registered for the given workload in database. */
   Workload token_{nullptr};
-  /*! \brief The workloads that are already measured */
+  /*! \brief The workloads that are already measured. */
   IRModuleSet measured;
+  /*! \brief The counter of returning empty results. */
+  int empty_count_;
 
   /*** Configuration: global ***/
   /*! \brief The number of trials per iteration. */
@@ -402,6 +404,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
       design_space_traces.push_back(space->trace().value()->Simplified(true));
     }
     this->state_ = std::make_unique<State>(this, design_space_traces);
+    this->empty_count_ = 0;
   }
 
   void PostTuning() final {
@@ -688,10 +691,11 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   LOG(INFO) << "Picked " << picks.size() << " trace(s)";
   picks.insert(picks.begin(), injected_schedules.begin(), injected_schedules.end());
   LOG(INFO) << "Sending " << picks.size() << " candidates(s) for measurement";
-  if (picks.size() == 0)
-    return NullOpt;
-  else
-    return AssembleCandidates(picks, self->args_info_);
+  if (picks.size() == 0) {
+    ++self->empty_count_;
+    if (self->empty_count_ == 5) return NullOpt;
+  }
+  return AssembleCandidates(picks, self->args_info_);
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
