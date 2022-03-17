@@ -688,7 +688,10 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   LOG(INFO) << "Picked " << picks.size() << " trace(s)";
   picks.insert(picks.begin(), injected_schedules.begin(), injected_schedules.end());
   LOG(INFO) << "Sending " << picks.size() << " candidates(s) for measurement";
-  return AssembleCandidates(picks, self->args_info_);
+  if (picks.size() == 0)
+    return NullOpt;
+  else
+    return AssembleCandidates(picks, self->args_info_);
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
