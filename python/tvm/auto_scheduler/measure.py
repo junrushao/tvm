@@ -31,22 +31,21 @@ get the measurement results. The flow of data structures is
 We implement these in python to utilize python's multiprocessing and error handling.
 """
 
+import logging
+import multiprocessing
 import os
-import time
 import shutil
 import tempfile
-import multiprocessing
-import logging
+import time
 
 import tvm._ffi
-from tvm.runtime import Object, module, ndarray
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
+from tvm.contrib import ndk, tar
+from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker, StatusKind
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import tar, ndk
-from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
+from tvm.runtime import Object, module, ndarray
 from tvm.target import Target
-
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -59,8 +58,8 @@ from .utils import (
     request_remote,
 )
 from .workload_registry import (
-    serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
+    serialize_workload_registry_entry,
 )
 
 # pylint: disable=invalid-name
@@ -492,15 +491,15 @@ class RPCRunner(ProgramRunner):
             device,
         )
 
-        if check_remote(key, host, port, priority, timeout):
-            print("Get devices for measurement successfully!")
-        else:
-            raise RuntimeError(
-                "Cannot get remote devices from the tracker. "
-                "Please check the status of tracker by "
-                "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
-                "and make sure you have free devices on the queue status."
-            )
+        # if check_remote(key, host, port, priority, timeout):
+        #     print("Get devices for measurement successfully!")
+        # else:
+        #     raise RuntimeError(
+        #         "Cannot get remote devices from the tracker. "
+        #         "Please check the status of tracker by "
+        #         "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+        #         "and make sure you have free devices on the queue status."
+        #     )
 
 
 class LocalRPCMeasureContext:
@@ -557,8 +556,8 @@ class LocalRPCMeasureContext:
         device=0,
     ):
         # pylint: disable=import-outside-toplevel
-        from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
+        from tvm.rpc.tracker import Tracker
 
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
@@ -845,7 +844,9 @@ def prepare_runner_args(inp, build_res):
 
     """
     # pylint: disable=import-outside-toplevel
-    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
+    from .search_task import (
+        get_task_input_buffer,  # lazily import to avoid recursive dependency
+    )
 
     task_input_names = inp.task.task_input_names
     tensor_input_map = prepare_input_map(build_res.args)

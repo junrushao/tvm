@@ -30,6 +30,30 @@ using tir::Schedule;
 
 /**************** Data Structure ****************/
 
+/*! \brief An auxiliary data structure to help deduplicate IRModules */
+class IRModuleSet {
+ public:
+  /*! \brief Add an IRModule to the set */
+  void Add(const IRModule& mod, size_t shash) { tab_.insert(Item{mod, shash}); }
+  /*! \brief Check if the IRModule is in the set */
+  bool Has(const IRModule& mod, size_t shash) const { return tab_.count(Item{mod, shash}); }
+
+ private:
+  struct Item {
+    IRModule mod;
+    size_t shash;
+  };
+  struct ItemHash {
+    size_t operator()(const Item& hash) const { return hash.shash; }
+  };
+  struct ItemEqual {
+    bool operator()(const Item& lhs, const Item& rhs) const {
+      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
+    }
+  };
+  std::unordered_set<Item, ItemHash, ItemEqual> tab_;
+};
+
 /*!
  * \brief A heap with a size up-limit. If overflow happens, it evicted the worst items.
  * \note It maintains a min heap in terms of `Item::score`. Therefore, when
@@ -40,21 +64,10 @@ class SizedHeap {
  public:
   struct Item {
     Schedule sch;
-    IRModule mod;
-    size_t shash;
     double score;
     bool operator<(const Item& other) const { return score > other.score; }
   };
 
-  struct ItemHash {
-    size_t operator()(const Item& hash) const { return hash.shash; }
-  };
-
-  struct ItemEqual {
-    bool operator()(const Item& lhs, const Item& rhs) const {
-      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
-    }
-  };
   /*!
    * \brief Constructor
    * \param size_limit The up-limit of the heap size
@@ -65,20 +78,16 @@ class SizedHeap {
    * \brief Push the specific item to the heap if its key did not appears in the heap
    * \param item The item to be pushed
    */
-  void Push(Schedule sch, IRModule mod, double score) {
-    Item item{sch, mod, StructuralHash()(mod), score};
-    if (!in_heap.insert(item).second) {
-      return;
-    }
+  void Push(Schedule sch, double score) {
     int size = heap.size();
     if (size < size_limit) {
       // Heap is not full, just push
-      heap.emplace_back(item);
+      heap.emplace_back(Item{sch, score});
       std::push_heap(heap.begin(), heap.end());
-    } else if (item.score > heap.front().score) {
+    } else if (score > heap.front().score) {
       // if the item is better than the worst one in the heap, we can safely kick it out
       std::pop_heap(heap.begin(), heap.end());
-      heap.back() = item;
+      heap.back() = {sch, score};
       std::push_heap(heap.begin(), heap.end());
     }
     // Otherwise, the item is worse than any other element in the heap
@@ -88,8 +97,6 @@ class SizedHeap {
   int size_limit;
   /*! \brief The heap, the worse the topper */
   std::vector<Item> heap;
-  /*! \brief The traces that are in the heap */
-  std::unordered_set<Item, ItemHash, ItemEqual> in_heap;
 };
 
 struct PerThreadData {
@@ -302,6 +309,10 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   std::unique_ptr<State> state_ = nullptr;
   /*! \brief The token registered for the given workload in database. */
   Workload token_{nullptr};
+  /*! \brief The workloads that are already measured. */
+  IRModuleSet measured;
+  /*! \brief The counter of returning empty results. */
+  int empty_count_;
 
   /*** Configuration: global ***/
   /*! \brief The number of trials per iteration. */
@@ -393,6 +404,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
       design_space_traces.push_back(space->trace().value()->Simplified(true));
     }
     this->state_ = std::make_unique<State>(this, design_space_traces);
+    this->empty_count_ = 0;
   }
 
   void PostTuning() final {
@@ -421,21 +433,22 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     measured_traces.push_back(record->trace);
   }
   int actual_num = measured_traces.size();
-  ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> results(actual_num, Schedule{nullptr});
-  auto f_proc_measured = [this, &measured_traces, &results, &pp](int thread_id,
-                                                                 int trace_id) -> void {
+  auto f_proc_measured = [this, &measured_traces, &results](int thread_id, int trace_id) -> void {
     PerThreadData& data = self->per_thread_data_.at(thread_id);
     TRandState* rand_state = &data.rand_state;
     const IRModule& mod = data.mod;
     tir::Trace trace = measured_traces.at(trace_id);
-    Schedule& result = results.at(trace_id);
-    ICHECK(!result.defined());
-    if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
-      result = sch.value();
-    } else {
-      LOG(FATAL) << "ValueError: Cannot postprocess the trace:\n" << trace;
-      throw;
+    Schedule& sch = results.at(trace_id);
+    sch = tir::Schedule::Traced(mod,
+                                /*rand_state=*/ForkSeed(rand_state),
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    sch->EnterPostproc();
+    for (Postproc f : self->postprocs_) {
+      if (!f->Apply(sch)) {
+      }
     }
   };
   support::parallel_for_dynamic(0, actual_num, self->num_threads_, f_proc_measured);
@@ -474,7 +487,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
   ICHECK_GT(num, 0);
   // The heap to record best schedule, we do not consider schedules that are already measured
-  // Also we use `in_heap` to make sure items in the heap are de-duplicated
+  IRModuleSet exists = self->measured;
   SizedHeap heap(num);
   for (int iter = 0;; ++iter) {
     // Predict normalized score with the cost model,
@@ -486,9 +499,11 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     for (int i = 0, n = population.size(); i < n; ++i) {
       Schedule sch = population.at(i);
       IRModule mod = sch->mod();
+      size_t shash = StructuralHash()(mod);
       double score = scores.at(i);
-      if (!self->database_->HasWorkload(mod)) {
-        heap.Push(sch, mod, score);
+      if (!exists.Has(mod, shash)) {
+        exists.Add(mod, shash);
+        heap.Push(sch, score);
       }
     }
     // Discontinue once it reaches end of search
@@ -576,6 +591,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       tir::SampleWithoutReplacement(&self->rand_state_, unmeasured.size(), unmeasured.size());
   std::vector<Schedule> results;
   results.reserve(num);
+  IRModuleSet& measured = self->measured;
   for (int i = 0, i_bests = 0, i_rands = 0; i < num; ++i) {
     bool has_best = i_bests < static_cast<int>(bests.size());
     bool has_rand = i_rands < static_cast<int>(rands.size());
@@ -600,7 +616,12 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
         break;
       }
     }
-    results.push_back(sch);
+    IRModule mod = sch->mod();
+    size_t shash = StructuralHash()(mod);
+    if (!measured.Has(mod, shash)) {
+      measured.Add(mod, shash);
+      results.push_back(sch);
+    }
   }
   return results;
 }
@@ -628,8 +649,52 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   inits.insert(inits.end(), unmeasured.begin(), unmeasured.end());
   std::vector<Schedule> bests = EvolveWithCostModel(inits, sample_num);
   LOG(INFO) << "Got " << bests.size() << " candidate(s) with evolutionary search";
-  std::vector<Schedule> picks = PickWithEpsGreedy(unmeasured, bests, sample_num);
+
+  std::vector<Schedule> injected_schedules;
+  {
+    constexpr int thread_id = 0;
+    const runtime::PackedFunc* f = runtime::Registry::Get("meta_schedule.inject_traces");
+    ICHECK(f);
+    Array<tir::Trace> traces = (*f)(st, ed);
+    ThreadedTraceApply pp(self->postprocs_);
+    int i = st;
+    for (tir::Trace trace : traces) {
+      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      TRandState* rand_state = &data.rand_state;
+      const IRModule& mod = data.mod;
+      tir::Schedule sch =
+          tir::Schedule::Traced(mod,
+                                /*rand_state=*/ForkSeed(rand_state),
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+      trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+      sch->EnterPostproc();
+      for (Postproc f : self->postprocs_) {
+        if (!f->Apply(sch)) {
+          LOG(INFO) << "Failed to apply postproc " << f << " @ trace #" << i;
+        }
+      }
+      {
+        IRModule mod = sch->mod();
+        size_t shash = StructuralHash()(mod);
+        if (!self->measured.Has(mod, shash)) {
+          self->measured.Add(mod, shash);
+        }
+      }
+      injected_schedules.push_back(sch);
+      ++i;
+    }
+  }
+  LOG(INFO) << "Injected " << injected_schedules.size() << " trace(s)";
+  std::vector<Schedule> picks =
+      PickWithEpsGreedy(unmeasured, bests, sample_num - injected_schedules.size());
+  LOG(INFO) << "Picked " << picks.size() << " trace(s)";
+  picks.insert(picks.begin(), injected_schedules.begin(), injected_schedules.end());
   LOG(INFO) << "Sending " << picks.size() << " candidates(s) for measurement";
+  if (picks.size() == 0) {
+    ++self->empty_count_;
+    if (self->empty_count_ == 5) return NullOpt;
+  }
   return AssembleCandidates(picks, self->args_info_);
 }
 
