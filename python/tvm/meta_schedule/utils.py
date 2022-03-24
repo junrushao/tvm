@@ -19,6 +19,7 @@ import ctypes
 import json
 import os
 import shutil
+from contextlib import contextmanager
 from typing import Any, Callable, List, Optional, Union
 
 import psutil  # type: ignore
@@ -359,3 +360,16 @@ def _to_hex_address(handle: ctypes.c_void_p) -> str:
         The hexadecimal address of the handle.
     """
     return hex(ctypes.cast(handle, ctypes.c_void_p).value)
+
+
+@contextmanager
+def autotvm_silencer():
+    """A context manager that silences autotvm warnings."""
+    from tvm import autotvm  # pylint: disable=import-outside-toplevel
+
+    silent = autotvm.GLOBAL_SCOPE.silent
+    autotvm.GLOBAL_SCOPE.silent = True
+    try:
+        yield
+    finally:
+        autotvm.GLOBAL_SCOPE.silent = silent
