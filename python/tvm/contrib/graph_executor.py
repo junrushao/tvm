@@ -17,11 +17,10 @@
 """Minimum graph executor that executes graph containing TVM PackedFunc."""
 import numpy as np
 import tvm._ffi
-
-from tvm.rpc import _ffi_api as _rpc_ffi_api
-from tvm.rpc import base as rpc_base
 from tvm._ffi.base import string_types
 from tvm._ffi.runtime_ctypes import Device
+from tvm.rpc import _ffi_api as _rpc_ffi_api
+from tvm.rpc import base as rpc_base
 
 
 def create(graph_json_str, libmod, device):
@@ -158,7 +157,7 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._get_input_index = module["get_input_index"]
-        self._get_input_info = module["get_input_info"]
+        # self._get_input_info = module["get_input_info"]
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]

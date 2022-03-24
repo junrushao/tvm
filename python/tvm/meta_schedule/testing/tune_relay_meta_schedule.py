@@ -22,7 +22,7 @@ import logging
 import numpy as np
 import tvm
 from tvm import meta_schedule as ms
-from tvm.contrib.graph_executor import GraphModule
+from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
 
 
@@ -73,6 +73,11 @@ def _parse_args():
         type=str,
         required=True,
     )
+    args.add_argument(
+        "--cache-dir",
+        type=str,
+        default=None,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -94,6 +99,7 @@ def main():
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
         ARGS.input_shape,
+        cache_dir=ARGS.cache_dir,
     )
     alloc_repeat = 1
     runner = ms.runner.RPCRunner(
@@ -119,21 +125,36 @@ def main():
         work_dir=ARGS.work_dir,
         params=params,
     )
-
-    dev = tvm.device(ARGS.target.kind.name, 0)
     if input_dtype.startswith("float"):
         input_data = np.random.uniform(size=input_shape).astype(input_dtype)
     else:
         input_data = np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
-    mod = GraphModule(lib["default"](dev))
-    mod.set_input(input_name, input_data)
-    ftimer = mod.module.time_evaluator(
-        "run",
-        dev,
-        min_repeat_ms=500,
-        repeat=3,
+
+    def f_timer(rt_mod, dev, input_data):
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib.graph_executor import GraphModule
+
+        # pylint: enable=import-outside-toplevel
+
+        mod = GraphModule(rt_mod["default"](dev))
+        mod.set_input(input_name, input_data)
+        ftimer = mod.module.time_evaluator(
+            "run",
+            dev,
+            min_repeat_ms=500,
+            repeat=3,
+        )
+        return list(np.array(ftimer().results))
+
+    results = run_module_via_rpc(
+        rpc_config=ARGS.rpc_config,
+        lib=lib,
+        dev_type=ARGS.target.kind.name,
+        args=[input_data],
+        continuation=f_timer,
     )
-    print(np.array(ftimer().results))
+
+    print(results)
 
 
 if __name__ == "__main__":
