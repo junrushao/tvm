@@ -12,24 +12,29 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
+# specific language governing permissions and limitatios
 # under the License.
 # pylint: disable=missing-docstring
 import argparse
+import json
 import logging
-from os import cpu_count
-from typing import Optional
 
+import numpy as np
 import tvm
 from tvm import meta_schedule as ms
-from tvm import tir
-from tvm.meta_schedule.testing.te_workload import create_te_workload
+from tvm.contrib.graph_executor import GraphModule
+from tvm.meta_schedule.testing.relay_workload import get_network
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
         "--workload",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--input-shape",
         type=str,
         required=True,
     )
@@ -41,11 +46,6 @@ def _parse_args():
     args.add_argument(
         "--num-trials",
         type=int,
-        required=True,
-    )
-    args.add_argument(
-        "--work-dir",
-        type=str,
         required=True,
     )
     args.add_argument(
@@ -68,8 +68,14 @@ def _parse_args():
         type=int,
         required=True,
     )
+    args.add_argument(
+        "--work-dir",
+        type=str,
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
+    parsed.input_shape = json.loads(parsed.input_shape)
     parsed.rpc_config = ms.runner.RPCConfig(
         tracker_host=parsed.rpc_host,
         tracker_port=parsed.rpc_port,
@@ -85,6 +91,10 @@ ARGS = _parse_args()
 
 
 def main():
+    mod, params, (input_name, input_shape, input_dtype) = get_network(
+        ARGS.workload,
+        ARGS.input_shape,
+    )
     alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
@@ -97,24 +107,33 @@ def main():
         alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
-    sch: Optional[tir.Schedule] = ms.tune_tir(
-        mod=create_te_workload(ARGS.workload, 0),
+    lib = ms.tune_relay(
+        mod=mod,
         target=ARGS.target,
         config=ms.EvolutionarySearchConfig(
             num_trials_per_iter=64,
             num_trials_total=ARGS.num_trials,
             init_min_unmeasured=50,
         ),
-        runner=runner,  # type: ignore
-        task_name=ARGS.workload,
+        runner=runner,
         work_dir=ARGS.work_dir,
-        num_threads=cpu_count(),
+        params=params,
     )
-    if sch is None:
-        print("No valid schedule found!")
+
+    dev = tvm.device(ARGS.target.kind.name, 0)
+    if input_dtype.startswith("float"):
+        input_data = np.random.uniform(size=input_shape).astype(input_dtype)
     else:
-        print(sch.mod.script())
-        print(sch.trace)
+        input_data = np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
+    mod = GraphModule(lib["default"](dev))
+    mod.set_input(input_name, input_data)
+    ftimer = mod.module.time_evaluator(
+        "run",
+        dev,
+        min_repeat_ms=500,
+        repeat=3,
+    )
+    print(np.array(ftimer().results))
 
 
 if __name__ == "__main__":

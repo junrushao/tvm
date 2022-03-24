@@ -19,7 +19,7 @@ import ctypes
 import json
 import os
 import shutil
-from typing import Any, List, Optional, Union, Callable
+from typing import Any, Callable, List, Optional, Union
 
 import psutil  # type: ignore
 import tvm
@@ -132,14 +132,17 @@ def derived_object(cls: type) -> type:
 @register_func("meta_schedule.cpu_count")
 def _cpu_count_impl(logical: bool = True) -> int:
     """Return the number of logical or physical CPUs in the system
+
     Parameters
     ----------
     logical : bool = True
         If True, return the number of logical CPUs, otherwise return the number of physical CPUs
+
     Returns
     -------
     cpu_count : int
         The number of logical or physical CPUs in the system
+
     Note
     ----
     The meta schedule search infra intentionally does not adopt the following convention in TVM:
