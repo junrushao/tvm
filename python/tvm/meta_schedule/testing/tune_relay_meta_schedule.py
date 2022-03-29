@@ -113,6 +113,13 @@ def tune_each_task(
         path_tuning_record=os.path.join(work_dir, "default_database_tuning_record.json"),
     )
     for task in extracted_tasks:
+        # if str(task.task_name) in [
+        #     "fused_nn_dense",
+        #     "fused_nn_dense_1",
+        #     "fused_nn_dense_2",
+        # ]:
+        #     print(f"Skipped: {task.task_name}")
+        #     continue
         # pylint: disable=protected-access
         tune_context = ms.tune.Parse._tune_context(
             tune_context=None,
@@ -167,7 +174,8 @@ def main():
         alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
-    lib = tune_each_task(  # or ms.tune_relay
+    # lib = ms.tune_relay(
+    lib = tune_each_task(
         mod=mod,
         target=ARGS.target,
         config=ms.EvolutionarySearchConfig(
@@ -180,6 +188,7 @@ def main():
         params=params,
     )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
+
     if input_dtype.startswith("float"):
         input_data = np.random.uniform(size=input_shape).astype(input_dtype)
     else:
@@ -215,15 +224,52 @@ def main():
         from tvm.contrib.debugger.debug_executor import create
 
         # pylint: enable=import-outside-toplevel
+
         mod = create(graph, rt_mod, dev)
         mod.set_input(input_name, input_data)
+
+        layers = {
+            "tvmgen_default_fused_nn_dense_2": 12,
+            "tvmgen_default_fused_nn_dense": 48,
+            "tvmgen_default_fused_nn_dense_1": 12,
+            "tvmgen_default_fused_nn_batch_matmul": 24,
+            "tvmgen_default_fused_variance": 25,
+            "tvmgen_default_fused_mean": 25,
+            "tvmgen_default_fused_nn_fast_softmax": 12,
+            "tvmgen_default_fused_nn_dense_add_fast_tanh": 1,
+            "tvmgen_default_fused_subtract_add_sqrt_divide_multiply_add": 25,
+            "tvmgen_default_fused_reshape_add_add": 24,
+            "tvmgen_default_fused_reshape_add_reshape_transpose_reshape": 24,
+            "tvmgen_default_fused_reshape_add_multiply_fast_erf_multiply_add_multiply_reshape": 12,
+            "tvmgen_default_fused_reshape_add_reshape_transpose_reshape_1": 12,
+            "tvmgen_default_fused_reshape_divide_add": 12,
+            "tvmgen_default_fused_reshape_transpose_reshape": 12,
+            "tvmgen_default_fused_cast_take_add": 1,
+            "tvmgen_default_fused_take": 1,
+        }
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
         graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
-        for k, v in graph_nodes_time.items():
-            print(f"{k} : {v:.3f}")
+
+        results = {}
+        for layer, _ in layers.items():
+            times = []
+            i = 0
+            key = layer
+            while True:
+                if key in graph_nodes_time:
+                    times.append(graph_nodes_time[key])
+                    i += 1
+                    key = f"{layer}{i}"
+                else:
+                    break
+            if times:
+                results[layer] = times
+        for layer, times in results.items():
+            print(f"{layer}: {np.mean(times)}")
+            print(f"    {times}")
 
     run_module_via_rpc(
         rpc_config=ARGS.rpc_config,
