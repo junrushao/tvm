@@ -62,12 +62,13 @@ bool HasOnlyOneFunction(const IRModule& mod) {
 /**************** ExtractedTask ****************/
 
 ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
-                             Array<IRModule> dispatched) {
+                             Array<IRModule> dispatched, int weight) {
   ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
   n->task_name = task_name;
   n->mod = mod;
   n->target = target;
   n->dispatched = dispatched;
+  n->weight = weight;
   data_ = n;
 }
 
@@ -140,6 +141,9 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
       records[0]->trace->ApplyToSchedule(sch, false);
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
       // Make sure we return the updated PrimFunc paired with the original func name.
+      LOG(INFO) << "Task: " << task_name << ": " << records[0]->run_secs << " (s)"
+                << "\n"
+                << tir::AsTVMScript(func);
       return IRModule({{gv, func}});
     }
   }
@@ -161,9 +165,9 @@ TVM_REGISTER_OBJECT_TYPE(MetaScheduleContextNode);
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
-    .set_body_typed([](String task_name, IRModule mod, Target target,
-                       Array<IRModule> dispatched) -> ExtractedTask {
-      return ExtractedTask(task_name, mod, target, dispatched);
+    .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
+                       int weight) -> ExtractedTask {
+      return ExtractedTask(task_name, mod, target, dispatched, weight);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextEnterScope")
     .set_body_typed(MetaScheduleContextInternal::EnterScope);

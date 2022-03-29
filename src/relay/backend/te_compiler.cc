@@ -44,6 +44,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../printer/text_printer.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
@@ -327,7 +328,17 @@ class TECompilerImpl : public TECompilerNode {
                                             value->cached_func->prim_fn_var->name_hint, false);
       ICHECK_EQ(lowered->functions.size(), 1);
       for (const auto& kv : lowered->functions) {
-        value->cached_func->funcs->Add(value->cached_func->prim_fn_var, kv.second);
+        GlobalVar global_var = kv.first->name_hint == value->cached_func->prim_fn_var->name_hint
+                                   ? value->cached_func->prim_fn_var
+                                   : kv.first;
+        auto func = kv.second;
+        // Propagate the structural hash of the relay function to the tir
+        // function so associations can be made between the two.
+        Optional<String> hash = key->source_func->attrs.GetAttr<String>("hash");
+        if (hash) {
+          func = WithAttrs(Downcast<tir::PrimFunc>(func), {{String("hash"), hash.value()}});
+        }
+        value->cached_func->funcs->Add(global_var, func);
       }
     } else {
       // NOTE: array will copy on write.
