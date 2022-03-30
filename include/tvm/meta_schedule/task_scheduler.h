@@ -67,6 +67,11 @@ namespace meta_schedule {
 */
 class TaskSchedulerNode : public runtime::Object {
  public:
+  /*! \brief The function type of the objective function. */
+  using FObjectiveFunc = TypedPackedFunc<FloatImm(Array<FloatImm>)>;
+  /*! \brief The function type of the tag genration function. */
+  using FTagGenerationFunc = TypedPackedFunc<String(const IRModule&)>;
+
   /*! \brief The tasks to be tuned */
   Array<TuneContext> tasks;
   /*! \brief The builder of the scheduler. */
@@ -288,6 +293,36 @@ class TaskScheduler : public runtime::ObjectRef {
       PyTaskSchedulerNode::FIsTaskRunning f_is_task_running,      //
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task,  //
       PyTaskSchedulerNode::FNextTaskId f_next_task_id);
+  /*!
+   * \brief Create a task scheduler that fetches tasks in a gradient based fashion.
+   * \param tasks The tasks to be tuned.
+   * \param builder The builder of the scheduler.
+   * \param runner The runner of the scheduler.
+   * \param database The database of the scheduler.
+   * \param alpha The parameter alpha to control gradient computation.
+   * \param beta The parameter beta to control gradient computation.
+   * \param backward_window_size The parameter to control backward window size.
+   * \param seed The random seed.
+   * \param task_weights The weights of each task.
+   * \param objective_func_name The name of objective function for gradient optimization.
+   * \param tag_generation_func_name The name of function to generate similarity tag for workloads.
+   * \param cost_model The cost model of the scheduler.
+   * \param measure_callbacks The measure callbacks of the scheduler.
+   * \return The task scheduler created.
+   */
+  TVM_DLL static TaskScheduler GradientBased(Array<TuneContext> tasks,                            //
+                                             Builder builder,                                     //
+                                             Runner runner,                                       //
+                                             Database database,                                   //
+                                             double alpha,                                        //
+                                             double beta,                                         //
+                                             int backward_window_size,                            //
+                                             support::LinearCongruentialEngine::TRandState seed,  //
+                                             Array<FloatImm> task_weights,                        //
+                                             String objective_func_name,                          //
+                                             String tag_generation_func_name,                     //
+                                             Optional<CostModel> cost_model,                      //
+                                             Optional<Array<MeasureCallback>> measure_callbacks);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TaskScheduler, ObjectRef, TaskSchedulerNode);
 };
 
