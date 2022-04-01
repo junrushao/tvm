@@ -99,54 +99,6 @@ logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
-def tune_each_task(
-    mod,
-    target,
-    config,
-    runner,
-    work_dir,
-    params,
-):
-    extracted_tasks = extract_task_from_relay(mod, target, params)
-    database = ms.database.JSONDatabase(
-        path_workload=os.path.join(work_dir, "default_database_workload.json"),
-        path_tuning_record=os.path.join(work_dir, "default_database_tuning_record.json"),
-    )
-    for task in extracted_tasks:
-        # pylint: disable=protected-access
-        tune_context = ms.tune.Parse._tune_context(
-            tune_context=None,
-            mod=ms.tune.Parse._mod(task.dispatched[0]),
-            target=target,
-            config=config,
-            task_name=task.task_name,
-            space_generator=None,
-            sch_rules=None,
-            postprocs=None,
-            mutator_probs=None,
-            num_threads=os.cpu_count(),
-        )
-        task_scheduler = ms.tune.Parse._task_scheduler(
-            None,
-            [tune_context],
-            task_weights=[1.0],
-            builder=ms.tune.Parse._builder(None),
-            runner=ms.tune.Parse._runner(runner),
-            database=database,
-            max_trials=config.max_trials_per_task,
-            cost_model=ms.tune.Parse._cost_model(None),
-            measure_callbacks=ms.tune.Parse._callbacks(None),
-        )
-        # pylint: enable=protected-access
-        task_scheduler.tune()
-    with target, ms.integration.ApplyHistoryBest(database):
-        with PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            return relay_build(mod, target=target, params=params)
-
-
 def main():
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
@@ -169,7 +121,6 @@ def main():
         alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
-    # lib = tune_each_task(
     lib = ms.tune_relay(
         mod=mod,
         target=ARGS.target,
@@ -184,6 +135,7 @@ def main():
         params=params,
     )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
+
     if input_dtype.startswith("float"):
         input_data = np.random.uniform(size=input_shape).astype(input_dtype)
     else:
@@ -219,15 +171,61 @@ def main():
         from tvm.contrib.debugger.debug_executor import create
 
         # pylint: enable=import-outside-toplevel
+
         mod = create(graph, rt_mod, dev)
         mod.set_input(input_name, input_data)
+        layers = [
+            "fused_nn_conv2d_add_2",
+            "fused_nn_conv2d_add_nn_relu_11",
+            "fused_nn_max_pool2d",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            "fused_nn_conv2d_add_nn_relu_7",
+            "fused_nn_conv2d_add_1",
+            "fused_nn_conv2d_add_add_nn_relu_2",
+            "fused_nn_adaptive_avg_pool2d",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_2",
+            "fused_nn_conv2d_add_nn_relu_8",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "fused_nn_conv2d_add_3",
+            "fused_nn_conv2d_add_nn_relu_6",
+            "fused_nn_conv2d_add_add_nn_relu",
+            "fused_nn_conv2d_add_nn_relu_10",
+            "fused_nn_conv2d_add_add_nn_relu_3",
+            "fused_nn_conv2d_add_nn_relu_9",
+            "fused_nn_conv2d_add_nn_relu_3",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_3",
+            "fused_nn_conv2d_add_nn_relu",
+            "fused_nn_conv2d_add_nn_relu_2",
+            "fused_nn_conv2d_add_add_nn_relu_1",
+            "fused_nn_conv2d_add_nn_relu_4",
+            "fused_nn_dense_add",
+            "fused_nn_conv2d_add_nn_relu_5",
+            "fused_nn_conv2d_add",
+            "fused_nn_conv2d_add_nn_relu_1",
+        ]
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
         graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
-        for k, v in graph_nodes_time.items():
-            print(f"{k} : {v:.3f}")
+
+        results = {}
+        for layer in layers:
+            times = []
+            i = 0
+            key = layer
+            while True:
+                if key in graph_nodes_time:
+                    times.append(graph_nodes_time[key])
+                    i += 1
+                    key = f"{layer}{i}"
+                else:
+                    break
+            if times:
+                results[layer] = times
+        for layer, times in results.items():
+            print(f"{layer}: {np.mean(times)}")
+            print(f"    {times}")
 
     run_module_via_rpc(
         rpc_config=ARGS.rpc_config,

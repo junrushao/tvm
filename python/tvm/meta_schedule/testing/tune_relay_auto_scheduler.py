@@ -207,13 +207,58 @@ def main():
         # pylint: enable=import-outside-toplevel
         mod = create(graph, rt_mod, dev)
         mod.set_input(input_name, input_data)
+        layers = [
+            "fused_nn_conv2d_add_2",
+            "fused_nn_conv2d_add_nn_relu_11",
+            "fused_nn_max_pool2d",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            "fused_nn_conv2d_add_nn_relu_7",
+            "fused_nn_conv2d_add_1",
+            "fused_nn_conv2d_add_add_nn_relu_2",
+            "fused_nn_adaptive_avg_pool2d",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_2",
+            "fused_nn_conv2d_add_nn_relu_8",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "fused_nn_conv2d_add_3",
+            "fused_nn_conv2d_add_nn_relu_6",
+            "fused_nn_conv2d_add_add_nn_relu",
+            "fused_nn_conv2d_add_nn_relu_10",
+            "fused_nn_conv2d_add_add_nn_relu_3",
+            "fused_nn_conv2d_add_nn_relu_9",
+            "fused_nn_conv2d_add_nn_relu_3",
+            "fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_3",
+            "fused_nn_conv2d_add_nn_relu",
+            "fused_nn_conv2d_add_nn_relu_2",
+            "fused_nn_conv2d_add_add_nn_relu_1",
+            "fused_nn_conv2d_add_nn_relu_4",
+            "fused_nn_dense_add",
+            "fused_nn_conv2d_add_nn_relu_5",
+            "fused_nn_conv2d_add",
+            "fused_nn_conv2d_add_nn_relu_1",
+        ]
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
         graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
-        for k, v in graph_nodes_time.items():
-            print(f"{k} : {v:.3f}")
+
+        results = {}
+        for layer in layers:
+            times = []
+            i = 0
+            key = layer
+            while True:
+                if key in graph_nodes_time:
+                    times.append(graph_nodes_time[key])
+                    i += 1
+                    key = f"{layer}{i}"
+                else:
+                    break
+            if times:
+                results[layer] = times
+        for layer, times in results.items():
+            print(f"{layer}: {np.mean(times)}")
+            print(f"    {times}")
 
     run_module_via_rpc(
         rpc_config=ARGS.rpc_config,

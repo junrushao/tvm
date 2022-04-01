@@ -140,6 +140,9 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
       records[0]->trace->ApplyToSchedule(sch, false);
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
+      LOG(INFO) << "Task: " << task_name << ": " << records[0]->run_secs << " (s)"
+                << "\n"
+                << tir::AsTVMScript(func);
       // Make sure we return the updated PrimFunc paired with the original func name.
       return IRModule({{gv, func}});
     }
