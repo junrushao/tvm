@@ -138,26 +138,29 @@ def main():
     print(f"  input_name: {input_name}")
     print(f"  input_shape: {input_shape}")
     print(f"  input_dtype: {input_dtype}")
-    tasks, task_weights = auto_scheduler.extract_tasks(
-        mod["main"],
-        params,
-        target=ARGS.target,
-        hardware_params=hardware_params,
-    )
-    for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
-        print(f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) =====")
-        print(task.compute_dag)
-
-    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
-    tuner.tune(
-        auto_scheduler.TuningOptions(
-            num_measure_trials=ARGS.num_trials,
-            runner=runner,
-            measure_callbacks=[
-                auto_scheduler.RecordToFile(log_file),
-            ],
+    if ARGS.num_trials > 0:
+        tasks, task_weights = auto_scheduler.extract_tasks(
+            mod["main"],
+            params,
+            target=ARGS.target,
+            hardware_params=hardware_params,
         )
-    )
+        for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
+            print(
+                f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) ====="
+            )
+            print(task.compute_dag)
+
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+        tuner.tune(
+            auto_scheduler.TuningOptions(
+                num_measure_trials=ARGS.num_trials,
+                runner=runner,
+                measure_callbacks=[
+                    auto_scheduler.RecordToFile(log_file),
+                ],
+            )
+        )
 
     with auto_scheduler.ApplyHistoryBest(log_file):
         with tvm.transform.PassContext(
@@ -236,6 +239,7 @@ def main():
             "fused_nn_conv2d_add",
             "fused_nn_conv2d_add_nn_relu_1",
         ]
+        layers = ["tvmgen_default_" + x for x in layers]
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))

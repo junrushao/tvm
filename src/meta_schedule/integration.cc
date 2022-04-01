@@ -142,7 +142,8 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
       LOG(INFO) << "Task: " << task_name << ": " << records[0]->run_secs << " (s)"
                 << "\n"
-                << tir::AsTVMScript(func);
+                << tir::AsTVMScript(sch->mod()) << "\n"
+                << Concat(sch->trace().value()->AsPython(false), "\n");
       // Make sure we return the updated PrimFunc paired with the original func name.
       return IRModule({{gv, func}});
     }

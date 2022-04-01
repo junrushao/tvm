@@ -203,6 +203,7 @@ def main():
             "fused_nn_conv2d_add",
             "fused_nn_conv2d_add_nn_relu_1",
         ]
+        layers = ["tvmgen_default_" + x for x in layers]
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
