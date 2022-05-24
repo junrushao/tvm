@@ -32,26 +32,11 @@ def deferred(f: Callable[[], None]):
 
 
 def inspect_function_capture(func: Callable) -> Dict[str, Any]:
-    prefix = "tvm."
-    result = {}
     captured = {
         **inspect.getclosurevars(func).nonlocals,
         **func.__globals__,
     }
-    for k, v in captured.items():
-        # Case 1: a module like `T` or `tvm.tir.ir_builder`
-        if inspect.ismodule(v) and v.__name__.startswith(prefix):
-            result[k] = v
-            continue
-        # Case 2: a function like `T.match_buffer`
-        if hasattr(v, "__module__") and v.__module__.startswith(prefix):
-            result[k] = v
-            continue
-        # Case 3: atomic types
-        if v is None or isinstance(v, (int, float, str, bool)):
-            result[k] = v
-            continue
-    return result
+    return captured
 
 
 def inspect_class_capture(cls: type) -> Dict[str, Any]:

@@ -166,6 +166,9 @@ from .op import (
     tvm_thread_allreduce,
     tvm_throw_last_error,
     tvm_tuple,
+    vectorcombine,
+    vectorhigh,
+    vectorlow,
 )
 from .schedule import BlockScope, Schedule, ScheduleError, ScheduleState, StmtSRef
 from .stmt import (

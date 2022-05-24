@@ -633,6 +633,18 @@ def mma_fill(dtype, local_size, local_ptr, offset):
     )
 
 
+def vectorlow(dtype, vec):
+    return call_intrin(dtype, "tir.vectorlow", vec)
+
+
+def vectorhigh(dtype, vec):
+    return call_intrin(dtype, "tir.vectorhigh", vec)
+
+
+def vectorcombine(dtype, vec1, vec2):
+    return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
+
+
 def ret(val):
     """Create a tir return expression
 

@@ -525,6 +525,14 @@ def float64(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Float64(expr)  # pylint: disable=no-member # type: ignore
 
 
+def int32x4(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    return _ffi_api.Int32x4(expr)  # pylint: disable=no-member # type: ignore
+
+
+def int32x16(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    return _ffi_api.Int32x16(expr)  # pylint: disable=no-member # type: ignore
+
+
 def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Boolean(expr)  # pylint: disable=no-member # type: ignore
 
@@ -723,6 +731,9 @@ ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
 mma_store = _dtype_forward(_tir_op.mma_store)
 mma_fill = _dtype_forward(_tir_op.mma_fill)
+vectorlow = _dtype_forward(_tir_op.vectorlow)
+vectorhigh = _dtype_forward(_tir_op.vectorhigh)
+vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 tvm_call_packed = call_packed
 tvm_call_cpacked = call_cpacked
 tvm_call_packed_lowered = call_packed_lowered
@@ -810,6 +821,8 @@ __all__ = [
     "init",
     "int16",
     "int32",
+    "int32x16",
+    "int32x4",
     "int64",
     "int8",
     "isfinite",
@@ -896,7 +909,10 @@ __all__ = [
     "uint8",
     "unroll",
     "var",
+    "vectorcombine",
+    "vectorhigh",
     "vectorized",
+    "vectorlow",
     "void",
     "where",
     "writes",
