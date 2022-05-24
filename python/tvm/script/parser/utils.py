@@ -14,23 +14,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-from . import parser, parser_v1
+# pylint: disable=missing-docstring
+import inspect
+from contextlib import contextmanager
+from typing import Any, Callable, Dict
 
-#############
-from .parser import ir as ir_v2
-from .parser import ir_module as ir_module_v2
-from .parser import parse as from_source_v2
-from .parser import tir as tir_v2
 
-#############
-from .parser_v1 import from_source as from_source_v1
-from .parser_v1 import ir_module as ir_module_v1
-from .parser_v1 import tir as tir_v1
+def deferred(f: Callable[[], None]):
+    @contextmanager
+    def context():
+        try:
+            yield
+        finally:
+            f()
 
-# pylint: disable=invalid-name
+    return context()
 
-ir = ir_v2
-ir_module = ir_module_v2
-tir = tir_v2
-from_source = from_source_v2
+
+def inspect_function_capture(func: Callable) -> Dict[str, Any]:
+    captured = {
+        **inspect.getclosurevars(func).nonlocals,
+        **func.__globals__,
+    }
+    return captured
+
+
+def inspect_class_capture(cls: type) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for _, v in cls.__dict__.items():
+        if inspect.isfunction(v):
+            func_vars = inspect_function_capture(v)
+            result.update(**func_vars)
+    return result
