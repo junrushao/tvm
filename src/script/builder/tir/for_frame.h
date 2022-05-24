@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_BUILDER_TIR_FRAME_H_
 
+#include <tvm/support/with.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -49,15 +50,27 @@ class ForFrameNode : public FrameNode {
 
 class ForFrame : public Frame {
  public:
-  static ForFrame Serial(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs);
-  static ForFrame Parallel(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs);
-  static ForFrame Vectorized(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs);
-  static ForFrame Unroll(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs);
-  static ForFrame ThreadBinding(PrimExpr min, PrimExpr extent, String thread,
-                                Map<String, ObjectRef> attrs);
-  static ForFrame Grid(Array<PrimExpr> extents);
+  using FMakeForLoop = ForFrameNode::FMakeForLoop;
+
+  explicit ForFrame(Array<tvm::tir::Var> loop_vars, FMakeForLoop f_make_for_loop);
+
+  void EnterWithScope() { ICHECK(data_ != nullptr); }
+
+  void ExitWithScope() {
+    ICHECK(data_ != nullptr);
+    data_.reset();
+  }
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, Frame, ForFrameNode);
 };
+
+With<ForFrame> Serial(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> annotations);
+With<ForFrame> Parallel(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> annotations);
+With<ForFrame> Vectorized(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> annotations);
+With<ForFrame> Unroll(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> annotations);
+With<ForFrame> ThreadBinding(PrimExpr min, PrimExpr extent, String thread,
+                             Map<String, ObjectRef> annotations);
+With<ForFrame> Grid(Array<PrimExpr> extents);
 
 }  // namespace tir
 }  // namespace builder

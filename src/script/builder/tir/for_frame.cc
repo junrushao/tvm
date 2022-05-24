@@ -23,8 +23,15 @@ namespace script {
 namespace builder {
 namespace tir {
 
+ForFrame::ForFrame(Array<tvm::tir::Var> loop_vars, ForFrame::FMakeForLoop f_make_for_loop) {
+  ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
+  n->loop_vars = std::move(loop_vars);
+  n->f_make_for_loop = std::move(f_make_for_loop);
+  data_ = std::move(n);
+}
+
 #define TVM_SCRIPT_BUILDER_TIR_FOR_CREATE(Method, Kind)                                         \
-  ForFrame ForFrame::Method(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs) {      \
+  With<ForFrame> Method(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs) {          \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                    \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                             \
     n->loop_vars = {tvm::tir::Var("v", DataType::Int(bits))};                                   \
@@ -33,7 +40,7 @@ namespace tir {
       return tvm::tir::For(/*loop_var=*/vars[0], min, extent, Kind, body,                       \
                            /*thread_binding=*/NullOpt, attrs);                                  \
     };                                                                                          \
-    return ForFrame(n);                                                                         \
+    return With<ForFrame>(n);                                                                   \
   }
 
 TVM_SCRIPT_BUILDER_TIR_FOR_CREATE(Serial, tvm::tir::ForKind::kSerial);
@@ -43,8 +50,8 @@ TVM_SCRIPT_BUILDER_TIR_FOR_CREATE(Unroll, tvm::tir::ForKind::kUnrolled);
 
 #undef TVM_SCRIPT_BUILDER_TIR_FOR_CREATE
 
-ForFrame ForFrame::ThreadBinding(PrimExpr min, PrimExpr extent, String thread,
-                                 Map<String, ObjectRef> attrs) {
+With<ForFrame> ThreadBinding(PrimExpr min, PrimExpr extent, String thread,
+                             Map<String, ObjectRef> attrs) {
   using namespace tvm::tir;
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
@@ -55,10 +62,10 @@ ForFrame ForFrame::ThreadBinding(PrimExpr min, PrimExpr extent, String thread,
                      thread);
     return For(vars[0], min, extent, tvm::tir::ForKind::kThreadBinding, body, iter_var, attrs);
   };
-  return ForFrame(n);
+  return With<ForFrame>(n);
 }
 
-ForFrame ForFrame::Grid(Array<PrimExpr> extents) {
+With<ForFrame> Grid(Array<PrimExpr> extents) {
   using namespace tvm::tir;
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   n->loop_vars.reserve(extents.size());
@@ -75,7 +82,7 @@ ForFrame ForFrame::Grid(Array<PrimExpr> extents) {
     }
     return body;
   };
-  return ForFrame(n);
+  return With<ForFrame>(n);
 }
 
 TVM_REGISTER_NODE_TYPE(ForFrameNode);

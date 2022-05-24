@@ -49,6 +49,9 @@ class FrameNode : public runtime::Object {
 class Frame : public runtime::ObjectRef {
  public:
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
+
+ protected:
+  Frame() = default;
 };
 
 class BuilderNode : public runtime::Object {
