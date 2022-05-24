@@ -21,11 +21,35 @@
 
 #include <tvm/node/node.h>
 
-#include "./frame.h"
-
 namespace tvm {
 namespace script {
 namespace builder {
+
+class FrameNode : public runtime::Object {
+ public:
+  std::vector<runtime::TypedPackedFunc<void()>> callbacks;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `callbacks` is not visited.
+  }
+
+  void AddCallback(runtime::TypedPackedFunc<void()> callback) { callbacks.push_back(callback); }
+
+  static constexpr const char* _type_key = "script.builder.Frame";
+  TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, runtime::Object);
+
+ public:
+  virtual ~FrameNode() {
+    for (auto it = callbacks.rbegin(); it != callbacks.rend(); ++it) {
+      (*it)();
+    }
+  }
+};
+
+class Frame : public runtime::ObjectRef {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
+};
 
 class BuilderNode : public runtime::Object {
  public:
@@ -35,7 +59,7 @@ class BuilderNode : public runtime::Object {
     v->Visit("frames", &frames);  //
   }
 
-  static constexpr const char* _type_key = "script.Builder";
+  static constexpr const char* _type_key = "script.builder.Builder";
   TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, runtime::Object);
 };
 

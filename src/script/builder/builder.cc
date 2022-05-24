@@ -45,6 +45,7 @@ Builder Builder::Current() {
 }
 
 TVM_REGISTER_NODE_TYPE(BuilderNode);
+TVM_REGISTER_NODE_TYPE(FrameNode);
 
 }  // namespace builder
 }  // namespace script
