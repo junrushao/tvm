@@ -262,3 +262,8 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
     frame = T.Assert(cond, msg)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
+
+
+@dispatch.register(token="tir", type_name="Return")
+def visit_return(self: Parser, node: doc.Return) -> None:
+    self.report_error(node, "Return is not allowed.")

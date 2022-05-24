@@ -86,7 +86,7 @@ void Where(PrimExpr predicate) {
   BlockFrame frame = FindBlockFrame("T.where");
   if (frame->predicate.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block predicate declaration, previous one is "
-               << frame->predicate.value();
+               << frame->predicate;
   }
   frame->predicate = predicate;
 }

@@ -29,6 +29,7 @@ namespace tir {
 
 using tvm::runtime::NDArray;
 using tvm::tir::Buffer;
+using tvm::tir::IterVar;
 using tvm::tir::Var;
 
 Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Optional<Var> data,

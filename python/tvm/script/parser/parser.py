@@ -180,3 +180,6 @@ class Parser(doc.NodeVisitor):
 
     def visit_Assert(self, node: doc.Assert) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "Assert")(self, node)
+
+    def visit_Return(self, node: doc.Return) -> Any:  # pylint: disable=invalid-name
+        return _dispatch(self, "Return")(self, node)
