@@ -14,9 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+from ...builder import ir as I
+from .. import dispatch, doc
+from ..parser import Parser
 
-from . import tir
 
-from .builder import Builder
-from .parser import ir_module, from_source
+@dispatch.register(token="ir", type_name="ClassDef")
+def visit_class_def(self: Parser, node: doc.ClassDef) -> None:
+    with self.var_table.with_frame():
+        with I.ir_module():
+            with self.with_dispatch_token("ir"):
+                self.visit_body(node.body)
+
+
+@dispatch.register(token="ir", type_name="Assign")
+def visit_assign(self: Parser, node: doc.Assign) -> None:
+    pass
