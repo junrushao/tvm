@@ -20,7 +20,7 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.runtime import Object, convert
-from tvm.ir import PrimExpr, PointerType, PrimType
+from tvm.ir import PrimExpr, PointerType, PrimType, Range
 from . import _ffi_api
 
 
@@ -175,6 +175,40 @@ class Buffer(Object):
             The offset indices of the element in the flattened buffer.
         """
         return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
+
+    def __getitem__(self, indices):
+        from .expr import BufferLoad, Ramp
+        from .stmt import BufferRegion
+        from ..arith import Analyzer
+
+        if not isinstance(indices, (tuple, list)):
+            indices = [indices]
+        if any(isinstance(index, slice) and index.step is None for index in indices):
+            region = []
+            for index in indices:
+                if isinstance(index, slice):
+                    region.append(
+                        Range.from_min_extent(
+                            index.start, Analyzer().simplify(index.stop - index.start)
+                        )
+                    )
+                else:
+                    region.append(Range.from_min_extent(index, 1))
+            return BufferRegion(self, region)
+        else:
+            expr_indices = []
+            for index in indices:
+                if isinstance(index, slice):
+                    lanes = Analyzer().simplify(
+                        (index.stop - index.start + index.step - 1) // index.step
+                    )
+                    if lanes == 1:
+                        expr_indices.append(index.start)
+                    else:
+                        expr_indices.append(Ramp(index.start, index.step, int(lanes)))
+                else:
+                    expr_indices.append(index)
+            return BufferLoad(self, expr_indices)
 
 
 def decl_buffer(
