@@ -63,7 +63,7 @@ class BuilderNode : public runtime::Object {
   }
 
   static constexpr const char* _type_key = "script.builder.Builder";
-  TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, runtime::Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BuilderNode, runtime::Object);
 };
 
 class Builder : public runtime::ObjectRef {
