@@ -39,6 +39,10 @@ class FrameNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, runtime::Object);
 
  public:
+  virtual void EnterWithScope() {}
+
+  virtual void ExitWithScope() {}
+
   virtual ~FrameNode() {
     for (auto it = callbacks.rbegin(); it != callbacks.rend(); ++it) {
       (*it)();
@@ -48,6 +52,17 @@ class FrameNode : public runtime::Object {
 
 class Frame : public runtime::ObjectRef {
  public:
+  void EnterWithScope() {
+    ICHECK(data_ != nullptr);
+    static_cast<FrameNode*>(data_.get())->EnterWithScope();
+  }
+
+  void ExitWithScope() {
+    ICHECK(data_ != nullptr);
+    static_cast<FrameNode*>(data_.get())->ExitWithScope();
+    data_.reset();
+  }
+
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
 
  protected:

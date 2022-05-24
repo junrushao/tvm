@@ -63,6 +63,14 @@ class BlockFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
+namespace axis {
+
+// Spatial
+// Reduce
+// Remap
+
+}
+
 }  // namespace tir
 }  // namespace builder
 }  // namespace script
