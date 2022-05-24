@@ -14,23 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-from . import parser, parser_v1
+# pylint: disable=missing-docstring
+import inspect
+from typing import Type
 
-#############
-from .parser import ir as ir_v2
-from .parser import ir_module as ir_module_v2
-from .parser import parse as from_source_v2
-from .parser import tir as tir_v2
+from tvm.ir import IRModule
 
-#############
-from .parser_v1 import from_source as from_source_v1
-from .parser_v1 import ir_module as ir_module_v1
-from .parser_v1 import tir as tir_v1
+from ..entry import parse
+from ..utils import inspect_class_capture
 
-# pylint: disable=invalid-name
 
-ir = ir_v2
-ir_module = ir_module_v2
-tir = tir_v2
-from_source = from_source_v2
+def ir_module(f: Type) -> IRModule:
+    if not inspect.isclass(f):
+        raise TypeError(f"Expect a class, but got: {f}")
+
+    return parse(f, inspect_class_capture(f))
+
+
+setattr(ir_module, "dispatch_token", "ir")
