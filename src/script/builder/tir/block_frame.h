@@ -64,13 +64,10 @@ class BlockFrame : public TIRFrame {
 };
 
 namespace axis {
-
-// Spatial
-// Reduce
-// Remap
-
-}
-
+tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype);
+tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype);
+tvm::tir::IterVar Remap(String kinds, Array<PrimExpr> bindings, DataType dtype);
+}  // namespace axis
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

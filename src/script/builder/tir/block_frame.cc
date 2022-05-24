@@ -38,6 +38,50 @@ BlockFrame::BlockFrame(String name) {
   data_ = n;
 }
 
+namespace axis {
+
+// TODO(@junrushao1994): figure out the Block syntax without BlockRealize
+
+tvm::tir::IterVar PushBlockVar(tvm::tir::IterVar iter_var, PrimExpr binding) {
+  if (const BlockFrameNode* opt_frame = Builder::Current()->frames.back().as<BlockFrameNode>()) {
+    BlockFrame frame = GetRef<BlockFrame>(opt_frame);
+    frame->iter_vars.push_back(iter_var);
+    frame->iter_values.push_back(binding);
+  } else {
+    LOG(FATAL) << "TypeError: The last frame is not BlockFrame";
+  }
+  return iter_var;
+}
+
+tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype) {
+  using namespace tvm::tir;
+  ICHECK(dom.defined()) << "Spatial axis must have a domain";
+  int bits = std::max({dom->min.dtype().bits(), dom->extent.dtype().bits(), dtype.bits()});
+  return PushBlockVar(IterVar(/*dom=*/dom,                              //
+                              /*var=*/Var("_", dtype.with_bits(bits)),  //
+                              /*iter_type=*/IterVarType::kDataPar,      //
+                              /*thread_tag=*/""),
+                      binding);
+}
+
+tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype) {
+  using namespace tvm::tir;
+  ICHECK(dom.defined()) << "Spatial axis must have a domain";
+  int bits = std::max({dom->min.dtype().bits(), dom->extent.dtype().bits(), dtype.bits()});
+  return PushBlockVar(IterVar(/*dom=*/dom,                              //
+                              /*var=*/Var("_", dtype.with_bits(bits)),  //
+                              /*iter_type=*/IterVarType::kCommReduce,   //
+                              /*thread_tag=*/""),
+                      binding);
+}
+
+tvm::tir::IterVar Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
+  //
+  throw;
+}
+
+}  // namespace axis
+
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 
 }  // namespace tir

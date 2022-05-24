@@ -82,15 +82,14 @@ class BuilderNode : public runtime::Object {
 
  public:
   template <typename TFrame>
-  TFrame FindFrame() const {
+  Optional<TFrame> FindFrame() const {
     using TFrameNode = typename TFrame::ContainerType;
     for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
       if (const TFrameNode* p = (*it).template as<TFrameNode>()) {
         return GetRef<TFrame>(p);
       }
     }
-    LOG(FATAL) << "IndexError: Cannot find frame: " << TFrameNode::_type_key;
-    throw;
+    return NullOpt;
   }
 };
 
