@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_BUILDER_TIR_FRAME_H_
-#define TVM_SCRIPT_BUILDER_TIR_FRAME_H_
+#ifndef TVM_SCRIPT_BUILDER_TIR_FOR_FRAME_H_
+#define TVM_SCRIPT_BUILDER_TIR_FOR_FRAME_H_
 
 #include <tvm/support/with.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 
-#include "../builder.h"
+#include "./tir.h"
 
 namespace tvm {
 namespace script {
 namespace builder {
 namespace tir {
 
-class ForFrameNode : public FrameNode {
+class ForFrameNode : public TIRFrameNode {
  public:
   using FMakeForLoop =
       runtime::TypedPackedFunc<tvm::tir::Stmt(Array<tvm::tir::Var>, tvm::tir::Stmt)>;
@@ -45,10 +45,10 @@ class ForFrameNode : public FrameNode {
   }
 
   static constexpr const char* _type_key = "script.builder.tir.ForFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, FrameNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
 };
 
-class ForFrame : public Frame {
+class ForFrame : public TIRFrame {
  public:
   using FMakeForLoop = ForFrameNode::FMakeForLoop;
 
@@ -61,7 +61,7 @@ class ForFrame : public Frame {
     data_.reset();
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, Frame, ForFrameNode);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
 };
 
 With<ForFrame> Serial(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> annotations);
@@ -77,4 +77,4 @@ With<ForFrame> Grid(Array<PrimExpr> extents);
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_BUILDER_TIR_FRAME_H_
+#endif  // TVM_SCRIPT_BUILDER_TIR_FOR_FRAME_H_

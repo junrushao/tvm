@@ -64,6 +64,19 @@ class BuilderNode : public runtime::Object {
 
   static constexpr const char* _type_key = "script.builder.Builder";
   TVM_DECLARE_FINAL_OBJECT_INFO(BuilderNode, runtime::Object);
+
+ public:
+  template <typename TFrame>
+  TFrame FindFrame() const {
+    using TFrameNode = typename TFrame::ContainerType;
+    for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
+      if (const TFrameNode* p = (*it).template as<TFrameNode>()) {
+        return GetRef<TFrame>(p);
+      }
+    }
+    LOG(FATAL) << "IndexError: Cannot find frame: " << TFrameNode::_type_key;
+    throw;
+  }
 };
 
 class Builder : public runtime::ObjectRef {
