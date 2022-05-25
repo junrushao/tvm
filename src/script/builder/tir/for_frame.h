@@ -34,13 +34,15 @@ namespace tir {
 class ForFrameNode : public TIRFrameNode {
  public:
   using FMakeForLoop =
-      runtime::TypedPackedFunc<tvm::tir::Stmt(Array<tvm::tir::Var>, tvm::tir::Stmt)>;
+      runtime::TypedPackedFunc<tvm::tir::Stmt(Array<tvm::tir::Var>, Array<Range>, tvm::tir::Stmt)>;
 
-  Array<tvm::tir::Var> loop_vars;
+  Array<tvm::tir::Var> vars;
+  Array<Range> doms;
   FMakeForLoop f_make_for_loop;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("loop_vars", &loop_vars);
+    v->Visit("vars", &vars);
+    v->Visit("doms", &doms);
     // `f_make_for_loop` is not visited.
   }
 
@@ -50,7 +52,8 @@ class ForFrameNode : public TIRFrameNode {
 
 class ForFrame : public TIRFrame {
  public:
-  explicit ForFrame(Array<tvm::tir::Var> loop_vars, ForFrameNode::FMakeForLoop f_make_for_loop);
+  explicit ForFrame(Array<tvm::tir::Var> vars, Array<Range> doms,
+                    ForFrameNode::FMakeForLoop f_make_for_loop);
 
   void EnterWithScope() { ICHECK(data_ != nullptr); }
 

@@ -75,9 +75,23 @@ tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype) {
                       binding);
 }
 
-tvm::tir::IterVar Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
-  //
-  throw;
+Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
+  using namespace tvm::tir;
+  ICHECK_EQ(kinds.size(), bindings.size());
+  int n = bindings.size();
+  for (int i = 0; i < n; ++i) {
+    char c = kinds.c_str()[i];
+    PrimExpr e = bindings[i];
+    ICHECK(e->IsInstance<VarNode>()) << "Only Var is supported in Remap";
+    Var v = Downcast<Var>(e);
+    if (c == 'S') {
+      // TODO
+    } else if (c == 'R') {
+      // TODO
+    } else {
+      LOG(FATAL) << "Unknown axis kind: " << c;
+    }
+  }
 }
 
 }  // namespace axis
