@@ -18,6 +18,8 @@
  */
 #include "./block_frame.h"
 
+#include "./for_frame.h"
+
 namespace tvm {
 namespace script {
 namespace builder {
@@ -77,21 +79,50 @@ tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype) {
 
 Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
   using namespace tvm::tir;
+  Array<tvm::tir::IterVar> results;
   ICHECK_EQ(kinds.size(), bindings.size());
   int n = bindings.size();
+  results.reserve(n);
   for (int i = 0; i < n; ++i) {
     char c = kinds.c_str()[i];
     PrimExpr e = bindings[i];
-    ICHECK(e->IsInstance<VarNode>()) << "Only Var is supported in Remap";
-    Var v = Downcast<Var>(e);
+    const VarNode* v = e.as<VarNode>();
+    ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
+    Range dom{nullptr};
+    for (const auto& frame : Builder::Current()->frames) {
+      if (const auto* for_frame = frame.as<ForFrameNode>()) {
+        ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());
+        int n = for_frame->doms.size();
+        for (int i = 0; i < n; ++i) {
+          if (for_frame->vars[i].get() == v) {
+            dom = for_frame->doms[i];
+            break;
+          }
+        }
+        if (dom.defined()) {
+          break;
+        }
+      }
+    }
+    ICHECK(dom.defined()) << "TypeError: Variable is not in the loop: " << GetRef<Var>(v);
+    DataType dtype = v->dtype;
     if (c == 'S') {
-      // TODO
+      results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
+                                             /*var=*/Var("_", dtype),
+                                             /*iter_type=*/IterVarType::kDataPar,
+                                             /*thread_tag=*/""),
+                                     e));
     } else if (c == 'R') {
-      // TODO
+      results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
+                                             /*var=*/Var("_", dtype),
+                                             /*iter_type=*/IterVarType::kCommReduce,
+                                             /*thread_tag=*/""),
+                                     e));
     } else {
       LOG(FATAL) << "Unknown axis kind: " << c;
     }
   }
+  return results;
 }
 
 }  // namespace axis
