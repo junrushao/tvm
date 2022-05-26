@@ -18,8 +18,11 @@
  */
 #include "./base.h"
 
+#include <tvm/node/node.h>
 #include <tvm/support/with.h>
+#include <tvm/tir/function.h>
 
+#include "../../../printer/text_printer.h"
 #include "./block_frame.h"
 #include "./for_frame.h"
 #include "./prim_func_frame.h"
@@ -32,7 +35,7 @@ namespace tir {
 
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 
-int TestPOC() {
+void TestPOC() {
   namespace T = tvm::script::builder::tir;
   using namespace ::tvm::tir;
 
@@ -56,10 +59,11 @@ int TestPOC() {
     }
     LOG(INFO) << "PrimFuncFrame:\n" << _()->stmts;
   }
-  return 1;
+  PrimFunc func = builder()->Get<PrimFunc>();
+  LOG(INFO) << "func:\n" << AsTVMScript(func);
 }
 
-int x = TestPOC();
+TVM_REGISTER_GLOBAL("test_poc").set_body_typed(TestPOC);
 
 }  // namespace tir
 }  // namespace builder

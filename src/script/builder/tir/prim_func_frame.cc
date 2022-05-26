@@ -29,12 +29,21 @@ namespace tir {
 void PrimFuncFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  IRModuleFrame frame = Builder::Current()->FindFrame<IRModuleFrame>().value();
-  frame->global_vars.push_back(GlobalVar(name));
-  frame->functions.push_back(PrimFunc(/*params=*/args,
-                                      /*body=*/AsStmt(stmts),
-                                      /*ret_type=*/ret_type,
-                                      /*buffer_map=*/buffer_map));
+  Builder builder = Builder::Current();
+  PrimFunc func(/*params=*/args,
+                /*body=*/AsStmt(stmts),
+                /*ret_type=*/ret_type,
+                /*buffer_map=*/buffer_map);
+  if (builder->frames.empty()) {
+    ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
+    builder->result = func;
+  } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
+    IRModuleFrame frame = opt_frame.value();
+    frame->global_vars.push_back(GlobalVar(name));
+    frame->functions.push_back(func);
+  } else {
+    LOG(FATAL) << "ValueError: Cannot find where to insert PrimFunc";
+  }
 }
 
 PrimFuncFrame PrimFunc_(String name) {
