@@ -20,6 +20,9 @@
 
 #include "./for_frame.h"
 
+#include <tvm/runtime/registry.h>
+
+
 namespace tvm {
 namespace script {
 namespace builder {
@@ -143,6 +146,11 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 }  // namespace axis
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
+
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame")
+    .set_body_typed([](String name){
+      return BlockFrame(name);
+    });
 
 }  // namespace tir
 }  // namespace builder

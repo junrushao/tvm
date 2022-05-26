@@ -19,6 +19,7 @@ import tvm
 from tvm.ir import Range
 from tvm.script import tir as T
 from tvm.script.builder import Builder
+from tvm.script.builder.tir import SerialForFrame
 
 
 
@@ -38,7 +39,7 @@ def test_builder_basic():
     """
     ir_builder = Builder()
     with ir_builder:
-        print(0)
+        serial_for = SerialForFrame(0, 128, {})
 
 if __name__ == "__main__":
     test_builder_basic()
