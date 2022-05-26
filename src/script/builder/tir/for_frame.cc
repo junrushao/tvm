@@ -32,6 +32,8 @@ ForFrame::ForFrame(Array<tvm::tir::Var> vars, Array<Range> doms,
   data_ = std::move(n);
 }
 
+void ForFrameNode::ExitWithScope() { AddToParent(f_make_for_loop(vars, doms, AsStmt(stmts))); }
+
 #define TVM_SCRIPT_BUILDER_TIR_FOR_CREATE(Method, Kind)                               \
   ForFrame Method(PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs) {      \
     using namespace tvm::tir;                                                         \

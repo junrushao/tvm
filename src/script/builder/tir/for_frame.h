@@ -49,6 +49,9 @@ class ForFrameNode : public TIRFrameNode {
 
   static constexpr const char* _type_key = "script.builder.tir.ForFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
 };
 
 class ForFrame : public TIRFrame {

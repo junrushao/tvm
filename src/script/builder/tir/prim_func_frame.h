@@ -43,6 +43,9 @@ class PrimFuncFrameNode : public TIRFrameNode {
 
   static constexpr const char* _type_key = "script.builder.tir.PrimFuncFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
 };
 
 class PrimFuncFrame : public TIRFrame {

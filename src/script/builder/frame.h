@@ -76,7 +76,7 @@ class IRModuleFrameNode : public FrameNode {
 class IRModuleFrame : public Frame {
  public:
   IRModuleFrame();
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IRModuleFrame, Frame, IRModuleFrameNode);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRModuleFrame, Frame, IRModuleFrameNode);
 };
 
 inline void Frame::EnterWithScope() {

@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_BUILDER_TIR_TIR_H_
-#define TVM_SCRIPT_BUILDER_TIR_TIR_H_
+#ifndef TVM_SCRIPT_BUILDER_TIR_BASE_H_
+#define TVM_SCRIPT_BUILDER_TIR_BASE_H_
 
 #include <tvm/tir/stmt.h>
 
@@ -49,9 +49,33 @@ class TIRFrame : public Frame {
   TIRFrame() = default;
 };
 
+inline void AddToParent(tvm::tir::Stmt stmt) {
+  Builder builder = Builder::Current();
+  ICHECK(!builder->frames.empty());
+  Frame frame = builder->frames.back();
+  if (const auto* tir_frame = frame.as<TIRFrameNode>()) {
+    GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
+  } else if (const auto* mod_frame = frame.as<IRModuleFrameNode>()) {
+    GetRef<IRModuleFrame>(mod_frame)->stmts.push_back(stmt);
+  } else {
+    LOG(FATAL) << "TypeError: Unsupported frame type: " << frame;
+  }
+}
+
+inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
+  using namespace tvm::tir;
+  if (stmt.empty()) {
+    return Evaluate(0);
+  } else if (stmt.size() == 1) {
+    return stmt[0];
+  } else {
+    return SeqStmt(stmt);
+  }
+}
+
 }  // namespace tir
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_BUILDER_TIR_TIR_H_
+#endif  // TVM_SCRIPT_BUILDER_TIR_BASE_H_

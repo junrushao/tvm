@@ -19,10 +19,22 @@
 
 #include "./prim_func_frame.h"
 
+#include <tvm/tir/function.h>
+
 namespace tvm {
 namespace script {
 namespace builder {
 namespace tir {
+
+void PrimFuncFrameNode::ExitWithScope() {
+  using namespace tvm::tir;
+  IRModuleFrame frame = Builder::Current()->FindFrame<IRModuleFrame>().value();
+  frame->global_vars.push_back(GlobalVar(name));
+  frame->functions.push_back(PrimFunc(/*params=*/args,
+                                      /*body=*/AsStmt(stmts),
+                                      /*ret_type=*/ret_type,
+                                      /*buffer_map=*/buffer_map));
+}
 
 void Arg(tvm::tir::Var var) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();

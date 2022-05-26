@@ -29,8 +29,8 @@ BlockFrame::BlockFrame(String name) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
-  n->reads = NullOpt;
-  n->writes = NullOpt;
+  n->reads.clear();
+  n->writes.clear();
   n->init = NullOpt;
   n->alloc_buffers.clear();
   n->match_buffers.clear();
@@ -38,6 +38,20 @@ BlockFrame::BlockFrame(String name) {
   n->iter_values.clear();
   n->predicate = NullOpt;
   data_ = n;
+}
+
+void BlockFrameNode::ExitWithScope() {
+  using namespace tvm::tir;
+  AddToParent(BlockRealize(iter_values,  //
+                           predicate.value_or(Bool(true)),
+                           Block(iter_vars,      //
+                                 reads, writes,  //
+                                 name,           //
+                                 AsStmt(stmts),  //
+                                 init,           //
+                                 alloc_buffers,  //
+                                 match_buffers,  //
+                                 annotations)));
 }
 
 namespace axis {

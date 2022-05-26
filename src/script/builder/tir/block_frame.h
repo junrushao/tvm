@@ -30,8 +30,8 @@ class BlockFrameNode : public TIRFrameNode {
  public:
   String name;
   Array<tvm::tir::IterVar> iter_vars;
-  Optional<Array<tvm::tir::BufferRegion>> reads;
-  Optional<Array<tvm::tir::BufferRegion>> writes;
+  Array<tvm::tir::BufferRegion> reads;
+  Array<tvm::tir::BufferRegion> writes;
   Optional<tvm::tir::Stmt> init;
   Array<tvm::tir::Buffer> alloc_buffers;
   Array<tvm::tir::MatchBufferRegion> match_buffers;
@@ -56,6 +56,9 @@ class BlockFrameNode : public TIRFrameNode {
 
   static constexpr const char* _type_key = "script.builder.tir.BlockFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
 };
 
 class BlockFrame : public TIRFrame {
