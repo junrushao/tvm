@@ -34,6 +34,7 @@ void PrimFuncFrameNode::ExitWithScope() {
                                       /*body=*/AsStmt(stmts),
                                       /*ret_type=*/ret_type,
                                       /*buffer_map=*/buffer_map));
+  TIRFrameNode::ExitWithScope();
 }
 
 PrimFuncFrame PrimFunc_(String name) {
@@ -45,17 +46,19 @@ PrimFuncFrame PrimFunc_(String name) {
   return PrimFuncFrame(n);
 }
 
-void Arg(tvm::tir::Var var) {
+tvm::tir::Var Arg(tvm::tir::Var var) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   frame->args.push_back(var);
+  return var;
 }
 
-void Arg(tvm::tir::Buffer buffer) {
+tvm::tir::Buffer Arg(tvm::tir::Buffer buffer) {
   using namespace tvm::tir;
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   Var handle(buffer->name + "_handle", DataType::Handle());
   frame->args.push_back(handle);
   frame->buffer_map.Set(handle, buffer);
+  return buffer;
 }
 
 TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
