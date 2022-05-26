@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_BUILDER_TIR_PRIM_FUNC_FRAME_H_
 #define TVM_SCRIPT_BUILDER_TIR_PRIM_FUNC_FRAME_H_
 
-#include "./tir.h"
+#include "./base.h"
 
 namespace tvm {
 namespace script {

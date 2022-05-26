@@ -24,7 +24,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 
-#include "./tir.h"
+#include "./base.h"
 
 namespace tvm {
 namespace script {
@@ -41,6 +41,7 @@ class ForFrameNode : public TIRFrameNode {
   FMakeForLoop f_make_for_loop;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
     v->Visit("vars", &vars);
     v->Visit("doms", &doms);
     // `f_make_for_loop` is not visited.

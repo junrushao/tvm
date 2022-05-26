@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_BUILDER_TIR_BLOCK_FRAME_H_
 #define TVM_SCRIPT_BUILDER_TIR_BLOCK_FRAME_H_
 
-#include "./tir.h"
+#include "./base.h"
 
 namespace tvm {
 namespace script {
@@ -41,6 +41,7 @@ class BlockFrameNode : public TIRFrameNode {
   Optional<PrimExpr> predicate;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
     v->Visit("name", &name);
     v->Visit("iter_vars", &iter_vars);
     v->Visit("reads", &reads);

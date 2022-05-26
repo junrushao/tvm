@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./tir.h"
+#include "./base.h"
 
 namespace tvm {
 namespace script {
