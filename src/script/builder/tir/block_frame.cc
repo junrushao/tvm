@@ -42,6 +42,7 @@ BlockFrame Block_(String name) {
 
 void BlockFrameNode::ExitWithScope() {
   using namespace tvm::tir;
+  TIRFrameNode::ExitWithScope();
   AddToParent(BlockRealize(iter_values,  //
                            predicate.value_or(Bool(true)),
                            Block(iter_vars,      //
@@ -52,7 +53,6 @@ void BlockFrameNode::ExitWithScope() {
                                  alloc_buffers,  //
                                  match_buffers,  //
                                  annotations)));
-  TIRFrameNode::ExitWithScope();
 }
 
 namespace axis {

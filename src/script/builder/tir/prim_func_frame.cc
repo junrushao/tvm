@@ -28,13 +28,13 @@ namespace tir {
 
 void PrimFuncFrameNode::ExitWithScope() {
   using namespace tvm::tir;
+  TIRFrameNode::ExitWithScope();
   IRModuleFrame frame = Builder::Current()->FindFrame<IRModuleFrame>().value();
   frame->global_vars.push_back(GlobalVar(name));
   frame->functions.push_back(PrimFunc(/*params=*/args,
                                       /*body=*/AsStmt(stmts),
                                       /*ret_type=*/ret_type,
                                       /*buffer_map=*/buffer_map));
-  TIRFrameNode::ExitWithScope();
 }
 
 PrimFuncFrame PrimFunc_(String name) {

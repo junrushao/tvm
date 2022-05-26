@@ -58,8 +58,6 @@ inline void AddToParent(tvm::tir::Stmt stmt) {
   Frame frame = builder->frames.back();
   if (const auto* tir_frame = frame.as<TIRFrameNode>()) {
     GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
-  } else if (const auto* mod_frame = frame.as<IRModuleFrameNode>()) {
-    GetRef<IRModuleFrame>(mod_frame)->stmts.push_back(stmt);
   } else {
     LOG(FATAL) << "TypeError: Unsupported frame type: " << frame;
   }

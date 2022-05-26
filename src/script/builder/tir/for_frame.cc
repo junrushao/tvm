@@ -24,8 +24,8 @@ namespace builder {
 namespace tir {
 
 void ForFrameNode::ExitWithScope() {
-  AddToParent(f_make_for_loop(vars, doms, AsStmt(stmts)));
   TIRFrameNode::ExitWithScope();
+  AddToParent(f_make_for_loop(vars, doms, AsStmt(stmts)));
 }
 
 #define TVM_SCRIPT_BUILDER_TIR_FOR_CREATE(Method, Kind)                               \
