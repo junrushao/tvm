@@ -56,16 +56,6 @@ class ForFrameNode : public TIRFrameNode {
 
 class ForFrame : public TIRFrame {
  public:
-  explicit ForFrame(Array<tvm::tir::Var> vars, Array<Range> doms,
-                    ForFrameNode::FMakeForLoop f_make_for_loop);
-
-  void EnterWithScope() { ICHECK(data_ != nullptr); }
-
-  void ExitWithScope() {
-    ICHECK(data_ != nullptr);
-    data_.reset();
-  }
-
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
 };
 

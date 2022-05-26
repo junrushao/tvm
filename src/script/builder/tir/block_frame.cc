@@ -25,7 +25,7 @@ namespace script {
 namespace builder {
 namespace tir {
 
-BlockFrame::BlockFrame(String name) {
+BlockFrame Block_(String name) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
@@ -37,7 +37,7 @@ BlockFrame::BlockFrame(String name) {
   n->annotations.clear();
   n->iter_values.clear();
   n->predicate = NullOpt;
-  data_ = n;
+  return BlockFrame(n);
 }
 
 void BlockFrameNode::ExitWithScope() {

@@ -36,6 +36,15 @@ void PrimFuncFrameNode::ExitWithScope() {
                                       /*buffer_map=*/buffer_map));
 }
 
+PrimFuncFrame PrimFunc_(String name) {
+  ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
+  n->name = name;
+  n->args.clear();
+  n->ret_type = TupleType::Empty();
+  n->buffer_map.clear();
+  return PrimFuncFrame(n);
+}
+
 void Arg(tvm::tir::Var var) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   frame->args.push_back(var);

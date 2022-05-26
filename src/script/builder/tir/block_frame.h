@@ -63,9 +63,10 @@ class BlockFrameNode : public TIRFrameNode {
 
 class BlockFrame : public TIRFrame {
  public:
-  explicit BlockFrame(String name);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
+
+BlockFrame Block_(String name);
 
 namespace axis {
 tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype);
