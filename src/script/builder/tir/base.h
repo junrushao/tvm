@@ -19,7 +19,10 @@
 #ifndef TVM_SCRIPT_BUILDER_TIR_BASE_H_
 #define TVM_SCRIPT_BUILDER_TIR_BASE_H_
 
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/var.h>
 
 #include "../builder.h"
 

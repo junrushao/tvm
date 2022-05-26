@@ -16,47 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_SCRIPT_BUILDER_TIR_VAR_H_
+#define TVM_SCRIPT_BUILDER_TIR_VAR_H_
+
 #include "./base.h"
-
-#include <tvm/support/with.h>
-
-#include "./block_frame.h"
-#include "./for_frame.h"
-#include "./prim_func_frame.h"
-#include "./var.h"
 
 namespace tvm {
 namespace script {
 namespace builder {
 namespace tir {
 
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
+tvm::tir::Buffer Buffer_(Array<PrimExpr> shape,   //
+                         DataType dtype,          //
+                         String name = "buffer",  //
+                         String storage_scope = "");
 
-void TestPOC() {
-  namespace T = tvm::script::builder::tir;
-  using namespace ::tvm::tir;
-
-  With<Builder> builder;
-  {
-    With<PrimFuncFrame> _{T::PrimFunc_("main")};
-    Buffer A = T::Buffer_({128, 128, 128}, DataType::Float(32));
-    Buffer B = T::Buffer_({128, 128, 128}, DataType::Float(32));
-    {
-      With<ForFrame> _{T::Grid({128, 128, 128})};
-      Var i = _()->vars[0];
-      Var j = _()->vars[1];
-      Var k = _()->vars[2];
-      {
-        With<BlockFrame> _{T::Block_("block")};
-        IterVar vi = T::axis::Spatial(Range(0, 128), i);
-        IterVar vj = T::axis::Spatial(Range(0, 128), j);
-        IterVar vk = T::axis::Spatial(Range(0, 128), k);
-      }
-    }
-  }
 }
-
-}  // namespace tir
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_BUILDER_TIR_VAR_H_

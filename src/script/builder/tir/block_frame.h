@@ -69,9 +69,10 @@ class BlockFrame : public TIRFrame {
 BlockFrame Block_(String name);
 
 namespace axis {
-tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype);
-tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype);
-Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype);
+tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings,
+                               DataType dtype = DataType::Int(32));
 }  // namespace axis
 }  // namespace tir
 }  // namespace builder
