@@ -18,5 +18,6 @@ class Builder(Object):
     def __exit__(self, ptype, value, trace) -> None:
         _ffi_api.ExitBuilder(self)
 
-    def currentBuilder(self):
+    @staticmethod
+    def current(self):
         return _ffi_api.CurrentBuilder(self)
