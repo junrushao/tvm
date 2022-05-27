@@ -9,14 +9,14 @@ from . import _ffi_api
 class Builder(Object):
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.builder
+            _ffi_api.Builder
         )
 
     def __enter__(self) -> None:
-        _ffi_api.enter(self)
+        _ffi_api.EnterBuilder(self)
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.exit(self)
+        _ffi_api.ExitBuilder(self)
 
-    def currentBuilder(self) -> 'Builder':
-        return _ffi_api.current(self)
+    def currentBuilder(self):
+        return _ffi_api.CurrentBuilder(self)

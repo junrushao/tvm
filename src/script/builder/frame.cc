@@ -61,6 +61,18 @@ void IRModuleFrameNode::ExitWithScope() {
 TVM_REGISTER_NODE_TYPE(FrameNode);
 TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
 
+
+TVM_REGISTER_GLOBAL("script.builder.EnterFrame")
+  .set_body_method<Frame>(&FrameNode::EnterWithScope);
+
+TVM_REGISTER_GLOBAL("script.builder.ExitFrame")
+  .set_body_method<Frame>(&FrameNode::ExitWithScope);
+
+TVM_REGISTER_GLOBAL("script.builder.IRModuleFrame")
+  .set_body_typed([](){
+    return IRModuleFrame();
+  });
+
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm

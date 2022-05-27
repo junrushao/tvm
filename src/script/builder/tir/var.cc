@@ -62,6 +62,10 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
       Namer::Name(var->var, name);
     });
+TVM_REGISTER_GLOBAL("script.builder.tir.Buffer")
+  .set_body_typed([](Array<PrimExpr> shape, DataType dtype, String name, String storage_scope){
+    return Buffer_(shape, dtype, name, storage_scope);
+  });
 
 }  // namespace tir
 }  // namespace builder

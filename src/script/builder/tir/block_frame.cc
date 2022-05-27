@@ -147,10 +147,37 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 
+
+
+TVM_REGISTER_GLOBAL("script.builder.tir.ExitBlockFrame")
+  .set_body_method<BlockFrame>(&BlockFrameNode::ExitWithScope);
+
+
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame")
     .set_body_typed([](String name){
-      return BlockFrame(name);
+      return Block_(name);
     });
+
+TVM_REGISTER_GLOBAL("script.builder.tir.PushBlockVar")
+    .set_body_typed([](tvm::tir::IterVar iter_var, PrimExpr binding){
+      return axis::PushBlockVar(iter_var, binding);
+    });
+
+
+TVM_REGISTER_GLOBAL("script.builder.tir.Spatial")
+  .set_body_typed([](Range dom, PrimExpr binding, DataType dtype){
+    return axis::Spatial(dom, binding, dtype);
+  });
+
+TVM_REGISTER_GLOBAL("script.builder.tir.Reduce")
+  .set_body_typed([](Range dom, PrimExpr binding, DataType dtype){
+    return axis::Reduce(dom, binding, dtype);
+  });
+
+TVM_REGISTER_GLOBAL("script.builder.tir.Remap")
+  .set_body_typed([](String kinds, Array<PrimExpr> bindings, DataType dtype){
+    return axis::Remap(kinds, bindings, dtype);
+  });
 
 }  // namespace tir
 }  // namespace builder

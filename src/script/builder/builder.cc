@@ -82,10 +82,10 @@ ObjectRef DefImpl(String name, ObjectRef obj) {
 
 TVM_REGISTER_NODE_TYPE(BuilderNode);
 
-TVM_REGISTER_GLOBAL("script.builder.builder").set_body_typed([](){return Builder();});
-TVM_REGISTER_GLOBAL("script.builder.enter").set_body_method(&Builder::EnterWithScope);
-TVM_REGISTER_GLOBAL("script.builder.exit").set_body_method(&Builder::ExitWithScope);
-TVM_REGISTER_GLOBAL("script.builder.current").set_body_typed([](){return Builder::Current();});
+TVM_REGISTER_GLOBAL("script.builder.Builder").set_body_typed([](){return Builder();});
+TVM_REGISTER_GLOBAL("script.builder.EnterBuilder").set_body_method(&Builder::EnterWithScope);
+TVM_REGISTER_GLOBAL("script.builder.ExitBuilder").set_body_method(&Builder::ExitWithScope);
+TVM_REGISTER_GLOBAL("script.builder.CurrentBuilder").set_body_typed([](){return Builder::Current();});
 
 }  // namespace builder
 }  // namespace script

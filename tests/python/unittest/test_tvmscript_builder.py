@@ -19,7 +19,7 @@ import tvm
 from tvm.ir import Range
 from tvm.script import tir as T
 from tvm.script.builder import Builder
-from tvm.script.builder.tir import SerialForFrame
+from tvm.script.builder.tir import PrimFunc, Block
 
 
 
@@ -37,9 +37,11 @@ def test_builder_basic():
                 vk = T.axis.R(128, k - i)
                 ...
     """
-    ir_builder = Builder()
-    with ir_builder:
-        serial_for = SerialForFrame(0, 128, {})
+    with Builder():
+        with PrimFunc("prim_func"):
+            with Block("block"):
+                pass
+        
 
 if __name__ == "__main__":
     test_builder_basic()

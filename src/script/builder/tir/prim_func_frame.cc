@@ -74,6 +74,24 @@ tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer) {
 
 TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
 
+TVM_REGISTER_GLOBAL("script.builder.tir.PrimFuncFrame")
+  .set_body_typed([](String name){
+    return PrimFunc_(name);
+  });
+
+TVM_REGISTER_GLOBAL("script.builder.tir.ExitPrimFuncFrame")
+  .set_body_method<PrimFuncFrame>(&PrimFuncFrameNode::ExitWithScope);
+
+TVM_REGISTER_GLOBAL("script.builder.tir.ArgVar")
+  .set_body_typed([](tvm::tir::Var var){
+    Arg(var);
+  });
+
+TVM_REGISTER_GLOBAL("script.builder.tir.ArgBuffer")
+  .set_body_typed([](tvm::tir::Buffer buffer){
+    Arg(buffer);
+  });
+
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

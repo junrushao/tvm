@@ -17,5 +17,8 @@
 # pylint: disable=unused-import
 """Namespace for the TVMScript TIR Builder  API."""
 
-from .frame import BlockFrame, SerialForFrame, ParallelForFrame, VectorizedForFrame, UnrollForFrame, ThreadBindingForFrame, GridForFrame
-
+from .base import TIRFrame
+from .for_frame import ForFrame, Serial, Parallel, Vectorized, Unroll, ThreadBinding, Grid
+from .prim_func_frame import PrimFunc, Arg
+from .block_frame import Block, Spatial, Reduce, Remap
+from .var import Buffer

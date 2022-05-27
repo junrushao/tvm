@@ -94,37 +94,36 @@ ForFrame Grid(Array<PrimExpr> extents) {
 
 TVM_REGISTER_NODE_TYPE(ForFrameNode);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.ForFrame")
-  .set_body_typed([](Array<tvm::tir::Var> vars, Array<Range> doms, ForFrameNode::FMakeForLoop f_make_for_loop){
-    return ForFrame(vars, doms, f_make_for_loop);
-  });
+TVM_REGISTER_GLOBAL("script.builder.tir.ExitForFrame")
+  .set_body_method<ForFrame>(&ForFrameNode::ExitWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.SerialForFrame")
+
+TVM_REGISTER_GLOBAL("script.builder.tir.Serial")
   .set_body_typed([](PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs){
     return Serial(min, extent, attrs);
   });
 
-TVM_REGISTER_GLOBAL("script.builder.tir.ParallelForFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.Parallel")
   .set_body_typed([](PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs){
     return Parallel(min, extent, attrs);
   });
 
-TVM_REGISTER_GLOBAL("script.builder.tir.VectorizedForFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.Vectorized")
   .set_body_typed([](PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs){
     return Vectorized(min, extent, attrs);
   });
 
-TVM_REGISTER_GLOBAL("script.builder.tir.UnrollForFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.Unroll")
   .set_body_typed([](PrimExpr min, PrimExpr extent, Map<String, ObjectRef> attrs){
     return Unroll(min, extent, attrs);
   });
 
-TVM_REGISTER_GLOBAL("script.builder.tir.ThreadBindingForFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.ThreadBinding")
   .set_body_typed([](PrimExpr min, PrimExpr extent, String thread, Map<String, ObjectRef> attrs){
     return ThreadBinding(min, extent, thread, attrs);
   });
 
-TVM_REGISTER_GLOBAL("script.builder.tir.GridForFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.Grid")
   .set_body_typed([](Array<PrimExpr> extents){
     return Grid(extents);
   });
