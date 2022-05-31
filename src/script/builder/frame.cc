@@ -68,6 +68,12 @@ TVM_REGISTER_GLOBAL("script.builder.EnterFrame")
 TVM_REGISTER_GLOBAL("script.builder.ExitFrame")
   .set_body_method<Frame>(&FrameNode::ExitWithScope);
 
+TVM_REGISTER_GLOBAL("script.builder.EnterIRModuleFrame")
+  .set_body_method<IRModuleFrame>(&IRModuleFrameNode::EnterWithScope);
+
+TVM_REGISTER_GLOBAL("script.builder.ExitIRModuleFrame")
+  .set_body_method<IRModuleFrame>(&IRModuleFrameNode::ExitWithScope);
+
 TVM_REGISTER_GLOBAL("script.builder.IRModuleFrame")
   .set_body_typed([](){
     return IRModuleFrame();

@@ -13,6 +13,10 @@ class Block(TIRFrame):
             name
         )
 
+    def __enter__(self) -> None:
+        _ffi_api.EnterBlockFrame(self)
+        return self
+
     def __exit__(self, ptype, value, trace) -> None:
         _ffi_api.ExitBlockFrame(self)
 
@@ -20,11 +24,12 @@ class Block(TIRFrame):
 def push_block_var(iter_var, binding):
     return _ffi_api.PushBlockVar(iter_var, binding)
 
-def Spatial(dom, binding, dtype):
-    return _ffi_api.Spatial(dom, binding, dtype)
+class axis:
+    def spatial(dom, binding, dtype="int32"):
+        return _ffi_api.Spatial(dom, binding, dtype)
 
-def Reduce(dom, binding, dtype):
-    return _ffi_api.Reduce(dom, binding, dtype)
+    def reduce(dom, binding, dtype="int32"):
+        return _ffi_api.Reduce(dom, binding, dtype)
 
-def Remap(kinds, bindings, dtype):
-    return _ffi_api.Remap(kinds, bindings, dtype)
+    def remap(kinds, bindings, dtype="int32"):
+        return _ffi_api.Remap(kinds, bindings, dtype)

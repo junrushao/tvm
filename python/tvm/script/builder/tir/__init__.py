@@ -20,5 +20,5 @@
 from .base import TIRFrame
 from .for_frame import ForFrame, Serial, Parallel, Vectorized, Unroll, ThreadBinding, Grid
 from .prim_func_frame import PrimFunc, Arg
-from .block_frame import Block, Spatial, Reduce, Remap
+from .block_frame import Block, axis
 from .var import Buffer

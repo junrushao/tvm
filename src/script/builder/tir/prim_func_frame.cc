@@ -79,17 +79,20 @@ TVM_REGISTER_GLOBAL("script.builder.tir.PrimFuncFrame")
     return PrimFunc_(name);
   });
 
+TVM_REGISTER_GLOBAL("script.builder.tir.EnterPrimFuncFrame")
+  .set_body_method<PrimFuncFrame>(&PrimFuncFrameNode::EnterWithScope);
+
 TVM_REGISTER_GLOBAL("script.builder.tir.ExitPrimFuncFrame")
   .set_body_method<PrimFuncFrame>(&PrimFuncFrameNode::ExitWithScope);
 
 TVM_REGISTER_GLOBAL("script.builder.tir.ArgVar")
-  .set_body_typed([](tvm::tir::Var var){
-    Arg(var);
+  .set_body_typed([](String name, tvm::tir::Var var){
+    Arg(name, var);
   });
 
 TVM_REGISTER_GLOBAL("script.builder.tir.ArgBuffer")
-  .set_body_typed([](tvm::tir::Buffer buffer){
-    Arg(buffer);
+  .set_body_typed([](String name, tvm::tir::Buffer buffer){
+    Arg(name, buffer);
   });
 
 }  // namespace tir

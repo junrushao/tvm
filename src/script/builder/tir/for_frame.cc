@@ -94,6 +94,9 @@ ForFrame Grid(Array<PrimExpr> extents) {
 
 TVM_REGISTER_NODE_TYPE(ForFrameNode);
 
+TVM_REGISTER_GLOBAL("script.builder.tir.EnterForFrame")
+  .set_body_method<ForFrame>(&ForFrameNode::EnterWithScope);
+
 TVM_REGISTER_GLOBAL("script.builder.tir.ExitForFrame")
   .set_body_method<ForFrame>(&ForFrameNode::ExitWithScope);
 

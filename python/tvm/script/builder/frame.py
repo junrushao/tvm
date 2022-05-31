@@ -13,6 +13,7 @@ class Frame(Object):
 
     def __enter__(self) -> None:
         _ffi_api.EnterFrame(self)
+        return self
 
     def __exit__(self, ptype, value, trace) -> None:
         _ffi_api.ExitFrame(self)
@@ -26,7 +27,8 @@ class IRModuleFrame(Frame):
         )
 
     def __enter__(self) -> None:
-        _ffi_api.EnterFrame(self)
+        _ffi_api.EnterIRModuleFrame(self)
+        return self
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.ExitFrame(self)
+        _ffi_api.ExitIRModuleFrame(self)

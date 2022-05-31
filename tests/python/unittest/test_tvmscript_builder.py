@@ -17,30 +17,24 @@
 
 import tvm
 from tvm.ir import Range
-from tvm.script import tir as T
-from tvm.script.builder import Builder
-from tvm.script.builder.tir import PrimFunc, Block
-
+from tvm.script.builder import Builder, def_, def_many
+from tvm.script.builder import tir as T
 
 
 def test_builder_basic():
-    code = """
-    def elementwise(
-        A: T.Buffer(shape=(128, 128, 128), dtype="float32"),
-        B: T.Buffer(shape=(128, 128, 128), dtype="float32"),
-    ) -> None:
-        for i, j, *vvv, k in T.grid(128, 128, 128, 128, 128, 128, 128):
-            with T.block("inner_block"):
-                # vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                vi = T.axis.S(128, i + 1)
-                vj = T.axis.S(128, j + 20)
-                vk = T.axis.R(128, k - i)
-                ...
-    """
-    with Builder():
-        with PrimFunc("prim_func"):
-            with Block("block"):
-                pass
+    b = Builder()
+    with b:
+        with T.PrimFunc(name="main"):
+            A = T.Arg("A", T.Buffer((128, 128, 128), "float32"))
+            B = T.Arg("B", T.Buffer((128, 128, 128), "float32"))
+            with T.Grid(128, 128, 128) as (i, j, k):
+                def_many(["i", "j", "k"], [i, j, k])
+                with T.Block(name="block"):
+                    vi = def_("vi", T.axis.spatial(Range(0, 128), i))
+                    vj = def_("vj", T.axis.spatial(Range(0, 128), j))
+                    vk = def_("vk", T.axis.reduce(Range(0, 128), k))
+    print("py:", b.get().script())
+    tvm._ffi.get_global_func("test_poc")()
         
 
 if __name__ == "__main__":

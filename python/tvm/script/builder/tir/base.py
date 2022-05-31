@@ -7,4 +7,8 @@ from . import _ffi_api
 
 @_register_object("script.builder.tir.TIRFrame")
 class TIRFrame(Frame):
-    pass
+    def __enter__(self) -> None:
+        return self
+
+    def __exit__(self, ptype, value, trace) -> None:
+        pass

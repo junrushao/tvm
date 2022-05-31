@@ -5,5 +5,5 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-def Buffer(shape, dtype, name, storage_scope):
+def Buffer(shape, dtype, name="buffer", storage_scope=""):
     return _ffi_api.Buffer(shape, dtype, name, storage_scope)

@@ -147,7 +147,8 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 
-
+TVM_REGISTER_GLOBAL("script.builder.tir.EnterBlockFrame")
+  .set_body_method<BlockFrame>(&BlockFrameNode::EnterWithScope);
 
 TVM_REGISTER_GLOBAL("script.builder.tir.ExitBlockFrame")
   .set_body_method<BlockFrame>(&BlockFrameNode::ExitWithScope);

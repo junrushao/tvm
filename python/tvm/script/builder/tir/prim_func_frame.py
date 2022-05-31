@@ -18,15 +18,19 @@ class PrimFunc(TIRFrame):
             name
         )
 
+    def __enter__(self) -> None:
+        _ffi_api.EnterPrimFuncFrame(self)
+        return self
+
     def __exit__(self, ptype, value, trace) -> None:
         _ffi_api.ExitPrimFuncFrame(self)
 
 
-def Arg(arg):
+def Arg(name, arg):
     if isinstance(arg, Var):
-        _ffi_api.ArgVar(arg)
+        _ffi_api.ArgVar(name, arg)
     elif isinstance(arg, Buffer):
-        _ffi_api.ArgBuffer(arg)
+        _ffi_api.ArgBuffer(name, arg)
     else:
         assert False
     

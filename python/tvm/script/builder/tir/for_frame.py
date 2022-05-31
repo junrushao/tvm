@@ -11,6 +11,10 @@ class ForFrame(TIRFrame):
     def __init__(self, name) -> None:
         pass
 
+    def __enter__(self) -> None:
+        _ffi_api.EnterForFrame(self)
+        return self.vars
+
     def __exit__(self, ptype, value, trace) -> None:
         _ffi_api.ExitForFrame(self)
 
@@ -30,5 +34,5 @@ def Unroll(min_val, extent, attrs):
 def ThreadBinding(min_val, extent, attrs):
     return _ffi_api.ThreadBinding(min_val, extent, attrs)
 
-def Grid(min_val, extent, attrs):
-    return _ffi_api.Grid(min_val, extent, attrs)
+def Grid(*extents):
+    return _ffi_api.Grid(list(extents))

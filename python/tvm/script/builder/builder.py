@@ -21,3 +21,15 @@ class Builder(Object):
     @staticmethod
     def current(self):
         return _ffi_api.CurrentBuilder(self)
+
+    def get(self):
+        return _ffi_api.BuilderGet(self)
+
+
+def def_(name, var):
+    print(dir(_ffi_api))
+    return _ffi_api.Def(name, var)
+
+def def_many(names, vars):
+    assert len(names) == len(vars)
+    return [def_(name, var) for name, var in zip(names, vars)]
