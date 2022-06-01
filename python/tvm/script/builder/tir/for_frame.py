@@ -17,36 +17,42 @@
 """TVM Script TIR For Frame"""
 from tvm._ffi import register_object as _register_object
 
-from tvm.runtime import Object
+from tvm.tir import Var
 
 from . import _ffi_api
 from .base import TIRFrame
 from typing import List
 
+
 @_register_object("script.builder.tir.ForFrame")
 class ForFrame(TIRFrame):
-    def __enter__(self) -> List[Object]:
-        _ffi_api.ForFrameEnter(self)
+    def __enter__(self) -> List[Var]:
+        _ffi_api.FrameEnter(self)
         return self.vars
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.ForFrameExit(self)
+        _ffi_api.FrameExit(self)
 
 
-def Serial(min_val, extent, attrs) -> Object:
+def serial(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.Serial(min_val, extent, attrs)
 
-def Parallel(min_val, extent, attrs) -> Object:
+
+def parallel(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.Parallel(min_val, extent, attrs)
 
-def Vectorized(min_val, extent, attrs) -> Object:
+
+def vectorized(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.Vectorized(min_val, extent, attrs)
 
-def Unroll(min_val, extent, attrs) -> Object:
+
+def unroll(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.Unroll(min_val, extent, attrs)
 
-def ThreadBinding(min_val, extent, attrs) -> Object:
+
+def thread_binding(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.ThreadBinding(min_val, extent, attrs)
 
-def Grid(*extents) -> Object:
+
+def grid(*extents) -> ForFrame:
     return _ffi_api.Grid(list(extents))

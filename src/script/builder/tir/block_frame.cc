@@ -18,10 +18,9 @@
  */
 #include "./block_frame.h"
 
-#include "./for_frame.h"
-
 #include <tvm/runtime/registry.h>
 
+#include "./for_frame.h"
 
 namespace tvm {
 namespace script {
@@ -146,12 +145,6 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 }  // namespace axis
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
-
-TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrameEnter")
-  .set_body_method<BlockFrame>(&BlockFrameNode::EnterWithScope);
-
-TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrameExit")
-  .set_body_method<BlockFrame>(&BlockFrameNode::ExitWithScope);
 
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame").set_body_typed(Block_);
 

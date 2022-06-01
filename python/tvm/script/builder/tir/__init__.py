@@ -18,7 +18,8 @@
 """Namespace for the TVMScript TIR Builder API."""
 
 from .base import TIRFrame
-from .for_frame import ForFrame, Serial, Parallel, Vectorized, Unroll, ThreadBinding, Grid
-from .prim_func_frame import PrimFunc, Arg
-from .block_frame import Block, axis
-from .var import Buffer
+from .for_frame import ForFrame, serial, parallel, vectorized, unroll, thread_binding, grid
+from .prim_func_frame import PrimFunc, arg
+from .block_frame import Block
+from .var import buffer
+from . import axis

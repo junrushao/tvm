@@ -18,31 +18,18 @@
 from tvm._ffi import register_object as _register_object
 from .base import TIRFrame
 
-from tvm.runtime import Object
 
 from . import _ffi_api
+
 
 @_register_object("script.builder.tir.BlockFrame")
 class Block(TIRFrame):
     def __init__(self, name) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.BlockFrame,
-            name
-        )
+        self.__init_handle_by_constructor__(_ffi_api.BlockFrame, name)
 
     def __enter__(self) -> "Block":
-        _ffi_api.BlockFrameEnter(self)
+        _ffi_api.FrameEnter(self)
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.BlockFrameExit(self)
-
-class axis:
-    def spatial(dom, binding, dtype="int32") -> Object:
-        return _ffi_api.AxisSpatial(dom, binding, dtype)
-
-    def reduce(dom, binding, dtype="int32") -> Object:
-        return _ffi_api.AxisReduce(dom, binding, dtype)
-
-    def remap(kinds, bindings, dtype="int32") -> Object:
-        return _ffi_api.AxisRemap(kinds, bindings, dtype)
+        _ffi_api.FrameExit(self)

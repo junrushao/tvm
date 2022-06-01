@@ -76,23 +76,17 @@ TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
 
 TVM_REGISTER_GLOBAL("script.builder.tir.PrimFuncFrame").set_body_typed(PrimFunc_);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.PrimFuncFrameEnter")
-  .set_body_method<PrimFuncFrame>(&PrimFuncFrameNode::EnterWithScope);
-
-TVM_REGISTER_GLOBAL("script.builder.tir.PrimFuncFrameExit")
-  .set_body_method<PrimFuncFrame>(&PrimFuncFrameNode::ExitWithScope);
-
 TVM_REGISTER_GLOBAL("script.builder.tir.Arg")
-  .set_body_typed([](String name, ObjectRef obj){
-    using namespace tvm::tir;
-    if (const auto* var = obj.as<VarNode>()) {
-      Arg(name, GetRef<Var>(var));
-    } else if (const auto* buffer = obj.as<BufferNode>()) {
-      Arg(name, GetRef<Buffer>(buffer));
-    } else {
-      LOG(FATAL) << "ValueError: Unexpected type for TIR Arg.";
-    }
-  });
+    .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {
+      using namespace tvm::tir;
+      if (const auto* var = obj.as<VarNode>()) {
+        return Arg(name, GetRef<Var>(var));
+      } else if (const auto* buffer = obj.as<BufferNode>()) {
+        return Arg(name, GetRef<Buffer>(buffer));
+      } else {
+        LOG(FATAL) << "ValueError: Unexpected type for TIR Arg.";
+      }
+    });
 
 }  // namespace tir
 }  // namespace builder

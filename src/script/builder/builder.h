@@ -54,7 +54,6 @@ class Builder : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
 
  public:
-
   void EnterWithScope();
   void ExitWithScope();
   static Builder Current();

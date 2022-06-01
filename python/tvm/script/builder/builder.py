@@ -17,18 +17,19 @@
 """TVM Script IR Builder"""
 from typing import List
 from tvm._ffi import register_object as _register_object
+from .frame import Frame
 
 from tvm.runtime import Object
 
 from . import _ffi_api
 
+from typing import TypeVar
+
 
 @_register_object("script.builder.Builder")
 class Builder(Object):
     def __init__(self) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.Builder
-        )
+        self.__init_handle_by_constructor__(_ffi_api.Builder)
 
     def __enter__(self) -> "Builder":
         _ffi_api.BuilderEnter(self)
@@ -41,12 +42,17 @@ class Builder(Object):
     def current(self) -> "Builder":
         return _ffi_api.BuilderCurrent(self)
 
-    def get(self) -> Object:
+    def get(self) -> Frame:
         return _ffi_api.BuilderGet(self)
 
-def def_(name, var) -> Object:
+
+DefType = TypeVar("DefType", bound="Object")
+
+
+def def_(name: str, var: DefType) -> DefType:
     return _ffi_api.Def(name, var)
 
-def def_many(names, vars) -> List[Object]:
+
+def def_many(names: List[str], vars: List[DefType]) -> List[DefType]:
     assert len(names) == len(vars)
     return [def_(name, var) for name, var in zip(names, vars)]

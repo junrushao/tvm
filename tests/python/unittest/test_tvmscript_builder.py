@@ -16,7 +16,6 @@
 # under the License.
 
 import tvm
-from tvm.ir import Range
 from tvm.script.builder import Builder, def_, def_many
 from tvm.script.builder import tir as T
 
@@ -25,17 +24,17 @@ def test_builder_basic():
     b = Builder()
     with b:
         with T.PrimFunc(name="main"):
-            A = T.Arg("A", T.Buffer((128, 128, 128), "float32"))
-            B = T.Arg("B", T.Buffer((128, 128, 128), "float32"))
-            with T.Grid(128, 128, 128) as (i, j, k):
+            A = T.arg("A", T.buffer((128, 128, 128), "float32"))
+            B = T.arg("B", T.buffer((128, 128, 128), "float32"))
+            with T.grid(128, 128, 128) as (i, j, k):
                 def_many(["i", "j", "k"], [i, j, k])
                 with T.Block(name="block"):
-                    vi = def_("vi", T.axis.spatial(Range(0, 128), i))
-                    vj = def_("vj", T.axis.spatial(Range(0, 128), j))
-                    vk = def_("vk", T.axis.reduce(Range(0, 128), k))
+                    vi = def_("vi", T.axis.spatial(128, i))
+                    vj = def_("vj", T.axis.spatial(128, j))
+                    vk = def_("vk", T.axis.reduce(128, k))
     print("py:", b.get().script())
     tvm._ffi.get_global_func("test_poc")()
-        
+
 
 if __name__ == "__main__":
     test_builder_basic()

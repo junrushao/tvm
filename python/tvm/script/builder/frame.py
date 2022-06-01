@@ -22,7 +22,6 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-
 @_register_object("script.builder.Frame")
 class Frame(Object):
     def __enter__(self) -> "Frame":
@@ -36,13 +35,11 @@ class Frame(Object):
 @_register_object("script.builder.IRModuleFrame")
 class IRModuleFrame(Frame):
     def __init__(self) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.IRModuleFrame
-        )
+        self.__init_handle_by_constructor__(_ffi_api.IRModuleFrame)
 
     def __enter__(self) -> "IRModuleFrame":
-        _ffi_api.IRModuleFrameEnter(self)
+        _ffi_api.FrameEnter(self)
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.IRModuleFrameExit(self)
+        _ffi_api.FrameExit(self)

@@ -14,18 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script TIR Frame"""
-from tvm._ffi import register_object as _register_object
+"""TVM Script TIR Axis"""
 
 from . import _ffi_api
-from ..frame import Frame
+from tvm.ir import Range
+from tvm.tir import IterVar
 
 
-@_register_object("script.builder.tir.TIRFrame")
-class TIRFrame(Frame):
-    def __enter__(self) -> "TIRFrame":
-        _ffi_api.FrameEnter(self)
-        return self
+def spatial(dom, binding, dtype="int32") -> IterVar:
+    if not isinstance(dom, Range):
+        dom = Range(0, dom)
+    return _ffi_api.AxisSpatial(dom, binding, dtype)
 
-    def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.FrameExit(self)
+
+def reduce(dom, binding, dtype="int32") -> IterVar:
+    if not isinstance(dom, Range):
+        dom = Range(0, dom)
+    return _ffi_api.AxisReduce(dom, binding, dtype)
+
+
+def remap(kinds, bindings, dtype="int32") -> IterVar:
+    return _ffi_api.AxisRemap(kinds, bindings, dtype)

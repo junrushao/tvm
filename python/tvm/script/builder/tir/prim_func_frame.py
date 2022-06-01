@@ -17,8 +17,6 @@
 """TVM Script TIR Prim Func Frame"""
 from tvm._ffi import register_object as _register_object
 
-from tvm.runtime import Object
-
 from tvm.tir.expr import Var
 from tvm.tir.buffer import Buffer
 
@@ -26,23 +24,21 @@ from tvm.tir.buffer import Buffer
 from . import _ffi_api
 from .base import TIRFrame
 
+from typing import Union
+
 
 @_register_object("script.builder.tir.PrimFuncFrame")
 class PrimFunc(TIRFrame):
     def __init__(self, name) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.PrimFuncFrame,
-            name
-        )
+        self.__init_handle_by_constructor__(_ffi_api.PrimFuncFrame, name)
 
     def __enter__(self) -> "PrimFunc":
-        _ffi_api.PrimFuncFrameEnter(self)
+        _ffi_api.FrameEnter(self)
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.PrimFuncFrameExit(self)
+        _ffi_api.FrameExit(self)
 
 
-def Arg(name, arg) -> Object:
-    _ffi_api.Arg(name, arg)
-    
+def arg(name, arg) -> Union[Var, Buffer]:
+    return _ffi_api.Arg(name, arg)

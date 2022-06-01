@@ -94,13 +94,6 @@ ForFrame Grid(Array<PrimExpr> extents) {
 
 TVM_REGISTER_NODE_TYPE(ForFrameNode);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.ForFrameEnter")
-  .set_body_method<ForFrame>(&ForFrameNode::EnterWithScope);
-
-TVM_REGISTER_GLOBAL("script.builder.tir.ForFrameExit")
-  .set_body_method<ForFrame>(&ForFrameNode::ExitWithScope);
-
-
 TVM_REGISTER_GLOBAL("script.builder.tir.Serial").set_body_typed(Serial);
 
 TVM_REGISTER_GLOBAL("script.builder.tir.Parallel").set_body_typed(Parallel);
