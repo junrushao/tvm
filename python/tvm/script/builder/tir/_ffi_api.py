@@ -17,5 +17,6 @@
 """FFI APIs for tvm.script.builder"""
 import tvm._ffi
 
-tvm._ffi._init_api("script.builder", __name__)
+from .. import _ffi_api as _base_ffi_api
+
 tvm._ffi._init_api("script.builder.tir", __name__)

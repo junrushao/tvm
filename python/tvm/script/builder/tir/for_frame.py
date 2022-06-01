@@ -20,6 +20,7 @@ from tvm._ffi import register_object as _register_object
 from tvm.tir import Var
 
 from . import _ffi_api
+from ._ffi_api import _base_ffi_api
 from .base import TIRFrame
 from typing import List
 
@@ -27,7 +28,7 @@ from typing import List
 @_register_object("script.builder.tir.ForFrame")
 class ForFrame(TIRFrame):
     def __enter__(self) -> List[Var]:
-        _ffi_api.FrameEnter(self)
+        _base_ffi_api.FrameEnter(self)
         return self.vars
 
 
