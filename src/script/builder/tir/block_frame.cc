@@ -147,38 +147,19 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.EnterBlockFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrameEnter")
   .set_body_method<BlockFrame>(&BlockFrameNode::EnterWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.ExitBlockFrame")
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrameExit")
   .set_body_method<BlockFrame>(&BlockFrameNode::ExitWithScope);
 
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame").set_body_typed(Block_);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame")
-    .set_body_typed([](String name){
-      return Block_(name);
-    });
+TVM_REGISTER_GLOBAL("script.builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
 
-TVM_REGISTER_GLOBAL("script.builder.tir.PushBlockVar")
-    .set_body_typed([](tvm::tir::IterVar iter_var, PrimExpr binding){
-      return axis::PushBlockVar(iter_var, binding);
-    });
+TVM_REGISTER_GLOBAL("script.builder.tir.AxisReduce").set_body_typed(axis::Reduce);
 
-
-TVM_REGISTER_GLOBAL("script.builder.tir.Spatial")
-  .set_body_typed([](Range dom, PrimExpr binding, DataType dtype){
-    return axis::Spatial(dom, binding, dtype);
-  });
-
-TVM_REGISTER_GLOBAL("script.builder.tir.Reduce")
-  .set_body_typed([](Range dom, PrimExpr binding, DataType dtype){
-    return axis::Reduce(dom, binding, dtype);
-  });
-
-TVM_REGISTER_GLOBAL("script.builder.tir.Remap")
-  .set_body_typed([](String kinds, Array<PrimExpr> bindings, DataType dtype){
-    return axis::Remap(kinds, bindings, dtype);
-  });
+TVM_REGISTER_GLOBAL("script.builder.tir.AxisRemap").set_body_typed(axis::Remap);
 
 }  // namespace tir
 }  // namespace builder

@@ -62,16 +62,16 @@ TVM_REGISTER_NODE_TYPE(FrameNode);
 TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
 
 
-TVM_REGISTER_GLOBAL("script.builder.EnterFrame")
+TVM_REGISTER_GLOBAL("script.builder.FrameEnter")
   .set_body_method<Frame>(&FrameNode::EnterWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.ExitFrame")
+TVM_REGISTER_GLOBAL("script.builder.FrameExit")
   .set_body_method<Frame>(&FrameNode::ExitWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.EnterIRModuleFrame")
+TVM_REGISTER_GLOBAL("script.builder.IRModuleFrameEnter")
   .set_body_method<IRModuleFrame>(&IRModuleFrameNode::EnterWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.ExitIRModuleFrame")
+TVM_REGISTER_GLOBAL("script.builder.IRModuleFrameExit")
   .set_body_method<IRModuleFrame>(&IRModuleFrameNode::ExitWithScope);
 
 TVM_REGISTER_GLOBAL("script.builder.IRModuleFrame")

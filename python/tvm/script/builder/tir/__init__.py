@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import
-"""Namespace for the TVMScript TIR Builder  API."""
+"""Namespace for the TVMScript TIR Builder API."""
 
 from .base import TIRFrame
 from .for_frame import ForFrame, Serial, Parallel, Vectorized, Unroll, ThreadBinding, Grid

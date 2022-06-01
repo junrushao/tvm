@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""TVM Script TIR Block Frame"""
 from tvm._ffi import register_object as _register_object
 from .base import TIRFrame
 
@@ -13,23 +30,19 @@ class Block(TIRFrame):
             name
         )
 
-    def __enter__(self) -> None:
-        _ffi_api.EnterBlockFrame(self)
+    def __enter__(self) -> "Block":
+        _ffi_api.BlockFrameEnter(self)
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.ExitBlockFrame(self)
-
-
-def push_block_var(iter_var, binding):
-    return _ffi_api.PushBlockVar(iter_var, binding)
+        _ffi_api.BlockFrameExit(self)
 
 class axis:
-    def spatial(dom, binding, dtype="int32"):
-        return _ffi_api.Spatial(dom, binding, dtype)
+    def spatial(dom, binding, dtype="int32") -> Object:
+        return _ffi_api.AxisSpatial(dom, binding, dtype)
 
-    def reduce(dom, binding, dtype="int32"):
-        return _ffi_api.Reduce(dom, binding, dtype)
+    def reduce(dom, binding, dtype="int32") -> Object:
+        return _ffi_api.AxisReduce(dom, binding, dtype)
 
-    def remap(kinds, bindings, dtype="int32"):
-        return _ffi_api.Remap(kinds, bindings, dtype)
+    def remap(kinds, bindings, dtype="int32") -> Object:
+        return _ffi_api.AxisRemap(kinds, bindings, dtype)
