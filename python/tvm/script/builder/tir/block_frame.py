@@ -23,13 +23,9 @@ from . import _ffi_api
 
 
 @_register_object("script.builder.tir.BlockFrame")
-class Block(TIRFrame):
-    def __init__(self, name) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BlockFrame, name)
+class BlockFrame(TIRFrame):
+    pass
 
-    def __enter__(self) -> "Block":
-        _ffi_api.FrameEnter(self)
-        return self
 
-    def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.FrameExit(self)
+def block(name) -> BlockFrame:
+    return _ffi_api.BlockFrame(name)

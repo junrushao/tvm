@@ -85,14 +85,10 @@ TVM_REGISTER_NODE_TYPE(BuilderNode);
 TVM_REGISTER_GLOBAL("script.builder.Builder").set_body_typed([]() { return Builder(); });
 TVM_REGISTER_GLOBAL("script.builder.BuilderEnter").set_body_method(&Builder::EnterWithScope);
 TVM_REGISTER_GLOBAL("script.builder.BuilderExit").set_body_method(&Builder::ExitWithScope);
-TVM_REGISTER_GLOBAL("script.builder.BuilderCurrent").set_body_typed([]() {
-  return Builder::Current();
-});
+TVM_REGISTER_GLOBAL("script.builder.BuilderCurrent").set_body_typed(Builder::Current);
 TVM_REGISTER_GLOBAL("script.builder.BuilderGet")
     .set_body_method<Builder>(&BuilderNode::Get<ObjectRef>);
-TVM_REGISTER_GLOBAL("script.builder.Def").set_body_typed([](String name, ObjectRef obj) {
-  return Def(name, obj);
-});
+TVM_REGISTER_GLOBAL("script.builder.Def").set_body_typed(Def<ObjectRef>);
 
 }  // namespace builder
 }  // namespace script

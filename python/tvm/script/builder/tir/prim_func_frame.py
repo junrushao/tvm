@@ -28,16 +28,12 @@ from typing import Union
 
 
 @_register_object("script.builder.tir.PrimFuncFrame")
-class PrimFunc(TIRFrame):
-    def __init__(self, name) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.PrimFuncFrame, name)
+class PrimFuncFrame(TIRFrame):
+    pass
 
-    def __enter__(self) -> "PrimFunc":
-        _ffi_api.FrameEnter(self)
-        return self
 
-    def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.FrameExit(self)
+def prim_func(name) -> PrimFuncFrame:
+    return _ffi_api.PrimFuncFrame(name)
 
 
 def arg(name, arg) -> Union[Var, Buffer]:

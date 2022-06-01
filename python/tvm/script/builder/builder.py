@@ -46,7 +46,7 @@ class Builder(Object):
         return _ffi_api.BuilderGet(self)
 
 
-DefType = TypeVar("DefType", bound="Object")
+DefType = TypeVar("DefType", bound=Object)
 
 
 def def_(name: str, var: DefType) -> DefType:

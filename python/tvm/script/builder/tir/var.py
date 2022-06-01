@@ -22,5 +22,5 @@ from tvm.tir.buffer import Buffer
 from . import _ffi_api
 
 
-def buffer(shape, dtype, name="buffer", storage_scope="") -> Buffer:
+def Buffer(shape, dtype, name="buffer", storage_scope="") -> Buffer:
     return _ffi_api.Buffer(shape, dtype, name, storage_scope)

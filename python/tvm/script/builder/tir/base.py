@@ -23,9 +23,4 @@ from ..frame import Frame
 
 @_register_object("script.builder.tir.TIRFrame")
 class TIRFrame(Frame):
-    def __enter__(self) -> "TIRFrame":
-        _ffi_api.FrameEnter(self)
-        return self
-
-    def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.FrameExit(self)
+    pass

@@ -65,9 +65,6 @@ TVM_REGISTER_GLOBAL("script.builder.FrameEnter").set_body_method<Frame>(&FrameNo
 
 TVM_REGISTER_GLOBAL("script.builder.FrameExit").set_body_method<Frame>(&FrameNode::ExitWithScope);
 
-TVM_REGISTER_GLOBAL("script.builder.IRModuleFrameEnter")
-    .set_body_method<IRModuleFrame>(&IRModuleFrameNode::EnterWithScope);
-
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm

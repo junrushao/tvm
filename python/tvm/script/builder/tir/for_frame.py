@@ -30,9 +30,6 @@ class ForFrame(TIRFrame):
         _ffi_api.FrameEnter(self)
         return self.vars
 
-    def __exit__(self, ptype, value, trace) -> None:
-        _ffi_api.FrameExit(self)
-
 
 def serial(min_val, extent, attrs) -> ForFrame:
     return _ffi_api.Serial(min_val, extent, attrs)
@@ -55,4 +52,4 @@ def thread_binding(min_val, extent, attrs) -> ForFrame:
 
 
 def grid(*extents) -> ForFrame:
-    return _ffi_api.Grid(list(extents))
+    return _ffi_api.Grid(extents)
