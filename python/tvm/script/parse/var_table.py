@@ -17,24 +17,26 @@
 """The symbol table of variable values"""
 
 from collections import defaultdict
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Set
 
 from .utils import deferred
 
 
 class VarTableFrame:
-    vars: List[str]
+    vars: Set[str]
 
     def __init__(self):
-        self.vars = []
+        self.vars = set()
 
     def add(self, var: str):
-        self.vars.append(var)
+        if var in self.vars:
+            raise ValueError(f"Variable {var} already defined in current scope")
+        self.vars.add(var)
 
     def pop_all(self, fn_pop: Callable[[str], None]):
         for var in self.vars:
             fn_pop(var)
-        self.vars = []
+        self.vars.clear()
 
 
 class VarTable:
@@ -58,3 +60,6 @@ class VarTable:
     def add(self, var: str, value: Any):
         self.frames[-1].add(var)
         self.name2value[var].append(value)
+
+    def get(self) -> Dict[str, Any]:
+        return {key: values[-1] for key, values in self.name2value.items() if values}

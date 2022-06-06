@@ -36,13 +36,9 @@ def eval_expr(
 def eval_assign(
     target: ast.expr,
     source: Any,
-    dict_globals: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     assert isinstance(target, ast.expr)
     RHS_VAR_NAME = "__tvm_rhs_var__"  # pylint: disable=invalid-name
-    if dict_globals is None:
-        dict_globals = {}
-    assert RHS_VAR_NAME not in dict_globals
     rhs_var_name = RHS_VAR_NAME
     dict_locals = {rhs_var_name: source}
     mod = ast.fix_missing_locations(
@@ -60,6 +56,6 @@ def eval_assign(
         )
     )
     exe = compile(mod, filename="<ast>", mode="exec")
-    exec(exe, dict_globals, dict_locals)  # pylint: disable=exec-used
+    exec(exe, {}, dict_locals)  # pylint: disable=exec-used
     del dict_locals[rhs_var_name]
     return dict_locals

@@ -32,6 +32,7 @@ ParseMethod = Callable[
 class DispatchTable:
     """Dispatch table for parse methods"""
 
+    _instance: Optional["DispatchTable"] = None
     table: Dict[Tuple[str, str], ParseMethod]
 
     def __init__(self):

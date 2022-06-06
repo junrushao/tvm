@@ -16,18 +16,22 @@
 # under the License.
 """The core parser"""
 import ast
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from . import dispatch
+from .evaluator import eval_assign, eval_expr
+from .var_table import VarTable
 
 
 class Parser(ast.NodeVisitor):
     """The TVMScript parser"""
 
     dispatch_tokens: List[str]
+    var_table: VarTable
 
     def __init__(self) -> None:
         self.dispatch_tokens = ["default"]
+        self.var_table = VarTable()
 
     def _dispatch(self, type_name: str) -> dispatch.ParseMethod:
         for token in [self.dispatch_tokens[-1], "default"]:
@@ -39,16 +43,22 @@ class Parser(ast.NodeVisitor):
     def eval_expr(
         self,
         node: Union[ast.Expression, ast.expr],
-        extra_vars: Dict[str, Any] = None,
+        extra_vars: Optional[Dict[str, Any]] = None,
     ) -> Any:
-        raise NotImplementedError
+        var_values = self.var_table.get()
+        if extra_vars is not None:
+            for k, v in extra_vars.items():
+                var_values[k] = v
+        return eval_expr(node, var_values)
 
     def eval_assign(
         self,
         target: ast.expr,
         source: Any,
     ):
-        raise NotImplementedError
+        var_values = eval_assign(target, source)
+        for k, v in var_values.items():
+            self.var_table.add(k, v)
 
     def visit_arg(self, node: ast.arg) -> Any:
         self._dispatch("arg")(self, node)
