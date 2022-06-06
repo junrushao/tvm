@@ -48,16 +48,16 @@ using tvm::tir::Not;
 using tvm::tir::Or;
 using tvm::tir::Select;
 using tvm::tir::Sub;
-// using tvm::tir::BufferLoad;
+
 using tvm::tir::Broadcast;
 using tvm::tir::Load;
 using tvm::tir::ProducerLoad;
 using tvm::tir::Ramp;
-// using tvm::tir::Let;
+
 using tvm::tir::Call;
 using tvm::tir::CommReducer;
 using tvm::tir::Shuffle;
-// using tvm::tir::Reduce;
+
 using tvm::tir::Any;
 
 }  // namespace tir
