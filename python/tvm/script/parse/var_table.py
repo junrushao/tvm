@@ -51,9 +51,12 @@ class VarTable:
     def with_frame(self):
         self.frames.append(VarTableFrame())
 
+        def pop_var(name: str):
+            self.name2value[name].pop()
+
         def pop_frame():
             frame = self.frames.pop()
-            frame.pop_all(lambda var: self.name2value[var].pop())
+            frame.pop_all(pop_var)
 
         return deferred(pop_frame)
 

@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from . import dispatch
 from .evaluator import eval_assign, eval_expr
+from .utils import deferred
 from .var_table import VarTable
 
 
@@ -39,6 +40,14 @@ class Parser(ast.NodeVisitor):
             if result is not None:
                 return result
         return self.generic_visit
+
+    def with_dispatch_token(self, token: str):
+        self.dispatch_tokens.append(token)
+
+        def pop_token():
+            self.dispatch_tokens.pop()
+
+        return deferred(pop_token)
 
     def eval_expr(
         self,
@@ -60,8 +69,11 @@ class Parser(ast.NodeVisitor):
         for k, v in var_values.items():
             self.var_table.add(k, v)
 
-    def visit_arg(self, node: ast.arg) -> Any:
-        self._dispatch("arg")(self, node)
+    def report_error(self, node: ast.AST, msg: str) -> None:  # pylint: disable=no-self-use
+        raise SyntaxError(f"At {node.lineno}:{node.col_offset}: {msg}")
+
+    def visit_arguments(self, node: ast.arguments) -> Any:
+        self._dispatch("arguments")(self, node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:  # pylint: disable=invalid-name
         self._dispatch("FunctionDef")(self, node)
