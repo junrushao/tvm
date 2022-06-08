@@ -58,7 +58,6 @@ using tvm::min_value;
 using tvm::reinterpret;
 
 using tvm::ceil;
-using tvm::ceildiv;
 using tvm::floor;
 using tvm::floordiv;
 using tvm::floormod;

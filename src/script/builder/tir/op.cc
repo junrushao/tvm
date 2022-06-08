@@ -28,6 +28,12 @@ PrimType prim_type(String type_name) {
 }
 
 TVM_REGISTER_GLOBAL("script.builder.tir.PrimType").set_body_typed(prim_type);
+TVM_REGISTER_GLOBAL("script.builder.tir.min").set_body_typed([](PrimExpr a, PrimExpr b, Span span) {
+  return (tvm::min(a, b, span));
+});
+TVM_REGISTER_GLOBAL("script.builder.tir.max").set_body_typed([](PrimExpr a, PrimExpr b, Span span) {
+  return (tvm::max(a, b, span));
+});
 
 }  // namespace tir
 }  // namespace builder

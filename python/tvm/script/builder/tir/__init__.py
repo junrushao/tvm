@@ -31,7 +31,4 @@ from .for_frame import (
 )
 from .prim_func_frame import arg, prim_func
 from .var import Buffer
-from .op import boolean
-from .op import int8, int16, int32, int64
-from .op import uint8, uint16, uint32, uint64
-from .op import float8, float16, float32, float64
+from .op import *

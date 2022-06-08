@@ -68,7 +68,59 @@ from tvm.tir.op import isnan, isfinite, isinf
 from tvm.tir.op import cos, cosh, sin, sinh, tan, tanh
 from tvm.tir.op import acos, acosh, asin, asinh, atan, atanh
 from tvm.tir.op import atan2, clz, comm_reducer, infinity, reinterpret
-from tvm.tir.op import min_value, max_value, min, max, if_then_else
+from tvm.tir.op import min_value, max_value, if_then_else
 from tvm.tir.op import call_packed, call_extern
 from tvm.tir.expr import Select, Ramp, Broadcast, Shuffle
 from tvm.tir.generic import cast
+
+
+def min(a, b, span=None):
+    """Compute the minimum value of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _ffi_api.min(a, b, span)  # type: ignore
+
+
+def max(a, b, span=None):
+    """Compute the maximum value of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _ffi_api.max(a, b, span)  # type: ignore
