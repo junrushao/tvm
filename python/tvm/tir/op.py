@@ -30,7 +30,11 @@ from . import _ffi_api
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape, span)
-    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
+    strides = (
+        Call("handle", "tir.tvm_stack_make_shape", buf.strides, span)
+        if buf.strides
+        else 0
+    )
     pack_args = [
         buf.data,
         shape,
@@ -124,7 +128,10 @@ def call_pure_extern(dtype, func_name, *args, span=None):
         The call expression.
     """
     return Call(
-        dtype, Op.get("tir.call_pure_extern"), convert((StringImm(func_name),) + args), span
+        dtype,
+        Op.get("tir.call_pure_extern"),
+        convert((StringImm(func_name),) + args),
+        span,
     )
 
 
@@ -151,7 +158,10 @@ def call_extern(dtype, func_name, *args, span=None):
         The call expression.
     """
     return Call(
-        dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args), span=span
+        dtype,
+        Op.get("tir.call_extern"),
+        convert((StringImm(func_name),) + args),
+        span=span,
     )
 
 
@@ -183,7 +193,11 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
-        dtype, Op.get("tir.call_llvm_intrin"), tvm.tir.const(llvm_id, "uint32"), *args, span=span
+        dtype,
+        Op.get("tir.call_llvm_intrin"),
+        tvm.tir.const(llvm_id, "uint32"),
+        *args,
+        span=span,
     )
 
 
@@ -365,6 +379,47 @@ def max_value(dtype: str, span: Optional[Span] = None) -> Any:
         The maximum value of dtype.
     """
     return _ffi_api.max_value(dtype, span)  # type: ignore
+
+
+def infinity(dtype: str, span: Optional[Span] = None) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The infinity value of dtype.
+    """
+    return _ffi_api.infinity(dtype, span)  # type: ignore
+
+
+def reinterpret(dtype, value, span=None) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The reinterpret cast value of dtype.
+    """
+    return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
 def exp(x):
@@ -1412,7 +1467,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             rhs = convert([rvar])
             expr = convert([expr])
             if init is not None:
-                assert isinstance(init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
+                assert isinstance(
+                    init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm)
+                )
                 init = convert([init])
         result = convert(result)
         id_elem = convert(id_elem)
@@ -1422,11 +1479,13 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             where = convert(True)
         if init is None:
             outputs = tuple(
-                tvm.tir.Reduce(combiner, expr, axis, where, i, convert([])) for i in range(size)
+                tvm.tir.Reduce(combiner, expr, axis, where, i, convert([]))
+                for i in range(size)
             )
         else:
             outputs = tuple(
-                tvm.tir.Reduce(combiner, expr, axis, where, i, init) for i in range(size)
+                tvm.tir.Reduce(combiner, expr, axis, where, i, init)
+                for i in range(size)
             )
         return outputs[0] if size == 1 else outputs
 

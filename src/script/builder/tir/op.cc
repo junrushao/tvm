@@ -16,25 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_BUILDER_TIR_TYPE_H_
-#define TVM_SCRIPT_BUILDER_TIR_TYPE_H_
-
-#include <tvm/ir/type.h>
-
-#include "../builder.h"
+#include "./op.h"
 
 namespace tvm {
 namespace script {
 namespace builder {
 namespace tir {
 
-using tvm::PointerType;
-using tvm::PrimType;
-using tvm::TupleType;
+PrimType prim_type(String type_name) {
+  return PrimType(DataType(runtime::String2DLDataType(type_name)));
+}
+
+TVM_REGISTER_GLOBAL("script.builder.tir.PrimType").set_body_typed(prim_type);
 
 }  // namespace tir
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm
-
-#endif  // TVM_SCRIPT_BUILDER_TIR_TYPE_H_

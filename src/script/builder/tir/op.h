@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_BUILDER_TIR_OP_H_
 #define TVM_SCRIPT_BUILDER_TIR_OP_H_
 
+#include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
 #include "../builder.h"
@@ -28,90 +29,90 @@ namespace script {
 namespace builder {
 namespace tir {
 
-using tvm::abs;
-using tvm::add;
-using tvm::all;
-using tvm::any;
-using tvm::bitwise_and;
-using tvm::bitwise_neg;
-using tvm::bitwise_or;
-using tvm::bitwise_xor;
+static const PrimType int8 = PrimType(DataType::Int(8));
+static const PrimType int16 = PrimType(DataType::Int(16));
+static const PrimType int32 = PrimType(DataType::Int(32));
+static const PrimType int64 = PrimType(DataType::Int(64));
+
+static const PrimType uint8 = PrimType(DataType::UInt(8));
+static const PrimType uint16 = PrimType(DataType::UInt(16));
+static const PrimType uint32 = PrimType(DataType::UInt(32));
+static const PrimType uint64 = PrimType(DataType::UInt(64));
+
+static const PrimType float8 = PrimType(DataType::Float(8));
+static const PrimType float16 = PrimType(DataType::Float(16));
+static const PrimType float32 = PrimType(DataType::Float(32));
+static const PrimType float64 = PrimType(DataType::Float(64));
+
+static const PrimType bool_ = PrimType(DataType::Bool());
+
+PrimType prim_type(String type_name);
+
 using tvm::cast;
-using tvm::ceil;
-using tvm::ceildiv;
-using tvm::div;
-using tvm::equal;
-using tvm::floor;
-using tvm::floordiv;
-using tvm::floormod;
-using tvm::greater;
-using tvm::greater_equal;
 using tvm::if_then_else;
-using tvm::indexdiv;
-using tvm::indexmod;
 using tvm::infinity;
-using tvm::isfinite;
-using tvm::isinf;
-using tvm::isnan;
-using tvm::LargeUIntImm;
-using tvm::left_shift;
-using tvm::less;
-using tvm::less_equal;
-using tvm::likely;
-using tvm::logical_and;
-using tvm::logical_not;
-using tvm::logical_or;
 using tvm::max;
 using tvm::max_value;
 using tvm::min;
 using tvm::min_value;
-using tvm::mul;
+using tvm::reinterpret;
+
+using tvm::ceil;
+using tvm::ceildiv;
+using tvm::floor;
+using tvm::floordiv;
+using tvm::floormod;
 using tvm::nearbyint;
-using tvm::neg;
-using tvm::not_equal;
-using tvm::pow;
-using tvm::prod;
-using tvm::q_multiply_shift;
-using tvm::right_shift;
 using tvm::round;
-using tvm::shapediv;
-using tvm::sum;
 using tvm::trunc;
 using tvm::truncdiv;
 using tvm::truncmod;
+
+using tvm::abs;
+using tvm::copysign;
+using tvm::fmod;
+using tvm::nextafter;
+using tvm::popcount;
+
+using tvm::erf;
+using tvm::exp;
+using tvm::exp10;
+using tvm::exp2;
+using tvm::hypot;
+using tvm::ldexp;
+using tvm::log;
+using tvm::log10;
+using tvm::log1p;
+using tvm::log2;
+using tvm::pow;
+using tvm::rsqrt;
+using tvm::sigmoid;
+using tvm::sqrt;
 
 using tvm::acos;
 using tvm::acosh;
 using tvm::asin;
 using tvm::asinh;
 using tvm::atan;
+using tvm::atan2;
 using tvm::atanh;
 using tvm::clz;
 using tvm::cos;
 using tvm::cosh;
-using tvm::erf;
-using tvm::exp;
-using tvm::exp10;
-using tvm::exp2;
-using tvm::log;
-using tvm::log10;
-using tvm::log2;
-using tvm::popcount;
-using tvm::rsqrt;
-using tvm::sigmoid;
 using tvm::sin;
 using tvm::sinh;
-using tvm::sqrt;
 using tvm::tan;
 using tvm::tanh;
 
-using tvm::atan2;
-using tvm::copysign;
-using tvm::hypot;
-using tvm::ldexp;
-using tvm::nextafter;
+using tvm::isfinite;
+using tvm::isinf;
+using tvm::isnan;
 
-using tvm::infinity;
+using tvm::tir::Broadcast;
+using tvm::tir::CommReducer;
+using tvm::tir::Ramp;
+using tvm::tir::Select;
+using tvm::tir::Shuffle;
 
 }  // namespace tir
 }  // namespace builder
