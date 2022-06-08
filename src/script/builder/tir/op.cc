@@ -23,16 +23,16 @@ namespace script {
 namespace builder {
 namespace tir {
 
-PrimType prim_type(String type_name) {
-  return PrimType(DataType(runtime::String2DLDataType(type_name)));
+PrimExpr prim_type(String type_name, PrimExpr expr) {
+  return cast(DataType(runtime::String2DLDataType(type_name)), expr);
 }
 
 TVM_REGISTER_GLOBAL("script.builder.tir.PrimType").set_body_typed(prim_type);
 TVM_REGISTER_GLOBAL("script.builder.tir.min").set_body_typed([](PrimExpr a, PrimExpr b, Span span) {
-  return (tvm::min(a, b, span));
+  return tvm::min(a, b, span);
 });
 TVM_REGISTER_GLOBAL("script.builder.tir.max").set_body_typed([](PrimExpr a, PrimExpr b, Span span) {
-  return (tvm::max(a, b, span));
+  return tvm::max(a, b, span);
 });
 
 }  // namespace tir

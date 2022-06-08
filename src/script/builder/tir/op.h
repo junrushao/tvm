@@ -29,24 +29,24 @@ namespace script {
 namespace builder {
 namespace tir {
 
-static const PrimType int8 = PrimType(DataType::Int(8));
-static const PrimType int16 = PrimType(DataType::Int(16));
-static const PrimType int32 = PrimType(DataType::Int(32));
-static const PrimType int64 = PrimType(DataType::Int(64));
+PrimExpr int8(PrimExpr expr) { return cast(DataType::Int(8), expr); }
+PrimExpr int16(PrimExpr expr) { return cast(DataType::Int(16), expr); }
+PrimExpr int32(PrimExpr expr) { return cast(DataType::Int(32), expr); }
+PrimExpr int64(PrimExpr expr) { return cast(DataType::Int(64), expr); }
 
-static const PrimType uint8 = PrimType(DataType::UInt(8));
-static const PrimType uint16 = PrimType(DataType::UInt(16));
-static const PrimType uint32 = PrimType(DataType::UInt(32));
-static const PrimType uint64 = PrimType(DataType::UInt(64));
+PrimExpr uint8(PrimExpr expr) { return cast(DataType::UInt(8), expr); }
+PrimExpr uint16(PrimExpr expr) { return cast(DataType::UInt(16), expr); }
+PrimExpr uint32(PrimExpr expr) { return cast(DataType::UInt(32), expr); }
+PrimExpr uint64(PrimExpr expr) { return cast(DataType::UInt(64), expr); }
 
-static const PrimType float8 = PrimType(DataType::Float(8));
-static const PrimType float16 = PrimType(DataType::Float(16));
-static const PrimType float32 = PrimType(DataType::Float(32));
-static const PrimType float64 = PrimType(DataType::Float(64));
+PrimExpr float8(PrimExpr expr) { return cast(DataType::Float(8), expr); }
+PrimExpr float16(PrimExpr expr) { return cast(DataType::Float(16), expr); }
+PrimExpr float32(PrimExpr expr) { return cast(DataType::Float(32), expr); }
+PrimExpr float64(PrimExpr expr) { return cast(DataType::Float(64), expr); }
 
-static const PrimType bool_ = PrimType(DataType::Bool());
+PrimExpr bool_(PrimExpr expr) { return cast(DataType::Bool(), expr); }
 
-PrimType prim_type(String type_name);
+PrimExpr prim_type(String type_name, PrimExpr expr);
 
 using tvm::cast;
 using tvm::if_then_else;

@@ -19,23 +19,6 @@
 from . import _ffi_api
 
 
-boolean = _ffi_api.PrimType("bool")
-
-int8 = _ffi_api.PrimType("int8")
-int16 = _ffi_api.PrimType("int16")
-int32 = _ffi_api.PrimType("int32")
-int64 = _ffi_api.PrimType("int64")
-
-uint8 = _ffi_api.PrimType("uint8")
-uint16 = _ffi_api.PrimType("uint16")
-uint32 = _ffi_api.PrimType("uint32")
-uint64 = _ffi_api.PrimType("uint64")
-
-float8 = _ffi_api.PrimType("float8")
-float16 = _ffi_api.PrimType("float16")
-float32 = _ffi_api.PrimType("float32")
-float64 = _ffi_api.PrimType("float64")
-
 from tvm.tir.op import abs, popcount, nextafter, copysign, fmod
 from tvm.tir.op import (
     floor,
@@ -72,6 +55,58 @@ from tvm.tir.op import min_value, max_value, if_then_else
 from tvm.tir.op import call_packed, call_extern
 from tvm.tir.expr import Select, Ramp, Broadcast, Shuffle
 from tvm.tir.generic import cast
+
+
+def boolean(expr):
+    return _ffi_api.PrimType("bool", expr)
+
+
+def int8(expr):
+    return _ffi_api.PrimType("int8", expr)
+
+
+def int16(expr):
+    return _ffi_api.PrimType("int16", expr)
+
+
+def int32(expr):
+    return _ffi_api.PrimType("int32", expr)
+
+
+def int64(expr):
+    return _ffi_api.PrimType("int64", expr)
+
+
+def uint8(expr):
+    return _ffi_api.PrimType("uint8", expr)
+
+
+def uint16(expr):
+    return _ffi_api.PrimType("uint16", expr)
+
+
+def uint32(expr):
+    return _ffi_api.PrimType("uint32", expr)
+
+
+def uint64(expr):
+    return _ffi_api.PrimType("uint64", expr)
+
+
+def float8(expr):
+    return _ffi_api.PrimType("float8", expr)
+
+
+def float16(expr):
+    return _ffi_api.PrimType("float16", expr)
+
+
+def float32(expr):
+    return _ffi_api.PrimType("float32", expr)
+
+
+def float64(expr):
+    return _ffi_api.PrimType("float64", expr)
 
 
 def min(a, b, span=None):
