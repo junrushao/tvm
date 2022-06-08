@@ -36,12 +36,12 @@ def visit_for(self: Parser, node: ast.For) -> None:
     with self.var_table.with_frame():
         with for_frame as iters:
             self.eval_assign(target=node.target, source=iters)
-            self.visit(node.body)
+            self.visit_body(node.body)
 
 
 @dispatch.register(token="tir", type_name="Assign")
 def visit_assign(self: Parser, node: ast.Assign) -> None:
-    if node.targets != 1:
+    if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
     rhs = self.eval_expr(node.value)
@@ -64,7 +64,7 @@ def visit_with(self: Parser, node: ast.With) -> None:
                     target=item.optional_vars,
                     source=rhs,
                 )
-        self.visit(node.body)
+        self.visit_body(node.body)
 
 
 @dispatch.register(token="tir", type_name="FunctionDef")
@@ -72,9 +72,10 @@ def visit_function_def(self: Parser, node: ast.FunctionDef) -> None:
     with self.var_table.with_frame():
         self.var_table.add("range", T.serial)
         with T.prim_func(node.name):
-            # TODO: define the GlobalVar, handle the return value
-            self.visit(node.args)
-            self.visit(node.body)
+            with self.with_dispatch_token("tir"):
+                # TODO: define the GlobalVar, handle the return value
+                self.visit(node.args)
+                self.visit_body(node.body)
 
 
 @dispatch.register(token="tir", type_name="arguments")

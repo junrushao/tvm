@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 from contextlib import contextmanager
 from typing import Callable
 
@@ -23,8 +22,8 @@ def deferred(f: Callable[[], None]):
     @contextmanager
     def context():
         try:
-            pass
+            yield
         finally:
             f()
 
-    return context
+    return context()

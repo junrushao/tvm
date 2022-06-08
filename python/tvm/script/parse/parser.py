@@ -18,10 +18,33 @@
 import ast
 from typing import Any, Dict, List, Optional, Union
 
+from ..builder import def_
 from . import dispatch
 from .evaluator import eval_assign, eval_expr
 from .utils import deferred
 from .var_table import VarTable
+
+
+def _dispatch(self: "Parser", type_name: str) -> dispatch.ParseMethod:
+    for token in [self.dispatch_tokens[-1], "default"]:
+        func = dispatch.get(token=token, type_name=type_name, default=None)
+        if func is not None:
+            return func
+    return lambda self, node: self.generic_visit(node)
+
+
+def _handle_function(self: "Parser", node: ast.FunctionDef) -> None:
+    if not node.decorator_list:
+        self.report_error(node, "Function must be decorated")
+    # TODO: only the last decorator is parsed
+    decorator = self.eval_expr(node.decorator_list[-1])
+    if hasattr(decorator, "dispatch_token"):
+        token = decorator.dispatch_token
+        func = dispatch.get(token=token, type_name="FunctionDef", default=None)
+        if func is not None:
+            func(self, node)
+            return
+    self.report_error(node, "The parser does not understand the decorator")
 
 
 class Parser(ast.NodeVisitor):
@@ -34,19 +57,11 @@ class Parser(ast.NodeVisitor):
         self.dispatch_tokens = ["default"]
         self.var_table = VarTable()
 
-    def _dispatch(self, type_name: str) -> dispatch.ParseMethod:
-        for token in [self.dispatch_tokens[-1], "default"]:
-            result = dispatch.get(token=token, type_name=type_name, default=None)
-            if result is not None:
-                return result
-        return self.generic_visit
-
     def with_dispatch_token(self, token: str):
-        self.dispatch_tokens.append(token)
-
         def pop_token():
             self.dispatch_tokens.pop()
 
+        self.dispatch_tokens.append(token)
         return deferred(pop_token)
 
     def eval_expr(
@@ -64,31 +79,31 @@ class Parser(ast.NodeVisitor):
         self,
         target: ast.expr,
         source: Any,
-    ):
+    ) -> Dict[str, Any]:
         var_values = eval_assign(target, source)
         for k, v in var_values.items():
+            def_(k, v)
             self.var_table.add(k, v)
+        return var_values
 
     def report_error(self, node: ast.AST, msg: str) -> None:  # pylint: disable=no-self-use
         raise SyntaxError(f"At {node.lineno}:{node.col_offset}: {msg}")
 
-    def visit_arguments(self, node: ast.arguments) -> Any:
-        self._dispatch("arguments")(self, node)
-
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:  # pylint: disable=invalid-name
-        self._dispatch("FunctionDef")(self, node)
+        _handle_function(self, node)
+
+    def visit_body(self, node: List[ast.stmt]) -> Any:
+        for stmt in node:
+            self.visit(stmt)
+
+    def visit_arguments(self, node: ast.arguments) -> Any:
+        _dispatch(self, "arguments")(self, node)
 
     def visit_For(self, node: ast.For) -> Any:  # pylint: disable=invalid-name
-        self._dispatch("For")(self, node)
+        _dispatch(self, "For")(self, node)
 
     def visit_With(self, node: ast.With) -> Any:  # pylint: disable=invalid-name
-        self._dispatch("With")(self, node)
+        _dispatch(self, "With")(self, node)
 
     def visit_Assign(self, node: ast.Assign) -> Any:  # pylint: disable=invalid-name
-        self._dispatch("Assign")(self, node)
-
-
-@dispatch.register(token="default", type_name="FunctionDef")
-def visit_function_def(self: Parser, node: ast.FunctionDef) -> Any:
-    """Visit a function definition"""
-    return self.generic_visit(node)
+        _dispatch(self, "Assign")(self, node)

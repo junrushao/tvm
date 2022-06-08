@@ -49,15 +49,11 @@ class VarTable:
         self.name2value = defaultdict(list)
 
     def with_frame(self):
-        self.frames.append(VarTableFrame())
-
-        def pop_var(name: str):
-            self.name2value[name].pop()
-
         def pop_frame():
             frame = self.frames.pop()
-            frame.pop_all(pop_var)
+            frame.pop_all(lambda name: self.name2value[name].pop())
 
+        self.frames.append(VarTableFrame())
         return deferred(pop_frame)
 
     def add(self, var: str, value: Any):
