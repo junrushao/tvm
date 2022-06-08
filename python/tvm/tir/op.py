@@ -30,11 +30,7 @@ from . import _ffi_api
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape, span)
-    strides = (
-        Call("handle", "tir.tvm_stack_make_shape", buf.strides, span)
-        if buf.strides
-        else 0
-    )
+    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
     pack_args = [
         buf.data,
         shape,
@@ -1467,9 +1463,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             rhs = convert([rvar])
             expr = convert([expr])
             if init is not None:
-                assert isinstance(
-                    init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm)
-                )
+                assert isinstance(init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
                 init = convert([init])
         result = convert(result)
         id_elem = convert(id_elem)
@@ -1479,13 +1473,11 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             where = convert(True)
         if init is None:
             outputs = tuple(
-                tvm.tir.Reduce(combiner, expr, axis, where, i, convert([]))
-                for i in range(size)
+                tvm.tir.Reduce(combiner, expr, axis, where, i, convert([])) for i in range(size)
             )
         else:
             outputs = tuple(
-                tvm.tir.Reduce(combiner, expr, axis, where, i, init)
-                for i in range(size)
+                tvm.tir.Reduce(combiner, expr, axis, where, i, init) for i in range(size)
             )
         return outputs[0] if size == 1 else outputs
 
