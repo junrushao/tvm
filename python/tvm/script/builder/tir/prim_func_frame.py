@@ -20,6 +20,7 @@ from typing import Union, Dict, Any
 from tvm._ffi import register_object as _register_object
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
+from tvm.ir import Type
 
 from ..builder import Builder
 from . import _ffi_api
@@ -46,7 +47,7 @@ def func_attr(attrs: Dict[str, Any]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
 
 
-def func_ret(ret_type) -> Union[Var, Buffer]:
+def func_ret(ret_type) -> Type:
     return _ffi_api.FuncRet(ret_type)  # pylint: disable=no-member # type: ignore
 
 
