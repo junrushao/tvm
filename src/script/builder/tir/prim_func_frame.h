@@ -61,17 +61,18 @@ PrimFuncFrame PrimFunc_(String name);
 tvm::tir::Var Arg(String name, tvm::tir::Var var);
 tvm::tir::Var Arg(String name, tvm::tir::Buffer buffer);
 DictAttrs FuncAttrs(DictAttrs attrs);
-tvm::Type Ret(tvm::Type ret_type);
+tvm::Type FuncRet(tvm::Type ret_type);
 
-void MatchBuffer(String buffer_name, ObjectRef param, Array<PrimExpr> shape,
-                 DataType dtype = DataType::Float(32),
-                 tvm::tir::Var data = NullValue<tvm::tir::Var>(), Array<PrimExpr> strides = {},
-                 PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
-                 int offset_factor = 0, String buffer_type_str = "default",
-                 Array<IntImm> axis_separators = {}, Span span = Span());
+tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape,
+                             DataType dtype = DataType::Float(32),
+                             tvm::tir::Var data = NullValue<tvm::tir::Var>(),
+                             Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                             String storage_scope = "", int align = -1, int offset_factor = 0,
+                             String buffer_type_str = "default", Array<IntImm> axis_separators = {},
+                             Span span = Span());
 
-void PreflattenedBuffer(String var_name, tvm::tir::Buffer postflattened_buffer,
-                        Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
+                        DataType dtype = DataType::Float(32),
                         tvm::tir::Var data = NullValue<tvm::tir::Var>(),
                         Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                         String storage_scope = "", int align = -1, int offset_factor = 0,

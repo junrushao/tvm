@@ -85,35 +85,34 @@ DictAttrs FuncAttrs(DictAttrs attrs) {
   return attrs;
 }
 
-tvm::Type Ret(tvm::Type ret_type) {
+tvm::Type FuncRet(tvm::Type ret_type) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   frame->ret_type = ret_type;
   return ret_type;
 }
 
-void MatchBuffer(String buffer_name, ObjectRef param, Array<PrimExpr> shape, DataType dtype,
-                 tvm::tir::Var data, Array<PrimExpr> strides, PrimExpr elem_offset,
-                 String storage_scope, int align, int offset_factor, String buffer_type_str,
-                 Array<IntImm> axis_separators, Span span) {
+tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype,
+                             tvm::tir::Var data, Array<PrimExpr> strides, PrimExpr elem_offset,
+                             String storage_scope, int align, int offset_factor,
+                             String buffer_type_str, Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
   if (data.same_as(NullValue<Var>())) {
     DataType storage_dtype = dtype;
     if (storage_dtype == DataType::Bool()) {
       storage_dtype = DataType::Int(8);
     }
-    data = Var(buffer_name, PointerType(PrimType(storage_dtype), storage_scope), span);
+    data = Var("", PointerType(PrimType(storage_dtype), storage_scope), span);
   }
   BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  Buffer buffer(data, dtype, shape, strides, elem_offset, buffer_name, align, offset_factor,
-                buffer_type, axis_separators, span);
-  Namer::Name(buffer, buffer_name);
+  Buffer buffer(data, dtype, shape, strides, elem_offset, "", align, offset_factor, buffer_type,
+                axis_separators, span);
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   if (const auto* var = param.as<VarNode>()) {
     Var v = GetRef<Var>(var);
     for (auto const& arg : frame->args) {
       if (arg.same_as(v)) {
         frame->buffer_map.Set(v, buffer);
-        return;
+        return buffer;
       }
     }
     LOG(FATAL) << "ValueError: Can not bind non-input param to buffer.";
@@ -124,13 +123,13 @@ void MatchBuffer(String buffer_name, ObjectRef param, Array<PrimExpr> shape, Dat
   } else {
     LOG(FATAL) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
+  return buffer;
 };
 
-void PreflattenedBuffer(String var_name, tvm::tir::Buffer postflattened_buffer,
-                        Array<PrimExpr> shape, DataType dtype, tvm::tir::Var data,
-                        Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope,
-                        int align, int offset_factor, String buffer_type_str,
-                        Array<IntImm> axis_separators, Span span) {
+void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
+                        DataType dtype, tvm::tir::Var data, Array<PrimExpr> strides,
+                        PrimExpr elem_offset, String storage_scope, int align, int offset_factor,
+                        String buffer_type_str, Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   for (auto const& p : frame->buffer_map) {
@@ -166,7 +165,7 @@ TVM_REGISTER_GLOBAL("script.builder.tir.Arg")
       throw;
     });
 TVM_REGISTER_GLOBAL("script.builder.tir.FuncAttrs").set_body_typed(FuncAttrs);
-TVM_REGISTER_GLOBAL("script.builder.tir.Ret").set_body_typed(Ret);
+TVM_REGISTER_GLOBAL("script.builder.tir.FuncRet").set_body_typed(FuncRet);
 TVM_REGISTER_GLOBAL("script.builder.tir.MatchBuffer").set_body_typed(MatchBuffer);
 TVM_REGISTER_GLOBAL("script.builder.tir.PreflattenedBuffer").set_body_typed(PreflattenedBuffer);
 

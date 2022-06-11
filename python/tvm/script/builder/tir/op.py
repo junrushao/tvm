@@ -109,8 +109,8 @@ def float64(expr):
     return _ffi_api.PrimType("float64", expr)
 
 
-def handle(name=""):
-    return _ffi_api.Handle(name)
+def handle():
+    return _ffi_api.Handle()
 
 
 def min(a, b, span=None):

@@ -30,11 +30,11 @@ def test_builder_basic():
             buffer_d = T.Buffer((128,), "float32")
             arg_c = T.arg("c", buffer_c)
             arg_d = T.arg("d", buffer_d)
-            T.ret(tvm.ir.PrimType("int8"))
-            T.match_buffer("A", arg_a, (128, 128, 128))
-            T.match_buffer("B", arg_b, (128, 128, 128))
-            T.preflattened_buffer("C", buffer_c, (128,), data=buffer_c.data)
-            T.preflattened_buffer("D", buffer_d, (128,), data=buffer_d.data)
+            T.func_ret(tvm.ir.PrimType("int8"))
+            A = def_("A", T.match_buffer(arg_a, (128, 128, 128)))
+            B = def_("B", T.match_buffer(arg_b, (128, 128, 128)))
+            T.preflattened_buffer(buffer_c, (128,), data=buffer_c.data)
+            T.preflattened_buffer(buffer_d, (128,), data=buffer_d.data)
             with T.grid(128, 128, 128) as (i, j, k):
                 def_many(["i", "j", "k"], [i, j, k])
                 with T.block(name="block"):

@@ -49,12 +49,11 @@ def func_attr(attrs) -> DictAttrs:
     )  # pylint: disable=no-member # type: ignore
 
 
-def ret(ret_type) -> Union[Var, Buffer]:
-    return _ffi_api.Ret(ret_type)  # pylint: disable=no-member # type: ignore
+def func_ret(ret_type) -> Union[Var, Buffer]:
+    return _ffi_api.FuncRet(ret_type)  # pylint: disable=no-member # type: ignore
 
 
 def match_buffer(
-    buffer_name,
     param,
     shape,
     dtype="float32",
@@ -67,9 +66,8 @@ def match_buffer(
     buffer_type="default",
     axis_separators=None,
     span=None,
-) -> None:
-    _ffi_api.MatchBuffer(
-        buffer_name,
+) -> Buffer:
+    return _ffi_api.MatchBuffer(
         param,
         shape,
         dtype,
@@ -86,7 +84,6 @@ def match_buffer(
 
 
 def preflattened_buffer(
-    var_name,
     postflattened,
     shape,
     dtype="float32",
@@ -101,7 +98,6 @@ def preflattened_buffer(
     span=None,
 ) -> None:
     _ffi_api.PreflattenedBuffer(
-        var_name,
         postflattened,
         shape,
         dtype,
