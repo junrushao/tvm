@@ -33,7 +33,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Type ret_type;
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
-  DictAttrs attrs;
+  Map<String, ObjectRef> attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -59,25 +59,24 @@ class PrimFuncFrame : public TIRFrame {
 
 PrimFuncFrame PrimFunc_(String name);
 tvm::tir::Var Arg(String name, tvm::tir::Var var);
-tvm::tir::Var Arg(String name, tvm::tir::Buffer buffer);
-DictAttrs FuncAttrs(DictAttrs attrs);
+tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer);
+void FuncAttrs(Map<String, ObjectRef> attrs);
 tvm::Type FuncRet(tvm::Type ret_type);
 
 tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape,
                              DataType dtype = DataType::Float(32),
-                             tvm::tir::Var data = NullValue<tvm::tir::Var>(),
-                             Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                             String storage_scope = "", int align = -1, int offset_factor = 0,
+                             Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
+                             PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                             int align = -1, int offset_factor = 0,
                              String buffer_type_str = "default", Array<IntImm> axis_separators = {},
                              Span span = Span());
 
 void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
                         DataType dtype = DataType::Float(32),
-                        tvm::tir::Var data = NullValue<tvm::tir::Var>(),
-                        Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                        String storage_scope = "", int align = -1, int offset_factor = 0,
-                        String buffer_type_str = "default", Array<IntImm> axis_separators = {},
-                        Span span = Span());
+                        Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
+                        PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                        int align = -1, int offset_factor = 0, String buffer_type_str = "default",
+                        Array<IntImm> axis_separators = {}, Span span = Span());
 
 }  // namespace tir
 }  // namespace builder

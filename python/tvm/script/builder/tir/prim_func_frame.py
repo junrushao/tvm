@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script TIR Prim Func Frame"""
-from typing import Union
+from typing import Union, Dict, Any
 
 from tvm._ffi import register_object as _register_object
 from tvm.tir.buffer import Buffer
@@ -24,7 +24,6 @@ from tvm.tir.expr import Var
 from ..builder import Builder
 from . import _ffi_api
 from .base import TIRFrame
-from tvm.ir import DictAttrs, make_node
 
 
 @_register_object("script.builder.tir.PrimFuncFrame")
@@ -43,10 +42,8 @@ def arg(name, obj) -> Union[Var, Buffer]:
 setattr(prim_func, "dispatch_token", "tir")
 
 
-def func_attr(attrs) -> DictAttrs:
-    return _ffi_api.FuncAttrs(
-        make_node("DictAttrs", **attrs)
-    )  # pylint: disable=no-member # type: ignore
+def func_attr(attrs: Dict[str, Any]) -> None:
+    return _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
 
 
 def func_ret(ret_type) -> Union[Var, Buffer]:

@@ -37,7 +37,7 @@ void PrimFuncFrameNode::ExitWithScope() {
                 /*ret_type=*/ret_type,
                 /*buffer_map=*/buffer_map,
                 /*preflattened_buffer_map=*/preflattened_buffer_map,
-                /*attrs=*/attrs);
+                /*attrs=*/DictAttrs(attrs));
   if (builder->frames.empty()) {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
@@ -57,7 +57,7 @@ PrimFuncFrame PrimFunc_(String name) {
   n->ret_type = TupleType::Empty();
   n->buffer_map.clear();
   n->preflattened_buffer_map.clear();
-  n->attrs = NullValue<DictAttrs>();
+  n->attrs.clear();
   return PrimFuncFrame(n);
 }
 
@@ -68,21 +68,20 @@ tvm::tir::Var Arg(String name, tvm::tir::Var var) {
   return var;
 }
 
-tvm::tir::Var Arg(String name, tvm::tir::Buffer buffer) {
+tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer) {
   using namespace tvm::tir;
   Namer::Name(buffer, name);
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   Var handle(buffer->name + "_handle", DataType::Handle());
   frame->args.push_back(handle);
   frame->buffer_map.Set(handle, buffer);
-  return handle;
+  return buffer;
 }
 
-DictAttrs FuncAttrs(DictAttrs attrs) {
+void FuncAttrs(Map<String, ObjectRef> attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   frame->attrs = attrs;
-  return attrs;
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
@@ -92,20 +91,24 @@ tvm::Type FuncRet(tvm::Type ret_type) {
 }
 
 tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype,
-                             tvm::tir::Var data, Array<PrimExpr> strides, PrimExpr elem_offset,
-                             String storage_scope, int align, int offset_factor,
-                             String buffer_type_str, Array<IntImm> axis_separators, Span span) {
+                             Optional<tvm::tir::Var> data, Array<PrimExpr> strides,
+                             PrimExpr elem_offset, String storage_scope, int align,
+                             int offset_factor, String buffer_type_str,
+                             Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
-  if (data.same_as(NullValue<Var>())) {
+  Var buffer_data;
+  if (!data.defined()) {
     DataType storage_dtype = dtype;
     if (storage_dtype == DataType::Bool()) {
       storage_dtype = DataType::Int(8);
     }
-    data = Var("", PointerType(PrimType(storage_dtype), storage_scope), span);
+    buffer_data = Var("", PointerType(PrimType(storage_dtype), storage_scope), span);
+  } else {
+    buffer_data = data.value();
   }
   BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  Buffer buffer(data, dtype, shape, strides, elem_offset, "", align, offset_factor, buffer_type,
-                axis_separators, span);
+  Buffer buffer(buffer_data, dtype, shape, strides, elem_offset, "", align, offset_factor,
+                buffer_type, axis_separators, span);
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   if (const auto* var = param.as<VarNode>()) {
     Var v = GetRef<Var>(var);
@@ -127,20 +130,18 @@ tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dt
 };
 
 void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
-                        DataType dtype, tvm::tir::Var data, Array<PrimExpr> strides,
+                        DataType dtype, Optional<tvm::tir::Var> data, Array<PrimExpr> strides,
                         PrimExpr elem_offset, String storage_scope, int align, int offset_factor,
                         String buffer_type_str, Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   for (auto const& p : frame->buffer_map) {
     if (p.second.same_as(postflattened_buffer)) {
-      if (data.same_as(NullValue<Var>())) {
-        data = frame->buffer_map.at(p.first)->data;
-      }
+      Var buffer_data = (data.defined()) ? data.value() : frame->buffer_map.at(p.first)->data;
       String buffer_name(postflattened_buffer->name + "_preflatten");
       BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-      Buffer buffer(data, dtype, shape, strides, elem_offset, buffer_name, align, offset_factor,
-                    buffer_type, axis_separators, span);
+      Buffer buffer(buffer_data, dtype, shape, strides, elem_offset, buffer_name, align,
+                    offset_factor, buffer_type, axis_separators, span);
       Namer::Name(buffer, buffer_name);
       frame->preflattened_buffer_map.Set(p.first, buffer);
       return;
