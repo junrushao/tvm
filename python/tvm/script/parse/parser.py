@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """The core parser"""
-import ast
 from typing import Any, Dict, List, Optional, Union
 
 from ..builder import def_
 from . import dispatch
+from . import doc as ast
 from .evaluator import eval_assign, eval_expr
 from .utils import deferred
 from .var_table import VarTable

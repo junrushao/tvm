@@ -16,5 +16,5 @@
 # under the Licens.
 """The parser"""
 from . import dispatch, doc, parser, tir
-from .doc_compat import from_doc, to_doc
+from .doc import NodeVisitor, from_doc, to_doc
 from .entry import parse
