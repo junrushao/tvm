@@ -97,12 +97,13 @@ def to_doc(node):
 
 def _register_default():
     class DefaultTranslator:
-        def __init__(self, name, func):
-            self.doc_cls = getattr(doc, name)
+        def __init__(self, doc_cls, func, fields):
+            self.doc_cls = doc_cls  # getattr(doc, name)
             self.func = func
+            self.fields = fields
 
         def __call__(self, node):
-            kv = {attr: getattr(node, attr) for attr in self.doc_cls._FIELDS}
+            kv = {attr: getattr(node, attr, None) for attr in self.fields}
             return self.doc_cls(**kv)
 
     Registry._inst = Registry()  # pylint: disable=protected-access
@@ -110,8 +111,12 @@ def _register_default():
         doc_cls = getattr(doc, cls_name)
         if inspect.isclass(doc_cls) and issubclass(doc_cls, doc.AST):
             assert "." not in cls_name
-            register_to_doc(cls_name)(DefaultTranslator(cls_name, to_doc))
-            register_from_doc(cls_name)(DefaultTranslator(cls_name, from_doc))
+            register_to_doc(cls_name)(
+                DefaultTranslator(getattr(doc, cls_name), to_doc, doc_cls._FIELDS)
+            )
+            register_from_doc(cls_name)(
+                DefaultTranslator(getattr(ast, cls_name), from_doc, doc_cls._FIELDS)
+            )
 
 
 _register_default()
