@@ -151,6 +151,9 @@ class NodeVisitor:
         if isinstance(node, (list, tuple)):
             for item in node:
                 self.visit(item)
+            return
+        if not isinstance(node, doc.AST):
+            return
         return getattr(
             self,
             "visit_" + node.__class__.__name__.split(".")[-1],
@@ -162,12 +165,34 @@ class NodeVisitor:
             value = getattr(node, field, None)
             if value is None:
                 pass
-            elif isinstance(value, doc.AST):
+            elif isinstance(value, (doc.AST, list, tuple)):
                 self.visit(value)
-            elif isinstance(value, (list, tuple)):
-                for item in value:
-                    if isinstance(item, doc.AST):
-                        self.visit(item)
+
+
+class NodeTransformer:
+    def visit(self, node: doc.AST) -> doc.AST:
+        if isinstance(node, list):
+            return [self.visit(item) for item in node]
+        if isinstance(node, tuple):
+            return tuple(self.visit(item) for item in node)
+        if not isinstance(node, doc.AST):
+            return node
+        return getattr(
+            self,
+            "visit_" + node.__class__.__name__.split(".")[-1],
+            self.generic_visit,
+        )(node)
+
+    def generic_visit(self, node: doc.AST) -> doc.AST:
+        kv: typing.Dict[str, typing.Any] = {}
+        for field in node.__class__._FIELDS:  # pylint: disable=protected-access
+            value = getattr(node, field, None)
+            if value is None:
+                pass
+            elif isinstance(value, (doc.AST, list, tuple)):
+                value = self.visit(value)
+            kv[field] = value
+        return node.__class__(**kv)
 
 
 _register_default()
