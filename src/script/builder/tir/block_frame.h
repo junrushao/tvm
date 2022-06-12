@@ -68,9 +68,22 @@ class BlockFrame : public TIRFrame {
 
 BlockFrame Block_(String name);
 
+void BlockWhere(PrimExpr predicate);
+void BlockReads(Array<tvm::tir::BufferRegion> buffer_slices);
+void BlockWrites(Array<tvm::tir::BufferRegion> buffer_slices);
+void BlockAttrs(Map<String, ObjectRef> attrs);
+tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                             Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
+                             PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                             int align = -1, int offset_factor = 0,
+                             String buffer_type_str = "default", Array<IntImm> axis_separators = {},
+                             Span span = Span());
+
 namespace axis {
 tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
 tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+tvm::tir::IterVar Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+tvm::tir::IterVar Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
 Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings,
                                DataType dtype = DataType::Int(32));
 }  // namespace axis

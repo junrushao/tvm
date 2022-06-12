@@ -31,7 +31,13 @@ tvm::tir::Buffer Buffer_(Array<PrimExpr> shape,                 //
                          String name = "buffer",                //
                          String storage_scope = "");
 
-}
+tvm::tir::Buffer DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                            Optional<tvm::tir::Var> data, Array<PrimExpr> strides,
+                            PrimExpr elem_offset, String storage_scope, int align,
+                            int offset_factor, String buffer_type_str,
+                            Array<IntImm> axis_separators, Span span);
+
+}  // namespace tir
 }  // namespace builder
 }  // namespace script
 }  // namespace tvm

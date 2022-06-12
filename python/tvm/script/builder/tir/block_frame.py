@@ -20,6 +20,9 @@ from tvm._ffi import register_object as _register_object
 from . import _ffi_api
 from .base import TIRFrame
 
+from typing import List, Dict, Any
+from tvm.tir.buffer import Buffer
+
 
 @_register_object("script.builder.tir.BlockFrame")
 class BlockFrame(TIRFrame):
@@ -28,3 +31,51 @@ class BlockFrame(TIRFrame):
 
 def block(name) -> BlockFrame:
     return _ffi_api.BlockFrame(name)  # pylint: disable=no-member # type: ignore
+
+
+def where(predicate) -> None:
+    _ffi_api.BlockWhere(predicate)  # pylint: disable=no-member # type: ignore
+
+
+def reads(buffer_slices) -> None:
+    if not isinstance(buffer_slices, List):
+        buffer_slices = [buffer_slices]
+    _ffi_api.BlockReads(buffer_slices)
+
+
+def writes(buffer_slices) -> None:
+    if not isinstance(buffer_slices, List):
+        buffer_slices = [buffer_slices]
+    _ffi_api.BlockWrites(buffer_slices)
+
+
+def block_attr(attrs: Dict[str, Any]) -> None:
+    return _ffi_api.BlockAttrs(attrs)  # pylint: disable=no-member # type: ignore
+
+
+def alloc_buffer(
+    shape,
+    dtype="float32",
+    data=None,
+    strides=[],
+    elem_offset=None,
+    storage_scope="",
+    align=-1,
+    offset_factor=0,
+    buffer_type="default",
+    axis_separators=None,
+    span=None,
+) -> Buffer:
+    return _ffi_api.AllocBuffer(
+        shape,
+        dtype,
+        data,
+        strides,
+        elem_offset,
+        storage_scope,
+        align,
+        offset_factor,
+        buffer_type,
+        axis_separators,
+        span,
+    )

@@ -34,6 +34,18 @@ def reduce(dom, binding, dtype="int32") -> IterVar:
     return _ffi_api.AxisReduce(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
 
 
+def scan(dom, binding, dtype="int32") -> IterVar:
+    if not isinstance(dom, Range):
+        dom = Range(0, dom)
+    return _ffi_api.AxisScan(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+
+
+def opaque(dom, binding, dtype="int32") -> IterVar:
+    if not isinstance(dom, Range):
+        dom = Range(0, dom)
+    return _ffi_api.AxisOpaque(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+
+
 def remap(kinds, bindings, dtype="int32") -> IterVar:
     return _ffi_api.AxisRemap(kinds, bindings, dtype)  # pylint: disable=no-member # type: ignore
 

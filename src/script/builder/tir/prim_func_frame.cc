@@ -22,6 +22,7 @@
 #include <tvm/tir/function.h>
 
 #include "./block_frame.h"
+#include "./var.h"
 
 namespace tvm {
 namespace script {
@@ -101,19 +102,8 @@ tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dt
                              int offset_factor, String buffer_type_str,
                              Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
-  Var buffer_data;
-  if (!data.defined()) {
-    DataType storage_dtype = dtype;
-    if (storage_dtype == DataType::Bool()) {
-      storage_dtype = DataType::Int(8);
-    }
-    buffer_data = Var("", PointerType(PrimType(storage_dtype), storage_scope), span);
-  } else {
-    buffer_data = data.value();
-  }
-  BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  Buffer buffer(buffer_data, dtype, shape, strides, elem_offset, "", align, offset_factor,
-                buffer_type, axis_separators, span);
+  Buffer buffer = DeclBuffer(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                             offset_factor, buffer_type_str, axis_separators, span);
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   if (const auto* var = param.as<VarNode>()) {
     Var v = GetRef<Var>(var);
@@ -142,11 +132,10 @@ void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> s
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
   for (auto const& p : frame->buffer_map) {
     if (p.second.same_as(postflattened_buffer)) {
-      Var buffer_data = (data.defined()) ? data.value() : frame->buffer_map.at(p.first)->data;
       String buffer_name(postflattened_buffer->name + "_preflatten");
-      BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-      Buffer buffer(buffer_data, dtype, shape, strides, elem_offset, buffer_name, align,
-                    offset_factor, buffer_type, axis_separators, span);
+      Buffer buffer =
+          DeclBuffer(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
+                     offset_factor, buffer_type_str, axis_separators, span);
       Namer::Name(buffer, buffer_name);
       frame->preflattened_buffer_map.Set(p.first, buffer);
       return;

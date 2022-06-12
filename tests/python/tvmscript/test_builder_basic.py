@@ -39,6 +39,7 @@ def test_builder_basic():
             with T.grid(128, 128, 128) as (i, j, k):
                 def_many(["i", "j", "k"], [i, j, k])
                 with T.block(name="block"):
+                    T.where(i > 1)
                     vi = def_("vi", T.axis.spatial(128, i))
                     vj = def_("vj", T.axis.spatial(128, j))
                     vk = def_("vk", T.axis.reduce(128, k))

@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 #include "./block_frame.h"
 
 #include <tvm/runtime/registry.h>
 
 #include "./for_frame.h"
+#include "./var.h"
 
 namespace tvm {
 namespace script {
@@ -57,6 +59,48 @@ void BlockFrameNode::ExitWithScope() {
                                  annotations)));
 }
 
+void BlockWhere(PrimExpr predicate) {
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  if (frame->predicate.defined()) {
+    LOG(FATAL) << "Duplicate block predicate declaration, previous one is "
+               << frame->predicate.value();
+  }
+  frame->predicate = predicate;
+}
+
+void BlockReads(Array<tvm::tir::BufferRegion> buffer_slices) {
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  if (frame->reads.size()) {
+    LOG(FATAL) << "Duplicate read region declaration, previous one is " << frame->reads;
+  }
+  frame->reads = buffer_slices;
+}
+
+void BlockWrites(Array<tvm::tir::BufferRegion> buffer_slices) {
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  if (frame->writes.size()) {
+    LOG(FATAL) << "Duplicate write region declaration, previous one is " << frame->writes;
+  }
+  frame->writes = buffer_slices;
+}
+
+void BlockAttrs(Map<String, ObjectRef> attrs) {
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  frame->annotations = attrs;
+}
+
+tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<tvm::tir::Var> data,
+                             Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope,
+                             int align, int offset_factor, String buffer_type_str,
+                             Array<IntImm> axis_separators, Span span) {
+  using namespace tvm::tir;
+  Buffer buffer = DeclBuffer(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                             offset_factor, buffer_type_str, axis_separators, span);
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  frame->alloc_buffers.push_back(buffer);
+  return buffer;
+};
+
 namespace axis {
 
 // TODO(@junrushao1994): figure out the Block syntax without BlockRealize
@@ -72,27 +116,20 @@ tvm::tir::IterVar PushBlockVar(tvm::tir::IterVar iter_var, PrimExpr binding) {
   return iter_var;
 }
 
-tvm::tir::IterVar Spatial(Range dom, PrimExpr binding, DataType dtype) {
-  using namespace tvm::tir;
-  ICHECK(dom.defined()) << "Spatial axis must have a domain";
-  int bits = std::max({dom->min.dtype().bits(), dom->extent.dtype().bits(), dtype.bits()});
-  return PushBlockVar(IterVar(/*dom=*/dom,                              //
-                              /*var=*/Var("_", dtype.with_bits(bits)),  //
-                              /*iter_type=*/IterVarType::kDataPar,      //
-                              /*thread_tag=*/""),
-                      binding);
-}
-
-tvm::tir::IterVar Reduce(Range dom, PrimExpr binding, DataType dtype) {
-  using namespace tvm::tir;
-  ICHECK(dom.defined()) << "Reduction axis must have a domain";
-  int bits = std::max({dom->min.dtype().bits(), dom->extent.dtype().bits(), dtype.bits()});
-  return PushBlockVar(IterVar(/*dom=*/dom,                              //
-                              /*var=*/Var("_", dtype.with_bits(bits)),  //
-                              /*iter_type=*/IterVarType::kCommReduce,   //
-                              /*thread_tag=*/""),
-                      binding);
-}
+#define TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE(Method, Kind, Name)                                \
+  tvm::tir::IterVar Method(Range dom, PrimExpr binding, DataType dtype) {                     \
+    using namespace tvm::tir;                                                                 \
+    ICHECK(dom.defined()) << Name << " axis must have a domain";                              \
+    int bits = std::max({dom->min.dtype().bits(), dom->extent.dtype().bits(), dtype.bits()}); \
+    return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/Var("_", dtype.with_bits(bits)),         \
+                                /*iter_type=*/Kind, /*thread_tag=*/""),                       \
+                        binding);                                                             \
+  }
+TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE(Spatial, IterVarType::kDataPar, "Spatial");
+TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE(Reduce, IterVarType::kCommReduce, "Reduction");
+TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE(Scan, IterVarType::kOrdered, "Scan");
+TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE(Opaque, IterVarType::kOpaque, "Opaque");
+#undef TVM_SCRIPT_BUILDER_TIR_AXIS_CREATE
 
 Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
   using namespace tvm::tir;
@@ -146,8 +183,13 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame").set_body_typed(Block_);
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockWhere").set_body_typed(BlockWhere);
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
+TVM_REGISTER_GLOBAL("script.builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
 TVM_REGISTER_GLOBAL("script.builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
 TVM_REGISTER_GLOBAL("script.builder.tir.AxisReduce").set_body_typed(axis::Reduce);
+TVM_REGISTER_GLOBAL("script.builder.tir.AxisScan").set_body_typed(axis::Scan);
+TVM_REGISTER_GLOBAL("script.builder.tir.AxisOpaque").set_body_typed(axis::Opaque);
 TVM_REGISTER_GLOBAL("script.builder.tir.AxisRemap").set_body_typed(axis::Remap);
 
 }  // namespace tir
