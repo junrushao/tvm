@@ -39,29 +39,30 @@ def test_builder_basic():
             B = def_("B", T.match_buffer(arg_b, (128, 128, 128), "int32"))
             T.preflattened_buffer(buffer_c, (128,), data=buffer_c.data)
             T.preflattened_buffer(buffer_d, (128,), data=buffer_d.data)
-            with T.grid(128, 128, 128) as (i, j, k):
-                def_many(["i", "j", "k"], [i, j, k])
-                with T.block(name="block"):
-                    T.block_attr({"axis": 1})
-                    T.where(i > 1)
-                    with T.init():
-                        pass
-                    vi = def_("vi", T.axis.spatial(128, i))
-                    vj = def_("vj", T.axis.spatial(128, j))
-                    vk = def_("vk", T.axis.reduce(128, k))
-                    T.reads(
-                        BufferRegion(
-                            A,
-                            [
-                                Range(vi, vi + 1),
-                                Range.from_min_extent(vj, 2),
-                                Range(1, 1 + BufferLoad(B, [1, 2, BufferLoad(A, [3, 4, 5])])),
-                            ],
+            with T.block(name="root"):
+                with T.grid(128, 128, 128) as (i, j, k):
+                    def_many(["i", "j", "k"], [i, j, k])
+                    with T.block(name="block"):
+                        T.block_attr({"axis": 1})
+                        T.where(i > 1)
+                        with T.init():
+                            pass
+                        vi = def_("vi", T.axis.spatial(128, i))
+                        vj = def_("vj", T.axis.spatial(128, j))
+                        vk = def_("vk", T.axis.reduce(128, k))
+                        T.reads(
+                            BufferRegion(
+                                A,
+                                [
+                                    Range(vi, vi + 1),
+                                    Range.from_min_extent(vj, 2),
+                                    Range(1, 1 + BufferLoad(B, [1, 2, BufferLoad(A, [3, 4, 5])])),
+                                ],
+                            )
                         )
-                    )
-                    T.writes([BufferLoad(A, [100, 101, 102])])
-                    E = def_("E", T.alloc_buffer((128, 128)))
-                    F = def_("F", T.alloc_buffer((128, 128)))
+                        T.writes([BufferLoad(A, [100, 101, 102])])
+                        E = def_("E", T.alloc_buffer((128, 128)))
+                        F = def_("F", T.alloc_buffer((128, 128)))
     print(b.get().script())
 
 

@@ -20,6 +20,7 @@
 #define TVM_SCRIPT_BUILDER_TIR_PRIM_FUNC_FRAME_H_
 
 #include "./base.h"
+#include "./block_frame.h"
 
 namespace tvm {
 namespace script {
@@ -34,6 +35,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
   Map<String, ObjectRef> attrs;
+  BlockFrame root_block_frame;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -43,12 +45,14 @@ class PrimFuncFrameNode : public TIRFrameNode {
     v->Visit("buffer_map", &buffer_map);
     v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
+    v->Visit("root_block_frame", &root_block_frame);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.PrimFuncFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
 
  public:
+  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 

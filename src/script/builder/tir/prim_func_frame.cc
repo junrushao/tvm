@@ -29,10 +29,27 @@ namespace script {
 namespace builder {
 namespace tir {
 
+void PrimFuncFrameNode::EnterWithScope() {
+  TIRFrameNode::EnterWithScope();
+  // add implicit root block
+  root_block_frame->EnterWithScope();
+}
+
 void PrimFuncFrameNode::ExitWithScope() {
   using namespace tvm::tir;
+  root_block_frame->ExitWithScope();
   TIRFrameNode::ExitWithScope();
   Builder builder = Builder::Current();
+  if (!(stmts.size() == 1 && stmts[0]->IsInstance<BlockRealizeNode>())) {
+    LOG(FATAL) << "ValueError: PrimFuncFrame shoulde have one and only one root block.";
+  }
+  BlockRealize root_block_realize = Downcast<BlockRealize>(stmts[0]);
+  Block root_block = root_block_realize->block;
+  // remove redundant implicit root block
+  if (root_block->alloc_buffers.empty() && root_block->body->IsInstance<BlockRealizeNode>()) {
+    stmts.clear();
+    stmts.push_back(root_block->body);
+  }
   PrimFunc func(/*params=*/args,
                 /*body=*/AsStmt(stmts),
                 /*ret_type=*/ret_type,
@@ -59,6 +76,7 @@ PrimFuncFrame PrimFunc_() {
   n->buffer_map.clear();
   n->preflattened_buffer_map.clear();
   n->attrs.clear();
+  n->root_block_frame = Block_("root");
   return PrimFuncFrame(n);
 }
 

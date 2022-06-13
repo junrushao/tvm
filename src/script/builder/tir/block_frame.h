@@ -63,6 +63,9 @@ class BlockFrameNode : public TIRFrameNode {
 
 class BlockFrame : public TIRFrame {
  public:
+  BlockFrame() = default;
+
+ public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
