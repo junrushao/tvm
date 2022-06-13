@@ -68,9 +68,34 @@ class BlockFrame : public TIRFrame {
 
 BlockFrame Block_(String name);
 
+class BlockInitFrameNode : public TIRFrameNode {
+ public:
+  Optional<tvm::tir::Stmt> init;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("init", &init);
+  }
+
+  static constexpr const char* _type_key = "script.builder.tir.BlockInitFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
+
+ public:
+  void EnterWithScope() final;
+  void ExitWithScope() final;
+};
+
+class BlockInitFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+};
+
+BlockInitFrame BlockInit();
+
+tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_load);
 void BlockWhere(PrimExpr predicate);
-void BlockReads(Array<tvm::tir::BufferRegion> buffer_slices);
-void BlockWrites(Array<tvm::tir::BufferRegion> buffer_slices);
+void BlockReads(Array<ObjectRef> buffer_slices);
+void BlockWrites(Array<ObjectRef> buffer_slices);
 void BlockAttrs(Map<String, ObjectRef> attrs);
 tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                              Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},

@@ -20,8 +20,8 @@ from tvm._ffi import register_object as _register_object
 from . import _ffi_api
 from .base import TIRFrame
 
-from typing import List, Dict, Any
-from tvm.tir.buffer import Buffer
+from typing import List, Dict, Any, Union
+from tvm.tir import Buffer, BufferLoad, BufferRegion
 
 
 @_register_object("script.builder.tir.BlockFrame")
@@ -29,21 +29,30 @@ class BlockFrame(TIRFrame):
     ...
 
 
+@_register_object("script.builder.tir.BlockInitFrame")
+class BlockInitFrame(TIRFrame):
+    ...
+
+
 def block(name) -> BlockFrame:
     return _ffi_api.BlockFrame(name)  # pylint: disable=no-member # type: ignore
+
+
+def init() -> BlockInitFrame:
+    return _ffi_api.BlockInitFrame()  # pylint: disable=no-member # type: ignore
 
 
 def where(predicate) -> None:
     _ffi_api.BlockWhere(predicate)  # pylint: disable=no-member # type: ignore
 
 
-def reads(buffer_slices) -> None:
+def reads(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     if not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices]
     _ffi_api.BlockReads(buffer_slices)
 
 
-def writes(buffer_slices) -> None:
+def writes(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     if not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices]
     _ffi_api.BlockWrites(buffer_slices)

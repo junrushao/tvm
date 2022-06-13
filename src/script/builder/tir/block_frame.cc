@@ -59,6 +59,39 @@ void BlockFrameNode::ExitWithScope() {
                                  annotations)));
 }
 
+BlockInitFrame BlockInit() {
+  ObjectPtr<BlockInitFrameNode> n = make_object<BlockInitFrameNode>();
+  n->init = NullOpt;
+  return BlockInitFrame(n);
+}
+
+void BlockInitFrameNode::EnterWithScope() {
+  Optional<BlockFrame> block_frame = Builder::Current()->FindFrame<BlockFrame>();
+  if (!block_frame.defined()) {
+    LOG(FATAL) << "No block for initialization";
+  }
+  Optional<BlockInitFrame> block_init_frame = Builder::Current()->FindFrame<BlockInitFrame>();
+  if (block_init_frame.defined() || block_frame.value()->init.defined()) {
+    LOG(FATAL) << "Duplicate block init declaration";
+  }
+  TIRFrameNode::EnterWithScope();
+}
+
+void BlockInitFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
+  frame->init = init.value_or(tvm::tir::Evaluate(0));
+}
+
+tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_load) {
+  using namespace tvm::tir;
+  Array<Range> ranges;
+  for (const PrimExpr& index : buffer_load->indices) {
+    ranges.push_back(Range::FromMinExtent(index, 1));
+  }
+  return BufferRegion(buffer_load->buffer, ranges);
+}
+
 void BlockWhere(PrimExpr predicate) {
   BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
   if (frame->predicate.defined()) {
@@ -68,20 +101,38 @@ void BlockWhere(PrimExpr predicate) {
   frame->predicate = predicate;
 }
 
-void BlockReads(Array<tvm::tir::BufferRegion> buffer_slices) {
+void BlockReads(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
   BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
   if (frame->reads.size()) {
     LOG(FATAL) << "Duplicate read region declaration, previous one is " << frame->reads;
   }
-  frame->reads = buffer_slices;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      frame->reads.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      frame->reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer reads.";
+    }
+  }
 }
 
-void BlockWrites(Array<tvm::tir::BufferRegion> buffer_slices) {
+void BlockWrites(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
   BlockFrame frame = Builder::Current()->FindFrame<BlockFrame>().value();
   if (frame->writes.size()) {
     LOG(FATAL) << "Duplicate write region declaration, previous one is " << frame->writes;
   }
-  frame->writes = buffer_slices;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      frame->writes.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      frame->writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer writes.";
+    }
+  }
 }
 
 void BlockAttrs(Map<String, ObjectRef> attrs) {
@@ -182,8 +233,12 @@ Array<tvm::tir::IterVar> Remap(String kinds, Array<PrimExpr> bindings, DataType 
 }  // namespace axis
 
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
+TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockFrame").set_body_typed(Block_);
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockInitFrame").set_body_typed(BlockInit);
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockWhere").set_body_typed(BlockWhere);
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockReads").set_body_typed(BlockReads);
+TVM_REGISTER_GLOBAL("script.builder.tir.BlockWrites").set_body_typed(BlockWrites);
 TVM_REGISTER_GLOBAL("script.builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
 TVM_REGISTER_GLOBAL("script.builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
