@@ -138,8 +138,31 @@ def test_builder_block():
     print(b.get().script())
 
 
+def test_builder_for():
+    with Builder() as b:
+        with T.prim_func():
+            with T.grid(128, 128, 128) as (i, j, k):
+                def_many(["i", "j", "k"], [i, j, k])
+            with T.serial(0, 128) as w:
+                w = def_("w", w)
+            with T.parallel(0, 128) as x:
+                x = def_("x", x)
+            with T.vectorized(0, 128) as y:
+                y = def_("y", y)
+            with T.unroll(0, 128) as z:
+                z = def_("z", z)
+            with T.thread_binding(0, 32, thread="blockIdx.x") as bx:
+                bx = def_("bx", bx)
+                with T.thread_binding(0, 2, thread="vthread.y") as vy:
+                    vy = def_("vy", vy)
+                    with T.thread_binding(0, 8, thread="threadIdx.z") as tz:
+                        tz = def_("tz", tz)
+    print(b.get().script())
+
+
 if __name__ == "__main__":
     test_builder_root_block()
     test_builder_axis()
     test_builder_prim_func()
     test_builder_block()
+    test_builder_for()
