@@ -43,19 +43,19 @@ def init() -> BlockInitFrame:
 
 
 def where(predicate) -> None:
-    _ffi_api.BlockWhere(predicate)  # pylint: disable=no-member # type: ignore
+    _ffi_api.Where(predicate)  # pylint: disable=no-member # type: ignore
 
 
 def reads(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     if not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices]
-    _ffi_api.BlockReads(buffer_slices)
+    _ffi_api.Reads(buffer_slices)
 
 
 def writes(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     if not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices]
-    _ffi_api.BlockWrites(buffer_slices)
+    _ffi_api.Writes(buffer_slices)
 
 
 def block_attr(attrs: Dict[str, Any]) -> None:

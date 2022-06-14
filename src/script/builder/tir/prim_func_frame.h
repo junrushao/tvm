@@ -29,13 +29,13 @@ namespace tir {
 
 class PrimFuncFrameNode : public TIRFrameNode {
  public:
-  String name;
+  Optional<String> name;
   Array<tvm::tir::Var> args;
-  Type ret_type;
+  Optional<Type> ret_type;
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
   Map<String, ObjectRef> attrs;
-  BlockFrame root_block_frame;
+  BlockFrame root_block_frame{nullptr};
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);

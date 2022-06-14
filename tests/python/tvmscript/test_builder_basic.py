@@ -45,6 +45,7 @@ def test_builder_root_block():
             with T.block(name="block1"):
                 pass
     print(b2.get().script())
+    # expilict root block
     with Builder() as b0_r:
         with T.prim_func():
             T.func_name("main")
@@ -52,7 +53,6 @@ def test_builder_root_block():
                 with T.block(name="block"):
                     pass
     print(b0_r.get().script())
-    # expilict root block
     with Builder() as b1_r:
         with T.prim_func():
             T.func_name("main")

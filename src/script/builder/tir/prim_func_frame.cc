@@ -46,13 +46,13 @@ void PrimFuncFrameNode::ExitWithScope() {
   BlockRealize root_block_realize = Downcast<BlockRealize>(stmts[0]);
   Block root_block = root_block_realize->block;
   // remove redundant implicit root block
-  if (root_block->alloc_buffers.empty() && root_block->body->IsInstance<BlockRealizeNode>()) {
-    stmts.clear();
-    stmts.push_back(root_block->body);
+  if (root_block->alloc_buffers.empty() && root_block->body->IsInstance<BlockRealizeNode>() &&
+      root_block->annotations.empty() && root_block->reads.empty() && root_block->writes.empty()) {
+    stmts.Set(0, root_block->body);
   }
   PrimFunc func(/*params=*/args,
                 /*body=*/AsStmt(stmts),
-                /*ret_type=*/ret_type,
+                /*ret_type=*/ret_type.value_or(TupleType::Empty()),
                 /*buffer_map=*/buffer_map,
                 /*preflattened_buffer_map=*/preflattened_buffer_map,
                 /*attrs=*/DictAttrs(attrs));
@@ -61,7 +61,7 @@ void PrimFuncFrameNode::ExitWithScope() {
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     IRModuleFrame frame = opt_frame.value();
-    frame->global_vars.push_back(GlobalVar(name));
+    frame->global_vars.push_back(GlobalVar(name.value_or("")));
     frame->functions.push_back(func);
   } else {
     LOG(FATAL) << "ValueError: Cannot find where to insert PrimFunc";
@@ -70,9 +70,9 @@ void PrimFuncFrameNode::ExitWithScope() {
 
 PrimFuncFrame PrimFunc_() {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
-  n->name = "";
+  n->name = NullOpt;
   n->args.clear();
-  n->ret_type = TupleType::Empty();
+  n->ret_type = NullOpt;
   n->buffer_map.clear();
   n->preflattened_buffer_map.clear();
   n->attrs.clear();
@@ -99,17 +99,26 @@ tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer) {
 
 void FuncName(String name) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
+  if (frame->name.defined()) {
+    LOG(FATAL) << "Duplicate prim func name, previous one is " << frame->name.value();
+  }
   frame->name = name;
 }
 
 void FuncAttrs(Map<String, ObjectRef> attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
+  if (!frame->attrs.empty()) {
+    LOG(FATAL) << "Duplicate prim func annotations, previous one is " << frame->attrs;
+  }
   frame->attrs = attrs;
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
   PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
+  if (frame->ret_type.defined()) {
+    LOG(FATAL) << "Duplicate prim func return type, previous one is " << frame->ret_type.value();
+  }
   frame->ret_type = ret_type;
   return ret_type;
 }
