@@ -34,8 +34,8 @@ class BlockInitFrame(TIRFrame):
     ...
 
 
-def block(name) -> BlockFrame:
-    return _ffi_api.BlockFrame(name)  # pylint: disable=no-member # type: ignore
+def block(name: str, no_realize: bool = False) -> BlockFrame:
+    return _ffi_api.BlockFrame(name, no_realize)  # pylint: disable=no-member # type: ignore
 
 
 def init() -> BlockInitFrame:

@@ -39,6 +39,7 @@ class BlockFrameNode : public TIRFrameNode {
 
   Array<PrimExpr> iter_values;
   Optional<PrimExpr> predicate;
+  bool no_realize;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -52,6 +53,7 @@ class BlockFrameNode : public TIRFrameNode {
     v->Visit("annotations", &annotations);
     v->Visit("iter_values", &iter_values);
     v->Visit("predicate", &predicate);
+    v->Visit("no_realize", &no_realize);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.BlockFrame";
@@ -69,7 +71,7 @@ class BlockFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
-BlockFrame Block_(String name);
+BlockFrame Block_(String name, bool no_realize = false);
 
 class BlockInitFrameNode : public TIRFrameNode {
  public:

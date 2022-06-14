@@ -29,7 +29,7 @@ namespace script {
 namespace builder {
 namespace tir {
 
-BlockFrame Block_(String name) {
+BlockFrame Block_(String name, bool no_realize) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
@@ -41,22 +41,20 @@ BlockFrame Block_(String name) {
   n->annotations.clear();
   n->iter_values.clear();
   n->predicate = NullOpt;
+  n->no_realize = no_realize;
   return BlockFrame(n);
 }
 
 void BlockFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(BlockRealize(iter_values,  //
-                           predicate.value_or(Bool(true)),
-                           Block(iter_vars,      //
-                                 reads, writes,  //
-                                 name,           //
-                                 AsStmt(stmts),  //
-                                 init,           //
-                                 alloc_buffers,  //
-                                 match_buffers,  //
-                                 annotations)));
+  Block block = Block(iter_vars, reads, writes, name, AsStmt(stmts), init, alloc_buffers,
+                      match_buffers, annotations);
+  if (no_realize) {
+    AddToParent(block);
+  } else {
+    AddToParent(BlockRealize(iter_values, predicate.value_or(Bool(true)), block));
+  }
 }
 
 BlockInitFrame BlockInit() {
