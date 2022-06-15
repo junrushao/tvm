@@ -23,16 +23,19 @@ from tvm.ir import Range
 
 
 def test_builder_root_block():
+    print("test_builder_root_block")
     # impilict root block
     with Builder() as b0:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
             with T.block(name="block"):
                 pass
     print(b0.get().script())
     with Builder() as b1:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
             A = def_("A", T.alloc_buffer((128,)))
             with T.block(name="block"):
                 pass
@@ -40,6 +43,8 @@ def test_builder_root_block():
     with Builder() as b2:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
+            A = def_("A", T.alloc_buffer((128,)))
             with T.block(name="block0"):
                 pass
             with T.block(name="block1"):
@@ -49,6 +54,7 @@ def test_builder_root_block():
     with Builder() as b0_r:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
             with T.block(name="root"):
                 with T.block(name="block"):
                     pass
@@ -56,6 +62,7 @@ def test_builder_root_block():
     with Builder() as b1_r:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
             with T.block(name="root"):
                 A = def_("A", T.alloc_buffer((128,)))
                 with T.block(name="block"):
@@ -64,7 +71,9 @@ def test_builder_root_block():
     with Builder() as b2_r:
         with T.prim_func():
             T.func_name("main")
+            T.func_attr({"key": "value"})
             with T.block(name="root"):
+                A = def_("A", T.alloc_buffer((128,)))
                 with T.block(name="block0"):
                     pass
                 with T.block(name="block1"):
@@ -73,6 +82,7 @@ def test_builder_root_block():
 
 
 def test_builder_axis():
+    print("test_builder_axis")
     with Builder() as b:
         with T.prim_func():
             T.func_name("main")
@@ -89,6 +99,7 @@ def test_builder_axis():
 
 
 def test_builder_prim_func():
+    print("test_builder_prim_func")
     with Builder() as b:
         with T.prim_func():
             T.func_name("main")
@@ -108,6 +119,7 @@ def test_builder_prim_func():
 
 
 def test_builder_block():
+    print("test_builder_block")
     with Builder() as b:
         with T.prim_func():
             arg_a = T.arg("a", T.handle())
@@ -139,6 +151,7 @@ def test_builder_block():
 
 
 def test_builder_for():
+    print("test_builder_for")
     with Builder() as b:
         with T.prim_func():
             with T.grid(128, 128, 128) as (i, j, k):
