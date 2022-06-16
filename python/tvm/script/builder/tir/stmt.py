@@ -14,30 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-"""Namespace for the TVMScript TIR Builder API."""
+"""TVM Script TIR For Frame"""
+from typing import List
 
-from . import axis
+from tvm._ffi import register_object as _register_object
+from tvm.tir import Var
+
+from . import _ffi_api
+from .. import _ffi_api as _base_ffi_api
 from .base import TIRFrame
-from .block_frame import block, where, reads, writes, alloc_buffer, block_attr, init
-from .for_frame import (
-    ForFrame,
-    grid,
-    parallel,
-    serial,
-    thread_binding,
-    unroll,
-    vectorized,
-)
-from .op import *
-from .prim_func_frame import (
-    arg,
-    func_attr,
-    func_name,
-    func_ret,
-    match_buffer,
-    preflattened_buffer,
-    prim_func,
-)
-from .var import Buffer
-from .stmt import Assert, Let
+
+
+@_register_object("script.builder.tir.AssertFrame")
+class AssertFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.LetFrame")
+class LetFrame(TIRFrame):
+    ...
+
+
+def Assert(condition, message) -> AssertFrame:
+    return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
+
+
+def Let(var, value) -> LetFrame:
+    return _ffi_api.LetFrame(var, value)  # pylint: disable=no-member # type: ignore
