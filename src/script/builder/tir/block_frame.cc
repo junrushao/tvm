@@ -52,8 +52,8 @@ void BlockFrameNode::ExitWithScope() {
   Block block = Block(iter_vars, reads, writes, name, AsStmt(stmts), init, alloc_buffers,
                       match_buffers, annotations);
   if (no_realize) {
-    CHECK(!iter_values.empty()) << "no_realize=False is not allowed for For body block";
-    CHECK(predicate.defined()) << "T.where is not allowed when no_realize=True";
+    CHECK(iter_values.empty()) << "ValueError: Block bindings are not allowed when `no_realize=True`";
+    CHECK(!predicate.defined()) << "ValueError: `T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
     AddToParent(BlockRealize(iter_values, predicate.value_or(Bool(true)), block));
