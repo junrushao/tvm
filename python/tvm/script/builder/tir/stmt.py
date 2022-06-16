@@ -35,9 +35,51 @@ class LetFrame(TIRFrame):
     ...
 
 
+@_register_object("script.builder.tir.AllocateFrame")
+class AllocateFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.AllocateConstFrame")
+class AllocateConstFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.RealizeFrame")
+class RealizeFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.AttrFrame")
+class AttrFrame(TIRFrame):
+    ...
+
+
 def Assert(condition, message) -> AssertFrame:
     return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
 
 
-def Let(var, value) -> LetFrame:
+def let(var, value) -> LetFrame:
     return _ffi_api.LetFrame(var, value)  # pylint: disable=no-member # type: ignore
+
+
+def allocate(extents, dtype, storage_scope_str="", condition=True, annotations={}) -> AllocateFrame:
+    return _ffi_api.AllocateFrame(
+        extents, dtype, storage_scope_str, condition, annotations
+    )  # pylint: disable=no-member # type: ignore
+
+
+def allocate_const(data_or_idx, dtype, extents) -> AllocateConstFrame:
+    return _ffi_api.AllocateConstFrame(
+        data_or_idx, dtype, extents
+    )  # pylint: disable=no-member # type: ignore
+
+
+def realize(buffer_slice, storage_scope_str, condition) -> RealizeFrame:
+    return _ffi_api.RealizeFrame(
+        buffer_slice, storage_scope_str, condition
+    )  # pylint: disable=no-member # type: ignore
+
+
+def attr(node, attr_key, value) -> AttrFrame:
+    return _ffi_api.AttrFrame(node, attr_key, value)  # pylint: disable=no-member # type: ignore

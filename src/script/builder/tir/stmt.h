@@ -190,9 +190,8 @@ class AttrFrame : public TIRFrame {
 
 AssertFrame Assert(PrimExpr condition, PrimExpr message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);
-AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype,
-                        String storage_scope_str = "default", PrimExpr condition = true,
-                        Map<String, ObjectRef> annotations = {});
+AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str = "",
+                        PrimExpr condition = true, Map<String, ObjectRef> annotations = {});
 AllocateConstFrame AllocateConst_(ObjectRef data_or_idx, DataType dtype, Array<PrimExpr> extents);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
                      PrimExpr condition);

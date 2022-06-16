@@ -57,7 +57,7 @@ void RealizeFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
   AddToParent(AttrStmt(
-      buffer_slice->buffer, "realize_scope", PrimExpr(),
+      buffer_slice->buffer, "realize_scope", StringImm(storage_scope_str),
       BufferRealize(buffer_slice->buffer, buffer_slice->region, condition, AsStmt(stmts))));
 }
 
