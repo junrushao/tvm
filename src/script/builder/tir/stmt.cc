@@ -19,6 +19,7 @@
 #include "./stmt.h"
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/op.h>
 
 #include "./var.h"
 
@@ -50,7 +51,7 @@ void AllocateFrameNode::ExitWithScope() {
 void AllocateConstFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(AllocateConst(buffer->data, dtype, extents, data_or_idx, AsStmt(stmts)));
+  AddToParent(AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
 }
 
 void RealizeFrameNode::ExitWithScope() {
@@ -67,10 +68,10 @@ void AttrFrameNode::ExitWithScope() {
   AddToParent(AttrStmt(node, attr_key, value, AsStmt(stmts)));
 }
 
-AssertFrame Assert(PrimExpr condition, PrimExpr message) {
+AssertFrame Assert(PrimExpr condition, String message) {
   ObjectPtr<AssertFrameNode> n = make_object<AssertFrameNode>();
   n->condition = condition;
-  n->message = message;
+  n->message = tvm::tir::StringImm(message);
   return AssertFrame(n);
 }
 
@@ -87,18 +88,19 @@ AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_
   n->extents = extents;
   n->dtype = dtype;
   n->storage_scope_str = storage_scope_str;
-  n->condition = condition;
+  n->condition = condition->dtype.is_bool() ? condition : tvm::cast(DataType::Bool(), condition);
   n->annotations = annotations;
   n->buffer = DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope_str, 0, 0,
                          "default", {}, Span());
   return AllocateFrame(n);
 }
 
-AllocateConstFrame AllocateConst_(ObjectRef data_or_idx, DataType dtype, Array<PrimExpr> extents) {
+AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
+                                  Array<PrimExpr> extents) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
-  n->data_or_idx = data_or_idx;
+  n->data = data;
   n->buffer =
       DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), "", 0, 0, "default", {}, Span());
   return AllocateConstFrame(n);

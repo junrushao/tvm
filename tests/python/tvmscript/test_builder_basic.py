@@ -173,9 +173,33 @@ def test_builder_for():
     print(b.get().script())
 
 
+def test_builder_with():
+    print("test_builder_with")
+    with Builder() as b:
+        with T.prim_func():
+            x = def_("x", tvm.tir.Var("", tvm.ir.PrimType("int32")))
+            y = def_("y", tvm.tir.Var("", tvm.ir.PrimType("int32")))
+            buf = def_("buf", tvm.tir.decl_buffer([128, 128]))
+            with T.Assert(x < y, ""):
+                with T.Assert(1, "true"):
+                    pass
+            with T.let(x, y):
+                pass
+            with T.allocate([128], "uint8", "global", 1, {}) as z:
+                z = def_("z", z)
+            with T.allocate_const([1, 1, 1, 1, 1], "int32", [5]) as t:
+                t = def_("t", t)
+            with T.realize(BufferRegion(buf, [Range(0, x), Range(0, y)]), ""):
+                pass
+            with T.attr(buf, "key", tvm.tir.StringImm("value")):
+                pass
+    print(b.get().script())
+
+
 if __name__ == "__main__":
-    test_builder_root_block()
-    test_builder_axis()
-    test_builder_prim_func()
-    test_builder_block()
-    test_builder_for()
+    # test_builder_root_block()
+    # test_builder_axis()
+    # test_builder_prim_func()
+    # test_builder_block()
+    # test_builder_for()
+    test_builder_with()

@@ -107,13 +107,13 @@ class AllocateConstFrameNode : public TIRFrameNode {
  public:
   DataType dtype;
   Array<PrimExpr> extents;
-  ObjectRef data_or_idx;
+  tvm::runtime::NDArray data;
   tvm::tir::Buffer buffer;
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
-    v->Visit("data_or_idx", &data_or_idx);
+    v->Visit("data", &data);
     v->Visit("buffer", &buffer);
   }
 
@@ -188,11 +188,12 @@ class AttrFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
-AssertFrame Assert(PrimExpr condition, PrimExpr message);
+AssertFrame Assert(PrimExpr condition, String message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);
 AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str = "",
                         PrimExpr condition = true, Map<String, ObjectRef> annotations = {});
-AllocateConstFrame AllocateConst_(ObjectRef data_or_idx, DataType dtype, Array<PrimExpr> extents);
+AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
+                                  Array<PrimExpr> extents);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
                      PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);

@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script TIR For Frame"""
+import numpy as np
 from typing import List
 
 from tvm._ffi import register_object as _register_object
-from tvm.tir import Var
+from tvm.tir import Buffer
+from tvm.runtime import ndarray as nd
 
 from . import _ffi_api
 from .. import _ffi_api as _base_ffi_api
@@ -37,12 +39,16 @@ class LetFrame(TIRFrame):
 
 @_register_object("script.builder.tir.AllocateFrame")
 class AllocateFrame(TIRFrame):
-    ...
+    def __enter__(self) -> Buffer:
+        _base_ffi_api.FrameEnter(self)  # pylint: disable=no-member # type: ignore
+        return self.buffer
 
 
 @_register_object("script.builder.tir.AllocateConstFrame")
 class AllocateConstFrame(TIRFrame):
-    ...
+    def __enter__(self) -> Buffer:
+        _base_ffi_api.FrameEnter(self)  # pylint: disable=no-member # type: ignore
+        return self.buffer
 
 
 @_register_object("script.builder.tir.RealizeFrame")
@@ -69,13 +75,13 @@ def allocate(extents, dtype, storage_scope_str="", condition=True, annotations={
     )  # pylint: disable=no-member # type: ignore
 
 
-def allocate_const(data_or_idx, dtype, extents) -> AllocateConstFrame:
+def allocate_const(data, dtype, extents) -> AllocateConstFrame:
     return _ffi_api.AllocateConstFrame(
-        data_or_idx, dtype, extents
+        nd.array(np.asarray(data, dtype)), dtype, extents
     )  # pylint: disable=no-member # type: ignore
 
 
-def realize(buffer_slice, storage_scope_str, condition) -> RealizeFrame:
+def realize(buffer_slice, storage_scope_str, condition=True) -> RealizeFrame:
     return _ffi_api.RealizeFrame(
         buffer_slice, storage_scope_str, condition
     )  # pylint: disable=no-member # type: ignore
