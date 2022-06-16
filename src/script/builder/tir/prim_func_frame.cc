@@ -80,12 +80,24 @@ PrimFuncFrame PrimFunc_() {
   return PrimFuncFrame(n);
 }
 
-tvm::tir::Var Arg(String name, tvm::tir::Var var) {
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Var arg should be declared before root block";
+PrimFuncFrame FindPrimFuncFrame(const String& method) {
+  Builder builder = Builder::Current();
+  if (Optional<PrimFuncFrame> prim_func_frame = builder->FindFrame<PrimFuncFrame>()) {
+    if (Optional<BlockFrame> block_frame = builder->GetLastFrame<BlockFrame>()) {
+      if (prim_func_frame.value()->root_block_frame.get() == block_frame.get()) {
+        return prim_func_frame.value();
+      }
+    }
+  } else {
+    LOG(FATAL) << "ValueError: PrimFunc frame not find. Please ensure '" << method
+               << "' is called under T.prim_func()";
   }
+  LOG(FATAL) << "ValueError: '" << method << "' must be called immediately under T.prim_func()";
+  throw;
+}
+
+tvm::tir::Var Arg(String name, tvm::tir::Var var) {
+  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   Namer::Name(var, name);
   frame->args.push_back(var);
   return var;
@@ -93,11 +105,7 @@ tvm::tir::Var Arg(String name, tvm::tir::Var var) {
 
 tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer) {
   using namespace tvm::tir;
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Buffer arg should be declared before root block";
-  }
+  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   Namer::Name(buffer, name);
   Var handle(buffer->name + "_handle", DataType::Handle());
   frame->args.push_back(handle);
@@ -106,11 +114,7 @@ tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer) {
 }
 
 void FuncName(String name) {
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Prim func name should be declared before root block";
-  }
+  PrimFuncFrame frame = FindPrimFuncFrame("T.func_name");
   if (frame->name.defined()) {
     LOG(FATAL) << "Duplicate prim func name, previous one is " << frame->name.value();
   }
@@ -119,11 +123,7 @@ void FuncName(String name) {
 
 void FuncAttrs(Map<String, ObjectRef> attrs) {
   using namespace tvm::tir;
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Prim func annotations should be declared before root block";
-  }
+  PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   if (!frame->attrs.empty()) {
     LOG(FATAL) << "Duplicate prim func annotations, previous one is " << frame->attrs;
   }
@@ -131,11 +131,7 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Prim func return type should be declared before root block";
-  }
+  PrimFuncFrame frame = FindPrimFuncFrame("T.ret_type");
   if (frame->ret_type.defined()) {
     LOG(FATAL) << "Duplicate prim func return type, previous one is " << frame->ret_type.value();
   }
@@ -152,11 +148,7 @@ tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dt
   Buffer buffer = DeclBuffer(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators, span);
   if (const auto* var = param.as<VarNode>()) {
-    PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-    Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-    if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-      LOG(FATAL) << "Prim func match buffer should be declared before root block";
-    }
+    PrimFuncFrame frame = FindPrimFuncFrame("T.match_buffer");
     Var v = GetRef<Var>(var);
     for (auto const& arg : frame->args) {
       if (arg.same_as(v)) {
@@ -166,12 +158,8 @@ tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dt
     }
     LOG(FATAL) << "ValueError: Can not bind non-input param to buffer.";
   } else if (const auto* buffer_region = param.as<BufferRegionNode>()) {
-    Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-    if (!res.defined()) {
-      LOG(FATAL) << "No block for match buffer";
-    }
-    res.value()->match_buffers.push_back(
-        MatchBufferRegion(buffer, GetRef<BufferRegion>(buffer_region)));
+    BlockFrame frame = FindBlockFrame("T.match_buffer");
+    frame->match_buffers.push_back(MatchBufferRegion(buffer, GetRef<BufferRegion>(buffer_region)));
   } else {
     LOG(FATAL) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
@@ -183,11 +171,7 @@ void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> s
                         PrimExpr elem_offset, String storage_scope, int align, int offset_factor,
                         String buffer_type_str, Array<IntImm> axis_separators, Span span) {
   using namespace tvm::tir;
-  PrimFuncFrame frame = Builder::Current()->FindFrame<PrimFuncFrame>().value();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!(res.defined() && frame->root_block_frame.same_as(res.value()))) {
-    LOG(FATAL) << "Prim func preflattened buffer should be declared before root block";
-  }
+  PrimFuncFrame frame = FindPrimFuncFrame("T.preflattened_buffer");
   for (auto const& p : frame->buffer_map) {
     if (p.second.same_as(postflattened_buffer)) {
       String buffer_name(postflattened_buffer->name + "_preflatten");

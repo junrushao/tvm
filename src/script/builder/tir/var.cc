@@ -44,9 +44,8 @@ tvm::tir::Buffer DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer
     buffer_data = data.value();
   }
   BufferType buffer_type = (buffer_type_str == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  Buffer buffer(buffer_data, dtype, shape, strides, elem_offset, buffer_name, align, offset_factor,
+  return Buffer(buffer_data, dtype, shape, strides, elem_offset, buffer_name, align, offset_factor,
                 buffer_type, axis_separators, span);
-  return buffer;
 }
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)

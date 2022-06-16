@@ -64,11 +64,8 @@ BlockInitFrame Init() {
 }
 
 void BlockInitFrameNode::EnterWithScope() {
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for initialization";
-  }
-  if (res.value()->init.defined()) {
+  BlockFrame frame = FindBlockFrame("T.init");
+  if (frame->init.defined()) {
     LOG(FATAL) << "Duplicate block init declaration";
   }
   TIRFrameNode::EnterWithScope();
@@ -76,19 +73,22 @@ void BlockInitFrameNode::EnterWithScope() {
 
 void BlockInitFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for initialization";
+  BlockFrame frame = FindBlockFrame("T.init");
+  frame->init = AsStmt(stmts);
+}
+
+BlockFrame FindBlockFrame(const String& method) {
+  if (Optional<BlockFrame> block_frame = Builder::Current()->GetLastFrame<BlockFrame>()) {
+    return block_frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
+               << "' is called under T.block()";
   }
-  res.value()->init = AsStmt(stmts);
+  throw;
 }
 
 void Where(PrimExpr predicate) {
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>().value();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for where stmt";
-  }
-  BlockFrame frame = res.value();
+  BlockFrame frame = FindBlockFrame("T.where");
   if (frame->predicate.defined()) {
     LOG(FATAL) << "Duplicate block predicate declaration, previous one is "
                << frame->predicate.value();
@@ -98,11 +98,7 @@ void Where(PrimExpr predicate) {
 
 void Reads(Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>().value();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for reads stmt";
-  }
-  BlockFrame frame = res.value();
+  BlockFrame frame = FindBlockFrame("T.reads");
   if (!frame->reads.empty()) {
     LOG(FATAL) << "Duplicate read region declaration, previous one is " << frame->reads;
   }
@@ -119,11 +115,7 @@ void Reads(Array<ObjectRef> buffer_slices) {
 
 void Writes(Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>().value();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for writes stmt";
-  }
-  BlockFrame frame = res.value();
+  BlockFrame frame = FindBlockFrame("T.writes");
   if (!frame->writes.empty()) {
     LOG(FATAL) << "Duplicate write region declaration, previous one is " << frame->writes;
   }
@@ -139,11 +131,7 @@ void Writes(Array<ObjectRef> buffer_slices) {
 }
 
 void BlockAttrs(Map<String, ObjectRef> attrs) {
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>().value();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for annotations";
-  }
-  BlockFrame frame = res.value();
+  BlockFrame frame = FindBlockFrame("T.block_attr");
   if (!frame->annotations.empty()) {
     LOG(FATAL) << "Duplicate block annotations, previous one is " << frame->annotations;
   }
@@ -157,11 +145,8 @@ tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<tvm
   using namespace tvm::tir;
   Buffer buffer = DeclBuffer(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators, span);
-  Optional<BlockFrame> res = Builder::Current()->GetLastFrame<BlockFrame>().value();
-  if (!res.defined()) {
-    LOG(FATAL) << "No block for alloc buffer stmt";
-  }
-  res.value()->alloc_buffers.push_back(buffer);
+  BlockFrame frame = FindBlockFrame("T.alloc_buffer");
+  frame->alloc_buffers.push_back(buffer);
   return buffer;
 };
 

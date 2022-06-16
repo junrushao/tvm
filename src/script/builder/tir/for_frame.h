@@ -60,15 +60,15 @@ class ForFrame : public TIRFrame {
 };
 
 ForFrame Serial(PrimExpr start, PrimExpr stop,
-                Map<String, ObjectRef> annotations = Map<String, ObjectRef>());
+                Optional<Map<String, ObjectRef>> annotations = NullOpt);
 ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  Map<String, ObjectRef> annotations = Map<String, ObjectRef>());
+                  Optional<Map<String, ObjectRef>> annotations = NullOpt);
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    Map<String, ObjectRef> annotations = Map<String, ObjectRef>());
+                    Optional<Map<String, ObjectRef>> annotations = NullOpt);
 ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                Map<String, ObjectRef> annotations = Map<String, ObjectRef>());
+                Optional<Map<String, ObjectRef>> annotations = NullOpt);
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Map<String, ObjectRef> annotations = Map<String, ObjectRef>());
+                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
 ForFrame Grid(Array<PrimExpr> extents);
 
 }  // namespace tir

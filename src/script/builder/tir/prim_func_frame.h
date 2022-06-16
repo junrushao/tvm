@@ -62,6 +62,7 @@ class PrimFuncFrame : public TIRFrame {
 };
 
 PrimFuncFrame PrimFunc_();
+PrimFuncFrame FindPrimFuncFrame(const String& method);
 tvm::tir::Var Arg(String name, tvm::tir::Var var);
 tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer);
 void FuncName(String name);

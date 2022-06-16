@@ -88,7 +88,7 @@ class BlockInitFrame : public TIRFrame {
 };
 
 BlockInitFrame Init();
-
+BlockFrame FindBlockFrame(const String& method);
 void Where(PrimExpr predicate);
 void Reads(Array<ObjectRef> buffer_slices);
 void Writes(Array<ObjectRef> buffer_slices);
