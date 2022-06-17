@@ -205,6 +205,9 @@ def test_builder_with():
             with T.launch_thread(thread_x, 4):
                 with T.launch_thread(thread_y, 4):
                     pass
+            with T.while_(var_x < var_y):
+                with T.while_(var_x > 0):
+                    pass
     print(b.get().script())
 
 

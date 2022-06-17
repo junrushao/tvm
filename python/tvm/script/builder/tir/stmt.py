@@ -67,6 +67,11 @@ class AttrFrame(TIRFrame):
     ...
 
 
+@_register_object("script.builder.tir.WhileFrame")
+class WhileFrame(TIRFrame):
+    ...
+
+
 def Assert(condition: PrimExpr, message: str) -> AssertFrame:
     return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
 
@@ -107,6 +112,10 @@ def realize(
 
 def attr(node: Object, attr_key: str, value: PrimExpr) -> AttrFrame:
     return _ffi_api.AttrFrame(node, attr_key, value)  # pylint: disable=no-member # type: ignore
+
+
+def while_(condition: PrimExpr) -> WhileFrame:
+    return _ffi_api.WhileFrame(condition)  # pylint: disable=no-member # type: ignore
 
 
 def env_thread(thread_tag: str) -> IterVar:

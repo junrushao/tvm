@@ -30,15 +30,13 @@ namespace builder {
 namespace tir {
 
 void AssertFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(AssertStmt(condition, message, AsStmt(stmts)));
+  AddToParent(tvm::tir::AssertStmt(condition, message, AsStmt(stmts)));
 }
 
 void LetFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(LetStmt(var, value, AsStmt(stmts)));
+  AddToParent(tvm::tir::LetStmt(var, value, AsStmt(stmts)));
 }
 
 void AllocateFrameNode::ExitWithScope() {
@@ -50,15 +48,13 @@ void AllocateFrameNode::ExitWithScope() {
 }
 
 void AllocateConstFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
+  AddToParent(tvm::tir::AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
 }
 
 void LaunchThreadFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(AttrStmt(env_var, attr_key, extent, AsStmt(stmts)));
+  AddToParent(tvm::tir::AttrStmt(env_var, attr_key, extent, AsStmt(stmts)));
 }
 
 void RealizeFrameNode::ExitWithScope() {
@@ -70,9 +66,13 @@ void RealizeFrameNode::ExitWithScope() {
 }
 
 void AttrFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  AddToParent(AttrStmt(node, attr_key, value, AsStmt(stmts)));
+  AddToParent(tvm::tir::AttrStmt(node, attr_key, value, AsStmt(stmts)));
+}
+
+void WhileFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  AddToParent(tvm::tir::While(condition, AsStmt(stmts)));
 }
 
 AssertFrame Assert(PrimExpr condition, String message) {
@@ -139,6 +139,12 @@ AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
   return AttrFrame(n);
 }
 
+WhileFrame While_(PrimExpr condition) {
+  ObjectPtr<WhileFrameNode> n = make_object<WhileFrameNode>();
+  n->condition = condition;
+  return WhileFrame(n);
+}
+
 tvm::tir::IterVar EnvThread(String thread_tag) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.env_thread");
@@ -152,12 +158,14 @@ TVM_REGISTER_NODE_TYPE(AllocateConstFrameNode);
 TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
 TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
 TVM_REGISTER_NODE_TYPE(AttrFrameNode);
+TVM_REGISTER_NODE_TYPE(WhileFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.AssertFrame").set_body_typed(Assert);
 TVM_REGISTER_GLOBAL("script.builder.tir.LetFrame").set_body_typed(Let);
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate_);
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(AllocateConst_);
 TVM_REGISTER_GLOBAL("script.builder.tir.RealizeFrame").set_body_typed(Realize);
 TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
+TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While_);
 TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
 

@@ -161,7 +161,12 @@ class RealizeFrameNode : public TIRFrameNode {
   String storage_scope_str;
   PrimExpr condition;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("buffer_slice", &buffer_slice);
+    v->Visit("storage_scope_str", &storage_scope_str);
+    v->Visit("condition", &condition);
+  }
 
   static constexpr const char* _type_key = "script.builder.tir.RealizeFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
@@ -180,7 +185,12 @@ class AttrFrameNode : public TIRFrameNode {
   ObjectRef node;
   String attr_key;
   PrimExpr value;
-  void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("node", &node);
+    v->Visit("attr_key", &attr_key);
+    v->Visit("value", &value);
+  }
 
   static constexpr const char* _type_key = "script.builder.tir.AttrFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFrameNode, TIRFrameNode);
@@ -192,6 +202,27 @@ class AttrFrameNode : public TIRFrameNode {
 class AttrFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
+};
+
+class WhileFrameNode : public TIRFrameNode {
+ public:
+  PrimExpr condition;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("condition", &condition);
+  }
+
+  static constexpr const char* _type_key = "script.builder.tir.WhileFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(WhileFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class WhileFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
 tvm::tir::IterVar EnvThread(String thread_tag);
@@ -207,6 +238,7 @@ LaunchThreadFrame LaunchThread(tvm::tir::IterVar env_var, PrimExpr extent);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
                      PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
+WhileFrame While_(PrimExpr condition);
 }  // namespace tir
 }  // namespace builder
 }  // namespace script
