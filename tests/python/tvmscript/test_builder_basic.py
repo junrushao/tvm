@@ -177,29 +177,41 @@ def test_builder_with():
     print("test_builder_with")
     with Builder() as b:
         with T.prim_func():
-            x = def_("x", tvm.tir.Var("", tvm.ir.PrimType("int32")))
-            y = def_("y", tvm.tir.Var("", tvm.ir.PrimType("int32")))
-            buf = def_("buf", tvm.tir.decl_buffer([128, 128]))
-            with T.Assert(x < y, ""):
+            thread_x = def_("thread_x", T.env_thread("threadIdx.x"))
+            thread_y = def_("thread_y", T.env_thread("threadIdx.y"))
+            buffer_x = def_("buffer_x", tvm.tir.decl_buffer([128, 128]))
+            buffer_y = def_("buffer_y", tvm.tir.decl_buffer([128, 128]))
+            var_x = def_("var_x", tvm.tir.Var("", tvm.ir.PrimType("int32")))
+            var_y = def_("var_y", tvm.tir.Var("", tvm.ir.PrimType("int32")))
+            with T.Assert(var_x < var_y, ""):
                 with T.Assert(1, "true"):
                     pass
-            with T.let(x, y):
+            with T.let(var_x, var_y):
                 pass
-            with T.allocate([128], "uint8", "global", 1, {}) as z:
-                z = def_("z", z)
-            with T.allocate_const([1, 1, 1, 1, 1], "int32", [5]) as t:
-                t = def_("t", t)
-            with T.realize(BufferRegion(buf, [Range(0, x), Range(0, y)]), ""):
-                pass
-            with T.attr(buf, "key", tvm.tir.StringImm("value")):
-                pass
+            with T.allocate([128], "uint8", "global") as alloc_x:
+                with T.allocate([128], "uint8", "global") as alloc_y:
+                    alloc_x, alloc_y = def_many(["alloc_x", "alloc_y"], [alloc_x, alloc_y])
+            with T.allocate_const([1, 1, 1, 1, 1], "int32", [5]) as alloc_const_x:
+                with T.allocate_const([10, 10, 10], "float32", [3]) as alloc_const_y:
+                    alloc_const_x, alloc_const_y = def_many(
+                        ["alloc_const_x", "alloc_const_y"], [alloc_const_x, alloc_const_y]
+                    )
+            with T.realize(BufferRegion(buffer_x, [Range(0, var_x), Range(0, var_y)]), ""):
+                with T.realize(BufferRegion(buffer_y, [Range(var_x, 128), Range(var_y, 128)]), ""):
+                    pass
+            with T.attr(buffer_x, "key_x", tvm.tir.StringImm("value_x")):
+                with T.attr(buffer_y, "key_y", tvm.tir.StringImm("value_y")):
+                    pass
+            with T.launch_thread(thread_x, 4):
+                with T.launch_thread(thread_y, 4):
+                    pass
     print(b.get().script())
 
 
 if __name__ == "__main__":
-    # test_builder_root_block()
-    # test_builder_axis()
-    # test_builder_prim_func()
-    # test_builder_block()
-    # test_builder_for()
+    test_builder_root_block()
+    test_builder_axis()
+    test_builder_prim_func()
+    test_builder_block()
+    test_builder_for()
     test_builder_with()

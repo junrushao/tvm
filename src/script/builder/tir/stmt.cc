@@ -21,6 +21,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 
+#include "./prim_func_frame.h"
 #include "./var.h"
 
 namespace tvm {
@@ -54,6 +55,12 @@ void AllocateConstFrameNode::ExitWithScope() {
   AddToParent(AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
 }
 
+void LaunchThreadFrameNode::ExitWithScope() {
+  using namespace tvm::tir;
+  TIRFrameNode::ExitWithScope();
+  AddToParent(AttrStmt(env_var, attr_key, extent, AsStmt(stmts)));
+}
+
 void RealizeFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
@@ -83,13 +90,13 @@ LetFrame Let(tvm::tir::Var var, PrimExpr value) {
 }
 
 AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str,
-                        PrimExpr condition, Map<String, ObjectRef> annotations) {
+                        PrimExpr condition, Optional<Map<String, ObjectRef>> annotations) {
   ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
   n->extents = extents;
   n->dtype = dtype;
   n->storage_scope_str = storage_scope_str;
   n->condition = condition->dtype.is_bool() ? condition : tvm::cast(DataType::Bool(), condition);
-  n->annotations = annotations;
+  n->annotations = annotations.value_or(Map<String, ObjectRef>());
   n->buffer = DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope_str, 0, 0,
                          "default", {}, Span());
   return AllocateFrame(n);
@@ -104,6 +111,15 @@ AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
   n->buffer =
       DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), "", 0, 0, "default", {}, Span());
   return AllocateConstFrame(n);
+}
+
+LaunchThreadFrame LaunchThread(tvm::tir::IterVar env_var, PrimExpr extent) {
+  ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
+  n->env_var =
+      tvm::tir::IterVar(Range(0, extent), env_var->var, env_var->iter_type, env_var->thread_tag);
+  n->extent = extent;
+  n->attr_key = env_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  return LaunchThreadFrame(n);
 }
 
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
@@ -123,10 +139,17 @@ AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
   return AttrFrame(n);
 }
 
+tvm::tir::IterVar EnvThread(String thread_tag) {
+  using namespace tvm::tir;
+  PrimFuncFrame frame = FindPrimFuncFrame("T.env_thread");
+  return IterVar(Range(0, 0), Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
+}
+
 TVM_REGISTER_NODE_TYPE(AssertFrameNode);
 TVM_REGISTER_NODE_TYPE(LetFrameNode);
 TVM_REGISTER_NODE_TYPE(AllocateFrameNode);
 TVM_REGISTER_NODE_TYPE(AllocateConstFrameNode);
+TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
 TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
 TVM_REGISTER_NODE_TYPE(AttrFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.AssertFrame").set_body_typed(Assert);
@@ -135,6 +158,8 @@ TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate_
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(AllocateConst_);
 TVM_REGISTER_GLOBAL("script.builder.tir.RealizeFrame").set_body_typed(Realize);
 TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
+TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
+TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
 
 }  // namespace tir
 }  // namespace builder

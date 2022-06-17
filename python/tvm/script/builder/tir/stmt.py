@@ -19,8 +19,9 @@ import numpy as np
 from typing import List
 
 from tvm._ffi import register_object as _register_object
-from tvm.tir import Buffer
-from tvm.runtime import ndarray as nd
+from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferRegion
+from tvm.ir import Type
+from tvm.runtime import ndarray as nd, Object
 
 from . import _ffi_api
 from .. import _ffi_api as _base_ffi_api
@@ -51,6 +52,11 @@ class AllocateConstFrame(TIRFrame):
         return self.buffer
 
 
+@_register_object("script.builder.tir.LaunchThreadFrame")
+class LaunchThreadFrame(TIRFrame):
+    ...
+
+
 @_register_object("script.builder.tir.RealizeFrame")
 class RealizeFrame(TIRFrame):
     ...
@@ -61,31 +67,47 @@ class AttrFrame(TIRFrame):
     ...
 
 
-def Assert(condition, message) -> AssertFrame:
+def Assert(condition: PrimExpr, message: str) -> AssertFrame:
     return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
 
 
-def let(var, value) -> LetFrame:
+def let(var: Var, value: PrimExpr) -> LetFrame:
     return _ffi_api.LetFrame(var, value)  # pylint: disable=no-member # type: ignore
 
 
-def allocate(extents, dtype, storage_scope_str="", condition=True, annotations={}) -> AllocateFrame:
+def allocate(
+    extents: List[PrimExpr],
+    dtype: str,
+    storage_scope_str: str = "",
+    condition: PrimExpr = True,
+    annotations=None,
+) -> AllocateFrame:
     return _ffi_api.AllocateFrame(
         extents, dtype, storage_scope_str, condition, annotations
     )  # pylint: disable=no-member # type: ignore
 
 
-def allocate_const(data, dtype, extents) -> AllocateConstFrame:
+def allocate_const(data: List[PrimExpr], dtype: str, extents: List[PrimExpr]) -> AllocateConstFrame:
     return _ffi_api.AllocateConstFrame(
         nd.array(np.asarray(data, dtype)), dtype, extents
     )  # pylint: disable=no-member # type: ignore
 
 
-def realize(buffer_slice, storage_scope_str, condition=True) -> RealizeFrame:
+def launch_thread(env_var: IterVar, extent: PrimExpr) -> LaunchThreadFrame:
+    return _ffi_api.LaunchThreadFrame(env_var, extent)  # pylint: disable=no-member # type: ignore
+
+
+def realize(
+    buffer_slice: BufferRegion, storage_scope_str: str, condition: PrimExpr = True
+) -> RealizeFrame:
     return _ffi_api.RealizeFrame(
         buffer_slice, storage_scope_str, condition
     )  # pylint: disable=no-member # type: ignore
 
 
-def attr(node, attr_key, value) -> AttrFrame:
+def attr(node: Object, attr_key: str, value: PrimExpr) -> AttrFrame:
     return _ffi_api.AttrFrame(node, attr_key, value)  # pylint: disable=no-member # type: ignore
+
+
+def env_thread(thread_tag: str) -> IterVar:
+    return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore

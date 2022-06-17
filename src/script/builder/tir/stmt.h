@@ -130,24 +130,30 @@ class AllocateConstFrame : public TIRFrame {
                                                     AllocateConstFrameNode);
 };
 
-// class LaunchThreadFrameNode : public TIRFrameNode {
-//  public:
-//   tvm::tir::Var env_var;
-//   PrimExpr extent;
-//   void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
+class LaunchThreadFrameNode : public TIRFrameNode {
+ public:
+  tvm::tir::IterVar env_var;
+  PrimExpr extent;
+  String attr_key;
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("env_var", &env_var);
+    v->Visit("extent", &extent);
+    v->Visit("attr_key", &attr_key);
+  }
 
-//   static constexpr const char* _type_key = "script.builder.tir.LaunchThreadFrame";
-//   TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
+  static constexpr const char* _type_key = "script.builder.tir.LaunchThreadFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
 
-//  public:
-//   void ExitWithScope() final;
-// };
+ public:
+  void ExitWithScope() final;
+};
 
-// class LaunchThreadFrame : public TIRFrame {
-//  public:
-//   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
-//                                                     LaunchThreadFrameNode);
-// };
+class LaunchThreadFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
+                                                    LaunchThreadFrameNode);
+};
 
 class RealizeFrameNode : public TIRFrameNode {
  public:
@@ -188,12 +194,16 @@ class AttrFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
+tvm::tir::IterVar EnvThread(String thread_tag);
+
 AssertFrame Assert(PrimExpr condition, String message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);
 AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str = "",
-                        PrimExpr condition = true, Map<String, ObjectRef> annotations = {});
+                        PrimExpr condition = true,
+                        Optional<Map<String, ObjectRef>> annotations = NullOpt);
 AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
                                   Array<PrimExpr> extents);
+LaunchThreadFrame LaunchThread(tvm::tir::IterVar env_var, PrimExpr extent);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
                      PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
