@@ -173,8 +173,8 @@ def test_builder_for():
     print(b.get().script())
 
 
-def test_builder_with():
-    print("test_builder_with")
+def test_builder_stmt():
+    print("test_builder_stmt")
     with Builder() as b:
         with T.prim_func():
             thread_x = def_("thread_x", T.env_thread("threadIdx.x"))
@@ -199,8 +199,8 @@ def test_builder_with():
             with T.realize(BufferRegion(buffer_x, [Range(0, var_x), Range(0, var_y)]), ""):
                 with T.realize(BufferRegion(buffer_y, [Range(var_x, 128), Range(var_y, 128)]), ""):
                     pass
-            with T.attr(buffer_x, "key_x", tvm.tir.StringImm("value_x")):
-                with T.attr(buffer_y, "key_y", tvm.tir.StringImm("value_y")):
+            with T.attr(buffer_x, "key_x", T.StringImm("value_x")):
+                with T.attr(buffer_y, "key_y", T.StringImm("value_y")):
                     pass
             with T.launch_thread(thread_x, 4):
                 with T.launch_thread(thread_y, 4):
@@ -208,6 +208,25 @@ def test_builder_with():
             with T.while_(var_x < var_y):
                 with T.while_(var_x > 0):
                     pass
+            T.seq(
+                [
+                    tvm.tir.Evaluate(T.StringImm("seq_0")),
+                    tvm.tir.Evaluate(T.StringImm("seq_1")),
+                    tvm.tir.Evaluate(T.StringImm("seq_2")),
+                ]
+            )
+            T.if_then_else(
+                var_x < var_y,
+                tvm.tir.Evaluate(T.StringImm("then")),
+                tvm.tir.Evaluate(T.StringImm("else")),
+            )
+            T.prefetch(buffer_x, [Range(0, 64), Range(64, 128)])
+            T.prefetch(buffer_y, [Range(0, var_x), Range(var_y, 128)])
+            T.buffer_store(buffer_x, 1, [0, 0])
+            T.buffer_store(buffer_x, var_x + var_y, [var_x, var_y])
+            T.evaluate(var_x + var_y)
+            T.evaluate(1)
+
     print(b.get().script())
 
 
@@ -217,4 +236,4 @@ if __name__ == "__main__":
     test_builder_prim_func()
     test_builder_block()
     test_builder_for()
-    test_builder_with()
+    test_builder_stmt()

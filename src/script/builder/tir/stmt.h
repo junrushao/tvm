@@ -226,6 +226,11 @@ class WhileFrame : public TIRFrame {
 };
 
 tvm::tir::IterVar EnvThread(String thread_tag);
+void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds);
+void Seq(Array<tvm::tir::Stmt> seq);
+void IfThenElse_(PrimExpr condition, tvm::tir::Stmt then_case, tvm::tir::Stmt else_case);
+void Evaluate_(PrimExpr value);
 
 AssertFrame Assert(PrimExpr condition, String message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);

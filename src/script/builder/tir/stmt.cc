@@ -151,6 +151,22 @@ tvm::tir::IterVar EnvThread(String thread_tag) {
   return IterVar(Range(0, 0), Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
 }
 
+void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  AddToParent(tvm::tir::BufferStore(buffer, value, indices));
+}
+
+void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds) {
+  AddToParent(tvm::tir::Prefetch(buffer, bounds));
+}
+
+void Seq(Array<tvm::tir::Stmt> seq) { AddToParent(tvm::tir::SeqStmt(seq)); }
+
+void IfThenElse_(PrimExpr condition, tvm::tir::Stmt then_case, tvm::tir::Stmt else_case) {
+  AddToParent(tvm::tir::IfThenElse(condition, then_case, else_case));
+}
+
+void Evaluate_(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
+
 TVM_REGISTER_NODE_TYPE(AssertFrameNode);
 TVM_REGISTER_NODE_TYPE(LetFrameNode);
 TVM_REGISTER_NODE_TYPE(AllocateFrameNode);
@@ -168,6 +184,11 @@ TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
 TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While_);
 TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
+TVM_REGISTER_GLOBAL("script.builder.tir.BufferStore").set_body_typed(BufferStore_);
+TVM_REGISTER_GLOBAL("script.builder.tir.Prefetch").set_body_typed(Prefetch_);
+TVM_REGISTER_GLOBAL("script.builder.tir.Seq").set_body_typed(Seq);
+TVM_REGISTER_GLOBAL("script.builder.tir.IfThenElse").set_body_typed(IfThenElse_);
+TVM_REGISTER_GLOBAL("script.builder.tir.Evaluate").set_body_typed(Evaluate_);
 
 }  // namespace tir
 }  // namespace builder

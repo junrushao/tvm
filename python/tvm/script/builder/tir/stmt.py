@@ -19,8 +19,8 @@ import numpy as np
 from typing import List
 
 from tvm._ffi import register_object as _register_object
-from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferRegion
-from tvm.ir import Type
+from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferRegion, Stmt
+from tvm.ir import Type, Range
 from tvm.runtime import ndarray as nd, Object
 
 from . import _ffi_api
@@ -120,3 +120,27 @@ def while_(condition: PrimExpr) -> WhileFrame:
 
 def env_thread(thread_tag: str) -> IterVar:
     return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore
+
+
+def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[PrimExpr]) -> None:
+    return _ffi_api.BufferStore(buffer, value, indices)  # pylint: disable=no-member # type: ignore
+
+
+def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
+    return _ffi_api.Prefetch(buffer, indices)  # pylint: disable=no-member # type: ignore
+
+
+def seq(seq: List[Stmt]) -> None:
+    if not isinstance(seq, List):
+        seq = [seq]
+    return _ffi_api.Seq(seq)  # pylint: disable=no-member # type: ignore
+
+
+def if_then_else(condition: PrimExpr, then_case: Stmt, else_case: Stmt) -> None:
+    return _ffi_api.IfThenElse(
+        condition, then_case, else_case
+    )  # pylint: disable=no-member # type: ignore
+
+
+def evaluate(value: PrimExpr) -> None:
+    return _ffi_api.Evaluate(value)  # pylint: disable=no-member # type: ignore

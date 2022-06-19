@@ -48,6 +48,11 @@ from .stmt import (
     launch_thread,
     realize,
     attr,
-    env_thread,
     while_,
+    env_thread,
+    buffer_store,
+    prefetch,
+    seq,
+    if_then_else,
+    evaluate,
 )

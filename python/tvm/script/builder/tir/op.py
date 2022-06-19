@@ -53,7 +53,7 @@ from tvm.tir.op import acos, acosh, asin, asinh, atan, atanh
 from tvm.tir.op import atan2, clz, comm_reducer, infinity, reinterpret
 from tvm.tir.op import min_value, max_value, if_then_else
 from tvm.tir.op import call_packed, call_extern
-from tvm.tir.expr import Select, Ramp, Broadcast, Shuffle
+from tvm.tir.expr import Select, Ramp, Broadcast, Shuffle, StringImm
 from tvm.tir.generic import cast
 
 
