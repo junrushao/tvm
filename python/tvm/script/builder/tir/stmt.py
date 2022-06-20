@@ -72,6 +72,21 @@ class WhileFrame(TIRFrame):
     ...
 
 
+@_register_object("script.builder.tir.IfFrame")
+class IfFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.ThenFrame")
+class ThenFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.builder.tir.ElseFrame")
+class ElseFrame(TIRFrame):
+    ...
+
+
 def Assert(condition: PrimExpr, message: str) -> AssertFrame:
     return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
 
@@ -118,6 +133,18 @@ def while_(condition: PrimExpr) -> WhileFrame:
     return _ffi_api.WhileFrame(condition)  # pylint: disable=no-member # type: ignore
 
 
+def if_(condition: PrimExpr) -> IfFrame:
+    return _ffi_api.IfFrame(condition)  # pylint: disable=no-member # type: ignore
+
+
+def then_() -> ThenFrame:
+    return _ffi_api.ThenFrame()  # pylint: disable=no-member # type: ignore
+
+
+def else_() -> ElseFrame:
+    return _ffi_api.ElseFrame()  # pylint: disable=no-member # type: ignore
+
+
 def env_thread(thread_tag: str) -> IterVar:
     return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore
 
@@ -134,12 +161,6 @@ def seq(seq: List[Stmt]) -> None:
     if not isinstance(seq, List):
         seq = [seq]
     return _ffi_api.Seq(seq)  # pylint: disable=no-member # type: ignore
-
-
-def if_then_else(condition: PrimExpr, then_case: Stmt, else_case: Stmt) -> None:
-    return _ffi_api.IfThenElse(
-        condition, then_case, else_case
-    )  # pylint: disable=no-member # type: ignore
 
 
 def evaluate(value: PrimExpr) -> None:

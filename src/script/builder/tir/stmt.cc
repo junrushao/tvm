@@ -75,6 +75,31 @@ void WhileFrameNode::ExitWithScope() {
   AddToParent(tvm::tir::While(condition, AsStmt(stmts)));
 }
 
+void IfFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  if (!stmts.empty()) {
+    LOG(FATAL) << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
+  }
+  if (then_stmt.empty()) {
+    LOG(FATAL) << "IfThenElse frame should have at least one then branch";
+  }
+  AddToParent(
+      tvm::tir::IfThenElse(condition, AsStmt(then_stmt),
+                           else_stmt.empty() ? tvm::tir::Stmt(nullptr) : AsStmt(else_stmt)));
+}
+
+void ThenFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  IfFrame frame = Builder::Current()->FindFrame<IfFrame>().value();
+  frame->then_stmt = stmts;
+}
+
+void ElseFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  IfFrame frame = Builder::Current()->FindFrame<IfFrame>().value();
+  frame->else_stmt = stmts;
+}
+
 AssertFrame Assert(PrimExpr condition, String message) {
   ObjectPtr<AssertFrameNode> n = make_object<AssertFrameNode>();
   n->condition = condition;
@@ -145,6 +170,45 @@ WhileFrame While_(PrimExpr condition) {
   return WhileFrame(n);
 }
 
+IfFrame If_(PrimExpr condition) {
+  ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
+  n->condition = condition;
+  n->then_stmt.clear();
+  n->else_stmt.clear();
+  return IfFrame(n);
+}
+
+IfFrame FindIfFrame(const String& method) {
+  if (Optional<IfFrame> if_frame = Builder::Current()->GetLastFrame<IfFrame>()) {
+    return if_frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
+               << "' is called under T.if_()";
+  }
+  throw;
+}
+
+ThenFrame Then_() {
+  IfFrame frame = FindIfFrame("T.then_");
+  if (!frame->then_stmt.empty()) {
+    LOG(FATAL) << "Duplicate then branch declaration, previous one is " << frame->then_stmt;
+  }
+  ObjectPtr<ThenFrameNode> n = make_object<ThenFrameNode>();
+  return ThenFrame(n);
+}
+
+ElseFrame Else_() {
+  IfFrame frame = FindIfFrame("T.else_");
+  if (frame->then_stmt.empty()) {
+    LOG(FATAL) << "The else branch should follow then branch";
+  }
+  if (!frame->else_stmt.empty()) {
+    LOG(FATAL) << "Duplicate else branch declaration, previous one is " << frame->else_stmt;
+  }
+  ObjectPtr<ElseFrameNode> n = make_object<ElseFrameNode>();
+  return ElseFrame(n);
+}
+
 tvm::tir::IterVar EnvThread(String thread_tag) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.env_thread");
@@ -175,6 +239,9 @@ TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
 TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
 TVM_REGISTER_NODE_TYPE(AttrFrameNode);
 TVM_REGISTER_NODE_TYPE(WhileFrameNode);
+TVM_REGISTER_NODE_TYPE(IfFrameNode);
+TVM_REGISTER_NODE_TYPE(ThenFrameNode);
+TVM_REGISTER_NODE_TYPE(ElseFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.AssertFrame").set_body_typed(Assert);
 TVM_REGISTER_GLOBAL("script.builder.tir.LetFrame").set_body_typed(Let);
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate_);
@@ -182,12 +249,14 @@ TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(Allo
 TVM_REGISTER_GLOBAL("script.builder.tir.RealizeFrame").set_body_typed(Realize);
 TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
 TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While_);
+TVM_REGISTER_GLOBAL("script.builder.tir.IfFrame").set_body_typed(If_);
+TVM_REGISTER_GLOBAL("script.builder.tir.ThenFrame").set_body_typed(Then_);
+TVM_REGISTER_GLOBAL("script.builder.tir.ElseFrame").set_body_typed(Else_);
 TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.BufferStore").set_body_typed(BufferStore_);
 TVM_REGISTER_GLOBAL("script.builder.tir.Prefetch").set_body_typed(Prefetch_);
 TVM_REGISTER_GLOBAL("script.builder.tir.Seq").set_body_typed(Seq);
-TVM_REGISTER_GLOBAL("script.builder.tir.IfThenElse").set_body_typed(IfThenElse_);
 TVM_REGISTER_GLOBAL("script.builder.tir.Evaluate").set_body_typed(Evaluate_);
 
 }  // namespace tir

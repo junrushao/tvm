@@ -49,10 +49,12 @@ from .stmt import (
     realize,
     attr,
     while_,
+    if_,
+    then_,
+    else_,
     env_thread,
     buffer_store,
     prefetch,
     seq,
-    if_then_else,
     evaluate,
 )

@@ -225,11 +225,63 @@ class WhileFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
+class IfFrameNode : public TIRFrameNode {
+ public:
+  PrimExpr condition;
+  Array<tvm::tir::Stmt> then_stmt;
+  Array<tvm::tir::Stmt> else_stmt;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("condition", &condition);
+    v->Visit("then_stmt", &then_stmt);
+    v->Visit("else_stmt", &else_stmt);
+  }
+
+  static constexpr const char* _type_key = "script.builder.tir.IfFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class IfFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, TIRFrame, IfFrameNode);
+};
+
+class ThenFrameNode : public TIRFrameNode {
+ public:
+  static constexpr const char* _type_key = "script.builder.tir.ThenFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class ThenFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, TIRFrame, ThenFrameNode);
+};
+
+class ElseFrameNode : public TIRFrameNode {
+ public:
+  static constexpr const char* _type_key = "script.builder.tir.ElseFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class ElseFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, TIRFrame, ElseFrameNode);
+};
+
 tvm::tir::IterVar EnvThread(String thread_tag);
 void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
 void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds);
 void Seq(Array<tvm::tir::Stmt> seq);
-void IfThenElse_(PrimExpr condition, tvm::tir::Stmt then_case, tvm::tir::Stmt else_case);
 void Evaluate_(PrimExpr value);
 
 AssertFrame Assert(PrimExpr condition, String message);
@@ -244,6 +296,9 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_s
                      PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
 WhileFrame While_(PrimExpr condition);
+IfFrame If_(PrimExpr condition);
+ThenFrame Then_();
+ElseFrame Else_();
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

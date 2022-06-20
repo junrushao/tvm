@@ -215,11 +215,18 @@ def test_builder_stmt():
                     tvm.tir.Evaluate(T.StringImm("seq_2")),
                 ]
             )
-            T.if_then_else(
-                var_x < var_y,
-                tvm.tir.Evaluate(T.StringImm("then")),
-                tvm.tir.Evaluate(T.StringImm("else")),
-            )
+            with T.if_(var_x < var_y):
+                with T.then_():
+                    T.evaluate(T.StringImm("then_stmt_0"))
+                    T.evaluate(T.StringImm("then_stmt_1"))
+                    T.evaluate(T.StringImm("then_stmt_2"))
+                with T.else_():
+                    T.evaluate(T.StringImm("else_stmt_0"))
+                    T.evaluate(T.StringImm("else_stmt_1"))
+                    T.evaluate(T.StringImm("else_stmt_2"))
+            with T.if_(1):
+                with T.then_():
+                    T.evaluate(1)
             T.prefetch(buffer_x, [Range(0, 64), Range(64, 128)])
             T.prefetch(buffer_y, [Range(0, var_x), Range(var_y, 128)])
             T.buffer_store(buffer_x, 1, [0, 0])
