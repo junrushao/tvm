@@ -18,6 +18,7 @@
  */
 #include "./stmt.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 
@@ -80,24 +81,43 @@ void IfFrameNode::ExitWithScope() {
   if (!stmts.empty()) {
     LOG(FATAL) << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
   }
-  if (then_stmt.empty()) {
+  if (!then_stmts.defined()) {
     LOG(FATAL) << "IfThenElse frame should have at least one then branch";
   }
-  AddToParent(
-      tvm::tir::IfThenElse(condition, AsStmt(then_stmt),
-                           else_stmt.empty() ? tvm::tir::Stmt(nullptr) : AsStmt(else_stmt)));
+  AddToParent(tvm::tir::IfThenElse(
+      condition, AsStmt(then_stmts.value()),
+      else_stmts.defined() ? AsStmt(else_stmts.value()) : tvm::tir::Stmt(nullptr)));
+}
+
+void ThenFrameNode::EnterWithScope() {
+  IfFrame frame = FindIfFrame("T.then_");
+  if (frame->then_stmts.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate then branch declaration, previous one is "
+               << frame->then_stmts.value();
+  }
+  TIRFrameNode::EnterWithScope();
 }
 
 void ThenFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  IfFrame frame = Builder::Current()->FindFrame<IfFrame>().value();
-  frame->then_stmt = stmts;
+  FindIfFrame("T.then_")->then_stmts = stmts;
+}
+
+void ElseFrameNode::EnterWithScope() {
+  IfFrame frame = FindIfFrame("T.else_");
+  if (!frame->then_stmts.defined()) {
+    LOG(FATAL) << "The else branch should follow then branch";
+  }
+  if (frame->else_stmts.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate else branch declaration, previous one is "
+               << frame->else_stmts.value();
+  }
+  TIRFrameNode::EnterWithScope();
 }
 
 void ElseFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  IfFrame frame = Builder::Current()->FindFrame<IfFrame>().value();
-  frame->else_stmt = stmts;
+  FindIfFrame("T.else_")->else_stmts = stmts;
 }
 
 AssertFrame Assert(PrimExpr condition, String message) {
@@ -146,6 +166,9 @@ LaunchThreadFrame LaunchThread(tvm::tir::IterVar iter_var, PrimExpr extent) {
   ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+  } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
+    LOG(FATAL) << "ValueError: Inconsistent extents of environment thread. "
+               << iter_var->dom->extent << " vs " << extent;
   }
   n->iter_var = iter_var;
   n->extent = extent;
@@ -179,8 +202,8 @@ WhileFrame While(PrimExpr condition) {
 IfFrame If(PrimExpr condition) {
   ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
   n->condition = condition;
-  n->then_stmt.clear();
-  n->else_stmt.clear();
+  n->then_stmts = NullOpt;
+  n->else_stmts = NullOpt;
   return IfFrame(n);
 }
 
@@ -195,31 +218,17 @@ IfFrame FindIfFrame(const String& method) {
 }
 
 ThenFrame Then() {
-  IfFrame frame = FindIfFrame("T.then_");
-  if (!frame->then_stmt.empty()) {
-    LOG(FATAL) << "ValueError: Duplicate then branch declaration, previous one is "
-               << frame->then_stmt;
-  }
   ObjectPtr<ThenFrameNode> n = make_object<ThenFrameNode>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  IfFrame frame = FindIfFrame("T.else_");
-  if (frame->then_stmt.empty()) {
-    LOG(FATAL) << "The else branch should follow then branch";
-  }
-  if (!frame->else_stmt.empty()) {
-    LOG(FATAL) << "ValueError: Duplicate else branch declaration, previous one is "
-               << frame->else_stmt;
-  }
   ObjectPtr<ElseFrameNode> n = make_object<ElseFrameNode>();
   return ElseFrame(n);
 }
 
 tvm::tir::IterVar EnvThread(String thread_tag) {
   using namespace tvm::tir;
-  PrimFuncFrame frame = FindPrimFuncFrame("T.env_thread");
   return IterVar(Range{nullptr}, Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
 }
 

@@ -199,8 +199,8 @@ def test_builder_stmt():
             with T.realize(BufferRegion(buffer_x, [Range(0, var_x), Range(0, var_y)]), ""):
                 with T.realize(BufferRegion(buffer_y, [Range(var_x, 128), Range(var_y, 128)]), ""):
                     pass
-            with T.attr(buffer_x, "key_x", T.StringImm("value_x")):
-                with T.attr(buffer_y, "key_y", T.StringImm("value_y")):
+            with T.attr(buffer_x, "key_x", "value_x"):
+                with T.attr(buffer_y, "key_y", "value_y"):
                     pass
             with T.launch_thread(thread_x, 4):
                 with T.launch_thread(thread_y, 4):
@@ -210,13 +210,11 @@ def test_builder_stmt():
                     pass
             with T.if_(var_x < var_y):
                 with T.then_():
-                    T.evaluate(T.StringImm("then_stmt_0"))
-                    T.evaluate(T.StringImm("then_stmt_1"))
-                    T.evaluate(T.StringImm("then_stmt_2"))
+                    T.evaluate(0)
+                    T.evaluate(1)
                 with T.else_():
-                    T.evaluate(T.StringImm("else_stmt_0"))
-                    T.evaluate(T.StringImm("else_stmt_1"))
-                    T.evaluate(T.StringImm("else_stmt_2"))
+                    T.evaluate(0)
+                    T.evaluate(1)
             with T.if_(1):
                 with T.then_():
                     T.evaluate(1)

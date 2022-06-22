@@ -228,14 +228,14 @@ class WhileFrame : public TIRFrame {
 class IfFrameNode : public TIRFrameNode {
  public:
   PrimExpr condition;
-  Array<tvm::tir::Stmt> then_stmt;
-  Array<tvm::tir::Stmt> else_stmt;
+  Optional<Array<tvm::tir::Stmt>> then_stmts;
+  Optional<Array<tvm::tir::Stmt>> else_stmts;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("condition", &condition);
-    v->Visit("then_stmt", &then_stmt);
-    v->Visit("else_stmt", &else_stmt);
+    v->Visit("then_stmts", &then_stmts);
+    v->Visit("else_stmts", &else_stmts);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.IfFrame";
@@ -256,6 +256,7 @@ class ThenFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
 
  public:
+  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 
@@ -270,6 +271,7 @@ class ElseFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
 
  public:
+  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 
@@ -297,6 +299,7 @@ WhileFrame While(PrimExpr condition);
 IfFrame If(PrimExpr condition);
 ThenFrame Then();
 ElseFrame Else();
+IfFrame FindIfFrame(const String& method);
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

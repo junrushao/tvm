@@ -16,10 +16,10 @@
 # under the License.
 """TVM Script TIR For Frame"""
 import numpy as np
-from typing import List
+from typing import List, Union
 
 from tvm._ffi import register_object as _register_object
-from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferRegion, Stmt
+from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferRegion, Stmt, StringImm
 from tvm.ir import Type, Range
 from tvm.runtime import ndarray as nd, Object
 
@@ -125,7 +125,9 @@ def realize(
     )  # pylint: disable=no-member # type: ignore
 
 
-def attr(node: Object, attr_key: str, value: PrimExpr) -> AttrFrame:
+def attr(node: Object, attr_key: str, value: Union[PrimExpr, str]) -> AttrFrame:
+    if isinstance(value, str):
+        value = StringImm(value)
     return _ffi_api.AttrFrame(node, attr_key, value)  # pylint: disable=no-member # type: ignore
 
 
