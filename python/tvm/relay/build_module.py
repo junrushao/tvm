@@ -133,6 +133,11 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
+        # pylint: disable=import-outside-toplevel
+        from tvm.auto_scheduler import is_auto_scheduler_enabled
+        from tvm.meta_schedule import is_meta_schedule_enabled
+
+        # pylint: enable=import-outside-toplevel
         raw_targets = Target.canon_multi_target_and_host(target, target_host)
 
         # Setup the params.
@@ -141,13 +146,12 @@ class BuildModule(object):
 
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_auto_scheduler = PassContext.current().config.get(
-            "relay.backend.use_auto_scheduler", False
-        )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
+        autotvm.GLOBAL_SCOPE.silent = (
+            is_auto_scheduler_enabled() or is_meta_schedule_enabled() or old_autotvm_silent
+        )
 
         mod_name = mangle_module_name(mod_name)
 
