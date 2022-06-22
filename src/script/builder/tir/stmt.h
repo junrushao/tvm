@@ -76,7 +76,7 @@ class AllocateFrameNode : public TIRFrameNode {
  public:
   Array<PrimExpr> extents;
   DataType dtype;
-  String storage_scope_str;
+  String storage_scope;
   PrimExpr condition;
   Map<String, ObjectRef> annotations;
   tvm::tir::Buffer buffer;
@@ -85,7 +85,7 @@ class AllocateFrameNode : public TIRFrameNode {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("extents", &extents);
     v->Visit("dtype", &dtype);
-    v->Visit("storage_scope_str", &storage_scope_str);
+    v->Visit("storage_scope", &storage_scope);
     v->Visit("condition", &condition);
     v->Visit("annotations", &annotations);
     v->Visit("buffer", &buffer);
@@ -132,14 +132,14 @@ class AllocateConstFrame : public TIRFrame {
 
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
-  tvm::tir::IterVar env_var;
   PrimExpr extent;
   String attr_key;
+  tvm::tir::IterVar iter_var;
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
-    v->Visit("env_var", &env_var);
     v->Visit("extent", &extent);
     v->Visit("attr_key", &attr_key);
+    v->Visit("iter_var", &iter_var);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.LaunchThreadFrame";
@@ -158,13 +158,13 @@ class LaunchThreadFrame : public TIRFrame {
 class RealizeFrameNode : public TIRFrameNode {
  public:
   tvm::tir::BufferRegion buffer_slice;
-  String storage_scope_str;
+  String storage_scope;
   PrimExpr condition;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("buffer_slice", &buffer_slice);
-    v->Visit("storage_scope_str", &storage_scope_str);
+    v->Visit("storage_scope", &storage_scope);
     v->Visit("condition", &condition);
   }
 
@@ -281,24 +281,22 @@ class ElseFrame : public TIRFrame {
 tvm::tir::IterVar EnvThread(String thread_tag);
 void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
 void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds);
-void Seq(Array<tvm::tir::Stmt> seq);
 void Evaluate_(PrimExpr value);
 
 AssertFrame Assert(PrimExpr condition, String message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);
-AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str = "",
-                        PrimExpr condition = true,
+AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
+                        Optional<PrimExpr> condition = NullOpt,
                         Optional<Map<String, ObjectRef>> annotations = NullOpt);
 AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
                                   Array<PrimExpr> extents);
-LaunchThreadFrame LaunchThread(tvm::tir::IterVar env_var, PrimExpr extent);
-RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
-                     PrimExpr condition);
+LaunchThreadFrame LaunchThread(tvm::tir::IterVar iter_var, PrimExpr extent);
+RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
-WhileFrame While_(PrimExpr condition);
-IfFrame If_(PrimExpr condition);
-ThenFrame Then_();
-ElseFrame Else_();
+WhileFrame While(PrimExpr condition);
+IfFrame If(PrimExpr condition);
+ThenFrame Then();
+ElseFrame Else();
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

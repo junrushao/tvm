@@ -98,12 +98,12 @@ def let(var: Var, value: PrimExpr) -> LetFrame:
 def allocate(
     extents: List[PrimExpr],
     dtype: str,
-    storage_scope_str: str = "",
-    condition: PrimExpr = True,
+    storage_scope: str = "",
+    condition: PrimExpr = None,
     annotations=None,
 ) -> AllocateFrame:
     return _ffi_api.AllocateFrame(
-        extents, dtype, storage_scope_str, condition, annotations
+        extents, dtype, storage_scope, condition, annotations
     )  # pylint: disable=no-member # type: ignore
 
 
@@ -113,15 +113,15 @@ def allocate_const(data: List[PrimExpr], dtype: str, extents: List[PrimExpr]) ->
     )  # pylint: disable=no-member # type: ignore
 
 
-def launch_thread(env_var: IterVar, extent: PrimExpr) -> LaunchThreadFrame:
-    return _ffi_api.LaunchThreadFrame(env_var, extent)  # pylint: disable=no-member # type: ignore
+def launch_thread(iter_var: IterVar, extent: PrimExpr) -> LaunchThreadFrame:
+    return _ffi_api.LaunchThreadFrame(iter_var, extent)  # pylint: disable=no-member # type: ignore
 
 
 def realize(
-    buffer_slice: BufferRegion, storage_scope_str: str, condition: PrimExpr = True
+    buffer_slice: BufferRegion, storage_scope: str, condition: PrimExpr = True
 ) -> RealizeFrame:
     return _ffi_api.RealizeFrame(
-        buffer_slice, storage_scope_str, condition
+        buffer_slice, storage_scope, condition
     )  # pylint: disable=no-member # type: ignore
 
 
@@ -155,12 +155,6 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[PrimExpr]) -> No
 
 def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
     return _ffi_api.Prefetch(buffer, indices)  # pylint: disable=no-member # type: ignore
-
-
-def seq(seq: List[Stmt]) -> None:
-    if not isinstance(seq, List):
-        seq = [seq]
-    return _ffi_api.Seq(seq)  # pylint: disable=no-member # type: ignore
 
 
 def evaluate(value: PrimExpr) -> None:

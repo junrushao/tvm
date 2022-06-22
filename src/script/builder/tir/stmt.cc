@@ -54,14 +54,14 @@ void AllocateConstFrameNode::ExitWithScope() {
 
 void LaunchThreadFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::AttrStmt(env_var, attr_key, extent, AsStmt(stmts)));
+  AddToParent(tvm::tir::AttrStmt(iter_var, attr_key, extent, AsStmt(stmts)));
 }
 
 void RealizeFrameNode::ExitWithScope() {
   using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
   AddToParent(AttrStmt(
-      buffer_slice->buffer, "realize_scope", StringImm(storage_scope_str),
+      buffer_slice->buffer, "realize_scope", StringImm(storage_scope),
       BufferRealize(buffer_slice->buffer, buffer_slice->region, condition, AsStmt(stmts))));
 }
 
@@ -114,15 +114,19 @@ LetFrame Let(tvm::tir::Var var, PrimExpr value) {
   return LetFrame(n);
 }
 
-AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope_str,
-                        PrimExpr condition, Optional<Map<String, ObjectRef>> annotations) {
+AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope,
+                        Optional<PrimExpr> condition,
+                        Optional<Map<String, ObjectRef>> annotations) {
   ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
   n->extents = extents;
   n->dtype = dtype;
-  n->storage_scope_str = storage_scope_str;
-  n->condition = condition->dtype.is_bool() ? condition : tvm::cast(DataType::Bool(), condition);
+  n->storage_scope = storage_scope;
+  n->condition = condition.value_or(true);
+  if (!n->condition->dtype.is_bool()) {
+    n->condition = tvm::cast(DataType::Bool(), n->condition);
+  }
   n->annotations = annotations.value_or(Map<String, ObjectRef>());
-  n->buffer = DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope_str, 0, 0,
+  n->buffer = DeclBuffer(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope, 0, 0,
                          "default", {}, Span());
   return AllocateFrame(n);
 }
@@ -138,20 +142,22 @@ AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
   return AllocateConstFrame(n);
 }
 
-LaunchThreadFrame LaunchThread(tvm::tir::IterVar env_var, PrimExpr extent) {
+LaunchThreadFrame LaunchThread(tvm::tir::IterVar iter_var, PrimExpr extent) {
   ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
-  n->env_var =
-      tvm::tir::IterVar(Range(0, extent), env_var->var, env_var->iter_type, env_var->thread_tag);
+  if (!iter_var->dom.defined()) {
+    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+  }
+  n->iter_var = iter_var;
   n->extent = extent;
-  n->attr_key = env_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  n->attr_key = iter_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
   return LaunchThreadFrame(n);
 }
 
-RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope_str,
+RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
                      PrimExpr condition) {
   ObjectPtr<RealizeFrameNode> n = make_object<RealizeFrameNode>();
   n->buffer_slice = buffer_slice;
-  n->storage_scope_str = storage_scope_str;
+  n->storage_scope = storage_scope;
   n->condition = condition;
   return RealizeFrame(n);
 }
@@ -164,13 +170,13 @@ AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
   return AttrFrame(n);
 }
 
-WhileFrame While_(PrimExpr condition) {
+WhileFrame While(PrimExpr condition) {
   ObjectPtr<WhileFrameNode> n = make_object<WhileFrameNode>();
   n->condition = condition;
   return WhileFrame(n);
 }
 
-IfFrame If_(PrimExpr condition) {
+IfFrame If(PrimExpr condition) {
   ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
   n->condition = condition;
   n->then_stmt.clear();
@@ -188,22 +194,24 @@ IfFrame FindIfFrame(const String& method) {
   throw;
 }
 
-ThenFrame Then_() {
+ThenFrame Then() {
   IfFrame frame = FindIfFrame("T.then_");
   if (!frame->then_stmt.empty()) {
-    LOG(FATAL) << "Duplicate then branch declaration, previous one is " << frame->then_stmt;
+    LOG(FATAL) << "ValueError: Duplicate then branch declaration, previous one is "
+               << frame->then_stmt;
   }
   ObjectPtr<ThenFrameNode> n = make_object<ThenFrameNode>();
   return ThenFrame(n);
 }
 
-ElseFrame Else_() {
+ElseFrame Else() {
   IfFrame frame = FindIfFrame("T.else_");
   if (frame->then_stmt.empty()) {
     LOG(FATAL) << "The else branch should follow then branch";
   }
   if (!frame->else_stmt.empty()) {
-    LOG(FATAL) << "Duplicate else branch declaration, previous one is " << frame->else_stmt;
+    LOG(FATAL) << "ValueError: Duplicate else branch declaration, previous one is "
+               << frame->else_stmt;
   }
   ObjectPtr<ElseFrameNode> n = make_object<ElseFrameNode>();
   return ElseFrame(n);
@@ -212,7 +220,7 @@ ElseFrame Else_() {
 tvm::tir::IterVar EnvThread(String thread_tag) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.env_thread");
-  return IterVar(Range(0, 0), Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
+  return IterVar(Range{nullptr}, Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
 }
 
 void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
@@ -221,12 +229,6 @@ void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indic
 
 void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds) {
   AddToParent(tvm::tir::Prefetch(buffer, bounds));
-}
-
-void Seq(Array<tvm::tir::Stmt> seq) { AddToParent(tvm::tir::SeqStmt(seq)); }
-
-void IfThenElse_(PrimExpr condition, tvm::tir::Stmt then_case, tvm::tir::Stmt else_case) {
-  AddToParent(tvm::tir::IfThenElse(condition, then_case, else_case));
 }
 
 void Evaluate_(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
@@ -248,15 +250,14 @@ TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate_
 TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(AllocateConst_);
 TVM_REGISTER_GLOBAL("script.builder.tir.RealizeFrame").set_body_typed(Realize);
 TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
-TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While_);
-TVM_REGISTER_GLOBAL("script.builder.tir.IfFrame").set_body_typed(If_);
-TVM_REGISTER_GLOBAL("script.builder.tir.ThenFrame").set_body_typed(Then_);
-TVM_REGISTER_GLOBAL("script.builder.tir.ElseFrame").set_body_typed(Else_);
+TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While);
+TVM_REGISTER_GLOBAL("script.builder.tir.IfFrame").set_body_typed(If);
+TVM_REGISTER_GLOBAL("script.builder.tir.ThenFrame").set_body_typed(Then);
+TVM_REGISTER_GLOBAL("script.builder.tir.ElseFrame").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.BufferStore").set_body_typed(BufferStore_);
 TVM_REGISTER_GLOBAL("script.builder.tir.Prefetch").set_body_typed(Prefetch_);
-TVM_REGISTER_GLOBAL("script.builder.tir.Seq").set_body_typed(Seq);
 TVM_REGISTER_GLOBAL("script.builder.tir.Evaluate").set_body_typed(Evaluate_);
 
 }  // namespace tir

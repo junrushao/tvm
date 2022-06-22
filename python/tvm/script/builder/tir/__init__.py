@@ -55,6 +55,5 @@ from .stmt import (
     env_thread,
     buffer_store,
     prefetch,
-    seq,
     evaluate,
 )

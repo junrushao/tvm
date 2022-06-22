@@ -181,8 +181,8 @@ def test_builder_stmt():
             thread_y = def_("thread_y", T.env_thread("threadIdx.y"))
             buffer_x = def_("buffer_x", tvm.tir.decl_buffer([128, 128]))
             buffer_y = def_("buffer_y", tvm.tir.decl_buffer([128, 128]))
-            var_x = def_("var_x", tvm.tir.Var("", tvm.ir.PrimType("int32")))
-            var_y = def_("var_y", tvm.tir.Var("", tvm.ir.PrimType("int32")))
+            var_x = def_("var_x", tvm.tir.Var("", dtype="int32"))
+            var_y = def_("var_y", tvm.tir.Var("", dtype="int32"))
             with T.Assert(var_x < var_y, ""):
                 with T.Assert(1, "true"):
                     pass
@@ -208,13 +208,6 @@ def test_builder_stmt():
             with T.while_(var_x < var_y):
                 with T.while_(var_x > 0):
                     pass
-            T.seq(
-                [
-                    tvm.tir.Evaluate(T.StringImm("seq_0")),
-                    tvm.tir.Evaluate(T.StringImm("seq_1")),
-                    tvm.tir.Evaluate(T.StringImm("seq_2")),
-                ]
-            )
             with T.if_(var_x < var_y):
                 with T.then_():
                     T.evaluate(T.StringImm("then_stmt_0"))
