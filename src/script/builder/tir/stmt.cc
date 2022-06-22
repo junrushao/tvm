@@ -41,11 +41,10 @@ void LetFrameNode::ExitWithScope() {
 }
 
 void AllocateFrameNode::ExitWithScope() {
-  using namespace tvm::tir;
   TIRFrameNode::ExitWithScope();
-  Buffer flattened_buffer = buffer.GetFlattenedBuffer();
-  AddToParent(Allocate(buffer->data, flattened_buffer->dtype, flattened_buffer->shape, condition,
-                       AsStmt(stmts), annotations));
+  tvm::tir::Buffer flattened_buffer = buffer.GetFlattenedBuffer();
+  AddToParent(tvm::tir::Allocate(buffer->data, flattened_buffer->dtype, flattened_buffer->shape,
+                                 condition, AsStmt(stmts), annotations));
 }
 
 void AllocateConstFrameNode::ExitWithScope() {
@@ -134,9 +133,8 @@ LetFrame Let(tvm::tir::Var var, PrimExpr value) {
   return LetFrame(n);
 }
 
-AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope,
-                        Optional<PrimExpr> condition,
-                        Optional<Map<String, ObjectRef>> annotations) {
+AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope,
+                       Optional<PrimExpr> condition, Optional<Map<String, ObjectRef>> annotations) {
   ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
   n->extents = extents;
   n->dtype = dtype;
@@ -151,8 +149,8 @@ AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_
   return AllocateFrame(n);
 }
 
-AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
-                                  Array<PrimExpr> extents) {
+AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
+                                 Array<PrimExpr> extents) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
@@ -232,15 +230,15 @@ tvm::tir::IterVar EnvThread(String thread_tag) {
   return IterVar(Range{nullptr}, Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
 }
 
-void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+void BufferStore(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
   AddToParent(tvm::tir::BufferStore(buffer, value, indices));
 }
 
-void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds) {
+void Prefetch(tvm::tir::Buffer buffer, Array<Range> bounds) {
   AddToParent(tvm::tir::Prefetch(buffer, bounds));
 }
 
-void Evaluate_(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
+void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 
 TVM_REGISTER_NODE_TYPE(AssertFrameNode);
 TVM_REGISTER_NODE_TYPE(LetFrameNode);
@@ -255,8 +253,8 @@ TVM_REGISTER_NODE_TYPE(ThenFrameNode);
 TVM_REGISTER_NODE_TYPE(ElseFrameNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.AssertFrame").set_body_typed(Assert);
 TVM_REGISTER_GLOBAL("script.builder.tir.LetFrame").set_body_typed(Let);
-TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate_);
-TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(AllocateConst_);
+TVM_REGISTER_GLOBAL("script.builder.tir.AllocateFrame").set_body_typed(Allocate);
+TVM_REGISTER_GLOBAL("script.builder.tir.AllocateConstFrame").set_body_typed(AllocateConst);
 TVM_REGISTER_GLOBAL("script.builder.tir.RealizeFrame").set_body_typed(Realize);
 TVM_REGISTER_GLOBAL("script.builder.tir.AttrFrame").set_body_typed(Attr);
 TVM_REGISTER_GLOBAL("script.builder.tir.WhileFrame").set_body_typed(While);
@@ -265,9 +263,9 @@ TVM_REGISTER_GLOBAL("script.builder.tir.ThenFrame").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.builder.tir.ElseFrame").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.builder.tir.LaunchThreadFrame").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("script.builder.tir.EnvThread").set_body_typed(EnvThread);
-TVM_REGISTER_GLOBAL("script.builder.tir.BufferStore").set_body_typed(BufferStore_);
-TVM_REGISTER_GLOBAL("script.builder.tir.Prefetch").set_body_typed(Prefetch_);
-TVM_REGISTER_GLOBAL("script.builder.tir.Evaluate").set_body_typed(Evaluate_);
+TVM_REGISTER_GLOBAL("script.builder.tir.BufferStore").set_body_typed(BufferStore);
+TVM_REGISTER_GLOBAL("script.builder.tir.Prefetch").set_body_typed(Prefetch);
+TVM_REGISTER_GLOBAL("script.builder.tir.Evaluate").set_body_typed(Evaluate);
 
 }  // namespace tir
 }  // namespace builder

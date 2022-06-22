@@ -281,17 +281,17 @@ class ElseFrame : public TIRFrame {
 };
 
 tvm::tir::IterVar EnvThread(String thread_tag);
-void BufferStore_(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
-void Prefetch_(tvm::tir::Buffer buffer, Array<Range> bounds);
-void Evaluate_(PrimExpr value);
+void BufferStore(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+void Prefetch(tvm::tir::Buffer buffer, Array<Range> bounds);
+void Evaluate(PrimExpr value);
 
 AssertFrame Assert(PrimExpr condition, String message);
 LetFrame Let(tvm::tir::Var var, PrimExpr value);
-AllocateFrame Allocate_(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
-                        Optional<PrimExpr> condition = NullOpt,
-                        Optional<Map<String, ObjectRef>> annotations = NullOpt);
-AllocateConstFrame AllocateConst_(tvm::runtime::NDArray data, DataType dtype,
-                                  Array<PrimExpr> extents);
+AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
+                       Optional<PrimExpr> condition = NullOpt,
+                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
+                                 Array<PrimExpr> extents);
 LaunchThreadFrame LaunchThread(tvm::tir::IterVar iter_var, PrimExpr extent);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
