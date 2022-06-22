@@ -36,8 +36,6 @@ def extract_task_from_relay(
     params: Optional[Dict[str, NDArray]] = None,
     *,
     opt_level: int = 3,
-    pass_config: Optional[Dict[str, Any]] = None,
-    disabled_pass: Optional[List[str]] = None,
     te_filter_func: Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
@@ -52,10 +50,6 @@ def extract_task_from_relay(
         The associated parameters of the program
     opt_level : int
         The optimization level of the compiler
-    pass_config : Optional[Dict[str, Any]]
-        The pass config of the compiler
-    disabled_pass : Optional[List[str]]
-        The list of disabled passes of the compiler
     te_filter_func : Callable[[List[tvm.te.Tensor]], bool]
         The filter function to filter out the extracted tasks
         If it's a string, it's the name of the filtering function. Built in functions are
@@ -85,10 +79,6 @@ def extract_task_from_relay(
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
         target = Target(target)
-    if disabled_pass is None:
-        disabled_pass = []
-    if pass_config is None:
-        pass_config = {"relay.backend.use_meta_schedule": True}
     if params is None:
         params = {}
     relay_params = {}
@@ -99,7 +89,21 @@ def extract_task_from_relay(
 
     with autotvm_silencer(), target, transform.PassContext(
         opt_level=opt_level,
-        config=pass_config,
-        disabled_pass=disabled_pass,
+        config={"relay.backend.use_meta_schedule": True},
+        disabled_pass="MetaScheduleLayoutRewrite",
     ):
         return list(extract_task_func(mod, target, relay_params, te_filter_func))
+
+
+def is_meta_schedule_enabled() -> bool:
+    """Return whether the meta-schedule is enabled.
+
+    Returns
+    -------
+    enabled: bool
+        Whether the meta schedule is enabled
+    """
+    return transform.PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )
