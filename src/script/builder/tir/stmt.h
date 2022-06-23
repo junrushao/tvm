@@ -299,7 +299,6 @@ WhileFrame While(PrimExpr condition);
 IfFrame If(PrimExpr condition);
 ThenFrame Then();
 ElseFrame Else();
-IfFrame FindIfFrame(const String& method);
 }  // namespace tir
 }  // namespace builder
 }  // namespace script

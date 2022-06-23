@@ -88,6 +88,16 @@ void IfFrameNode::ExitWithScope() {
       else_stmts.defined() ? AsStmt(else_stmts.value()) : tvm::tir::Stmt(nullptr)));
 }
 
+IfFrame FindIfFrame(const String& method) {
+  if (Optional<IfFrame> if_frame = Builder::Current()->GetLastFrame<IfFrame>()) {
+    return if_frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
+               << "' is called under T.if_()";
+  }
+  throw;
+}
+
 void ThenFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.then_");
   if (frame->then_stmts.defined()) {
@@ -203,16 +213,6 @@ IfFrame If(PrimExpr condition) {
   n->then_stmts = NullOpt;
   n->else_stmts = NullOpt;
   return IfFrame(n);
-}
-
-IfFrame FindIfFrame(const String& method) {
-  if (Optional<IfFrame> if_frame = Builder::Current()->GetLastFrame<IfFrame>()) {
-    return if_frame.value();
-  } else {
-    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
-               << "' is called under T.if_()";
-  }
-  throw;
 }
 
 ThenFrame Then() {
