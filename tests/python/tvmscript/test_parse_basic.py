@@ -21,7 +21,7 @@ def test_parse_elementwise():
     # pylint: enable=unused-argument,unused-variable,invalid-name
 
     result = elementwise
-    print(result.script())
+    # print(result.script())
 
 
 def test_parse_skip():
@@ -51,7 +51,7 @@ def test_parse_class():
 
     # pylint: enable=unused-argument,unused-variable,invalid-name
 
-    print(C.script())
+    # print(C.script())
 
 
 def test_parse_atomic():
@@ -67,8 +67,17 @@ def test_parse_atomic():
     assert f.params[2].dtype == "handle"
 
 
+def test_parse_report_error():
+    @T.prim_func
+    def elementwise() -> None:
+        for (*vvv,) in T.grid(128, 128, 128, 128, 128, 128, 128):
+            with T.block("inner_block"):
+                vj = T.axis.S(128, vvv[10] + 20)
+
+
 if __name__ == "__main__":
     test_parse_elementwise()
     test_parse_skip()
     test_parse_class()
     test_parse_atomic()
+    test_parse_report_error()
