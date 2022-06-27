@@ -34,9 +34,15 @@ void FrameNode::ExitWithScope() {
   Builder::Current()->frames.pop_back();
 }
 
+void FrameNode::AddCallback(runtime::TypedPackedFunc<void()> callback) {
+  Builder::Current()->frames.back()->callbacks.push_back(callback);
+}
+
 TVM_REGISTER_NODE_TYPE(FrameNode);
 TVM_REGISTER_GLOBAL("script.builder.FrameEnter").set_body_method<Frame>(&FrameNode::EnterWithScope);
 TVM_REGISTER_GLOBAL("script.builder.FrameExit").set_body_method<Frame>(&FrameNode::ExitWithScope);
+TVM_REGISTER_GLOBAL("script.builder.FrameAddCallback")
+    .set_body_method<Frame>(&FrameNode::AddCallback);
 
 }  // namespace builder
 }  // namespace script
