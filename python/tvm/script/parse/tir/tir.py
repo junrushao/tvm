@@ -50,6 +50,8 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         rhs.add_callback(partial(rhs.__exit__, None, None, None))
         res = rhs.__enter__()
         self.eval_assign(target=lhs, source=res)
+    elif isinstance(lhs, doc.Subscript):
+        T.buffer_store(self.eval_expr(lhs.value), rhs, self.eval_expr(lhs.slice))
     else:
         self.eval_assign(target=lhs, source=rhs)
 

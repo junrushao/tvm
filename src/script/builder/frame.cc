@@ -35,6 +35,9 @@ void FrameNode::ExitWithScope() {
 }
 
 void FrameNode::AddCallback(runtime::TypedPackedFunc<void()> callback) {
+  if (Builder::Current()->frames.empty()) {
+    LOG(FATAL) << "ValueError: No frames in Builder to add callback";
+  }
   Builder::Current()->frames.back()->callbacks.push_back(callback);
 }
 
