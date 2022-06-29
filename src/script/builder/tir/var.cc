@@ -117,8 +117,6 @@ TVM_REGISTER_GLOBAL("script.builder.tir.Buffer")
 
 TVM_REGISTER_GLOBAL("script.builder.tir.BufferBufferLoad")
     .set_body_method<Buffer>(&BufferNode::BufferLoad);
-TVM_REGISTER_GLOBAL("script.builder.tir.BufferBufferStore")
-    .set_body_method<Buffer>(&BufferNode::BufferStore);
 TVM_REGISTER_GLOBAL("script.builder.tir.BufferBufferRegion")
     .set_body_method<Buffer>(&BufferNode::BufferRegion);
 

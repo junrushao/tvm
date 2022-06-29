@@ -107,8 +107,33 @@ class Buffer_(Object):
 
 
 class BufferProxy:
-    def __call__(self, *arg) -> Buffer_:
-        return Buffer_(*arg)
+    def __call__(
+        self,
+        shape,
+        dtype="float32",
+        name="buffer",
+        data=None,
+        strides=None,
+        elem_offset=None,
+        scope="",
+        data_alignment=0,
+        offset_factor=0,
+        buffer_type="",
+        axis_separators=None,
+    ) -> Buffer_:
+        return Buffer_(
+            shape,
+            dtype,
+            name,
+            data,
+            strides,
+            elem_offset,
+            scope,
+            data_alignment,
+            offset_factor,
+            buffer_type,
+            axis_separators,
+        )
 
     def __getitem__(self, keys) -> Buffer_:
         return self(*keys)  # pylint: disable=no-member # type: ignore
