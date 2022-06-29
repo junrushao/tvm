@@ -26,16 +26,36 @@ namespace script {
 namespace builder {
 namespace tir {
 
-tvm::tir::Buffer Buffer(Array<PrimExpr> shape,                 //
-                        DataType dtype = DataType::Float(32),  //
-                        String name = "buffer",                //
-                        String storage_scope = "");
+class BufferNode : public runtime::Object {
+ public:
+  tvm::tir::Buffer buffer;
 
-tvm::tir::Buffer DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
-                            Optional<tvm::tir::Var> data, Array<PrimExpr> strides,
-                            PrimExpr elem_offset, String storage_scope, int align,
-                            int offset_factor, String buffer_type_str,
-                            Array<IntImm> axis_separators);
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("buffer", &buffer); }
+
+  static constexpr const char* _type_key = "script.builder.tir.Buffer";
+  TVM_DECLARE_BASE_OBJECT_INFO(BufferNode, runtime::Object);
+
+ public:
+  tvm::tir::BufferLoad BufferLoad(Array<PrimExpr> indices);
+  tvm::tir::BufferStore BufferStore(PrimExpr value, Array<PrimExpr> indices);
+  tvm::tir::BufferRegion BufferRegion(Array<Range> region);
+  tvm::tir::Prefetch Prefetch(Array<Range> bounds);
+};
+
+class Buffer : public runtime::ObjectRef {
+ public:
+  TVM_DLL Buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                 String buffer_name = "buffer", Optional<tvm::tir::Var> data = NullOpt,
+                 Optional<Array<PrimExpr>> strides = NullOpt,
+                 Optional<PrimExpr> elem_offset = NullOpt, String storage_scope = "", int align = 0,
+                 int offset_factor = 0, String buffer_type_str = "",
+                 Optional<Array<IntImm>> axis_separators = NullOpt);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+
+ public:
+  inline void EnterWithScope();
+  inline void ExitWithScope();
+};
 
 }  // namespace tir
 }  // namespace builder
