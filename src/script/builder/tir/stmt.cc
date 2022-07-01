@@ -234,10 +234,12 @@ tvm::tir::IterVar EnvThread(String thread_tag) {
 }
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
-  AddToParent(buffer->BufferStore(value, indices));
+  AddToParent(tvm::tir::BufferStore(buffer->buffer, value, indices));
 }
 
-void Prefetch(Buffer buffer, Array<Range> bounds) { AddToParent(buffer->Prefetch(bounds)); }
+void Prefetch(Buffer buffer, Array<Range> bounds) {
+  AddToParent(tvm::tir::Prefetch(buffer->buffer, bounds));
+}
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 

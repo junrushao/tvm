@@ -16,7 +16,7 @@
 # under the License.
 """TVM Script TIR Buffer"""
 from tvm.ir import PrimExpr, Array, Range
-from tvm.tir import Var, IntImm
+from tvm.tir import Var, IntImm, BufferLoad, BufferRegion
 from tvm._ffi import register_object as _register_object
 from tvm.runtime import Object, DataType
 from . import _ffi_api
@@ -101,9 +101,9 @@ class Buffer_(Object):
                     region.append(Range(index.start, index.stop))
                 else:
                     region.append(Range.from_min_extent(index, 1))
-            return _ffi_api.BufferBufferRegion(self, region)
+            return BufferRegion(self.buffer, region)
         else:
-            return _ffi_api.BufferBufferLoad(self, indices)
+            return BufferLoad(self.buffer, indices)
 
 
 class BufferProxy:

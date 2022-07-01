@@ -46,22 +46,6 @@ Buffer::Buffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
   data_ = n;
 }
 
-tvm::tir::BufferLoad BufferNode::BufferLoad(Array<PrimExpr> indices) {
-  return tvm::tir::BufferLoad(buffer, indices);
-}
-
-tvm::tir::BufferStore BufferNode::BufferStore(PrimExpr value, Array<PrimExpr> indices) {
-  return tvm::tir::BufferStore(buffer, value, indices);
-}
-
-tvm::tir::BufferRegion BufferNode::BufferRegion(Array<Range> region) {
-  return tvm::tir::BufferRegion(buffer, region);
-}
-
-tvm::tir::Prefetch BufferNode::Prefetch(Array<Range> bounds) {
-  return tvm::tir::Prefetch(buffer, bounds);
-}
-
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::tir::BufferNode>([](const ObjectRef& node, String name) -> void {
       tvm::tir::BufferNode* buffer =
@@ -105,20 +89,14 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 TVM_REGISTER_GLOBAL("script.builder.tir.Buffer")
-    .set_body_typed([](Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                       String buffer_name = "buffer", Optional<tvm::tir::Var> data = NullOpt,
-                       Optional<Array<PrimExpr>> strides = NullOpt,
-                       Optional<PrimExpr> elem_offset = NullOpt, String storage_scope = "",
-                       int align = 0, int offset_factor = 0, String buffer_type_str = "",
-                       Optional<Array<IntImm>> axis_separators = NullOpt) {
+    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                       Optional<tvm::tir::Var> data, Optional<Array<PrimExpr>> strides,
+                       Optional<PrimExpr> elem_offset, String storage_scope, int align,
+                       int offset_factor, String buffer_type_str,
+                       Optional<Array<IntImm>> axis_separators) {
       return Buffer(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
                     offset_factor, buffer_type_str, axis_separators);
     });
-
-TVM_REGISTER_GLOBAL("script.builder.tir.BufferBufferLoad")
-    .set_body_method<Buffer>(&BufferNode::BufferLoad);
-TVM_REGISTER_GLOBAL("script.builder.tir.BufferBufferRegion")
-    .set_body_method<Buffer>(&BufferNode::BufferRegion);
 
 }  // namespace tir
 }  // namespace builder

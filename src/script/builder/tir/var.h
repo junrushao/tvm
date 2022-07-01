@@ -32,14 +32,16 @@ class BufferNode : public runtime::Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("buffer", &buffer); }
 
+  tvm::tir::BufferLoad operator[](Array<PrimExpr> indices) const {
+    return tvm::tir::BufferLoad(buffer, indices);
+  }
+
+  tvm::tir::BufferRegion operator[](Array<Range> region) const {
+    return tvm::tir::BufferRegion(buffer, region);
+  }
+
   static constexpr const char* _type_key = "script.builder.tir.Buffer";
   TVM_DECLARE_BASE_OBJECT_INFO(BufferNode, runtime::Object);
-
- public:
-  tvm::tir::BufferLoad BufferLoad(Array<PrimExpr> indices);
-  tvm::tir::BufferStore BufferStore(PrimExpr value, Array<PrimExpr> indices);
-  tvm::tir::BufferRegion BufferRegion(Array<Range> region);
-  tvm::tir::Prefetch Prefetch(Array<Range> bounds);
 };
 
 class Buffer : public runtime::ObjectRef {
@@ -51,10 +53,6 @@ class Buffer : public runtime::ObjectRef {
                  int offset_factor = 0, String buffer_type_str = "",
                  Optional<Array<IntImm>> axis_separators = NullOpt);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
-
- public:
-  inline void EnterWithScope();
-  inline void ExitWithScope();
 };
 
 }  // namespace tir
