@@ -29,11 +29,15 @@ from .base import TIRFrame
 class ForFrame(TIRFrame):
     def __enter__(self) -> List[Var]:
         _base_ffi_api.FrameEnter(self)  # pylint: disable=no-member # type: ignore
-        return self.vars
+        return self.vars if len(self.vars) > 1 else self.vars[0]
 
 
 def serial(start, stop, annotations=None) -> ForFrame:
     return _ffi_api.Serial(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+
+
+def serial(stop, annotations=None) -> ForFrame:
+    return _ffi_api.Serial(0, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
 def parallel(start, stop, annotations=None) -> ForFrame:
@@ -51,6 +55,12 @@ def unroll(start, stop, annotations=None) -> ForFrame:
 def thread_binding(start, stop, thread, annotations=None) -> ForFrame:
     return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
         start, stop, thread, annotations
+    )
+
+
+def thread_binding(stop, thread, annotations=None) -> ForFrame:
+    return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
+        0, stop, thread, annotations
     )
 
 

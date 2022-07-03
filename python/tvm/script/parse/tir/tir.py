@@ -23,6 +23,7 @@ from .. import dispatch, doc
 from ..parser import Parser
 
 from functools import partial
+from typing import Tuple
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -51,7 +52,12 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         res = rhs.__enter__()
         self.eval_assign(target=lhs, source=res)
     elif isinstance(lhs, doc.Subscript):
-        T.buffer_store(self.eval_expr(lhs.value), rhs, self.eval_expr(lhs.slice))
+        indices = self.eval_expr(lhs.slice)
+        if isinstance(indices, Tuple):
+            indices = list(indices)
+        else:
+            indices = [indices]
+        T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
         self.eval_assign(target=lhs, source=rhs)
 

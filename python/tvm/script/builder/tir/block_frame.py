@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script TIR Block Frame"""
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Tuple
 
 from tvm._ffi import register_object as _register_object
 from tvm.tir import Buffer, BufferLoad, BufferRegion
@@ -46,15 +46,19 @@ def where(predicate) -> None:
     _ffi_api.Where(predicate)  # pylint: disable=no-member # type: ignore
 
 
-def reads(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if not isinstance(buffer_slices, List):
-        buffer_slices = [buffer_slices]
+def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    if isinstance(buffer_slices, Tuple):
+        buffer_slices = list(buffer_slices)
+    elif len(buffer_slices) == 1 and not isinstance(buffer_slices, List):
+        buffer_slices = [buffer_slices[0]]
     _ffi_api.Reads(buffer_slices)
 
 
-def writes(buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if not isinstance(buffer_slices, List):
-        buffer_slices = [buffer_slices]
+def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    if isinstance(buffer_slices, Tuple):
+        buffer_slices = list(buffer_slices)
+    elif len(buffer_slices) == 1 and not isinstance(buffer_slices, List):
+        buffer_slices = [buffer_slices[0]]
     _ffi_api.Writes(buffer_slices)
 
 
