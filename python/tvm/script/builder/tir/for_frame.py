@@ -32,35 +32,46 @@ class ForFrame(TIRFrame):
         return self.vars if len(self.vars) > 1 else self.vars[0]
 
 
-def serial(start, stop, annotations=None) -> ForFrame:
+def serial(start, stop=None, annotations=None) -> ForFrame:
+    if stop is None:
+        stop = start
+        start = 0
     return _ffi_api.Serial(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def serial(stop, annotations=None) -> ForFrame:
-    return _ffi_api.Serial(0, stop, annotations)  # pylint: disable=no-member # type: ignore
-
-
-def parallel(start, stop, annotations=None) -> ForFrame:
+def parallel(start, stop=None, annotations=None) -> ForFrame:
+    if stop is None:
+        stop = start
+        start = 0
     return _ffi_api.Parallel(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def vectorized(start, stop, annotations=None) -> ForFrame:
+def vectorized(start, stop=None, annotations=None) -> ForFrame:
+    if stop is None:
+        stop = start
+        start = 0
     return _ffi_api.Vectorized(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def unroll(start, stop, annotations=None) -> ForFrame:
+def unroll(start, stop=None, annotations=None) -> ForFrame:
+    if stop is None:
+        stop = start
+        start = 0
     return _ffi_api.Unroll(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def thread_binding(start, stop, thread, annotations=None) -> ForFrame:
+def thread_binding(start, stop=None, thread=None, annotations=None) -> ForFrame:
+    if thread is None:
+        if not isinstance(stop, str):
+            raise ValueError("Thread cannot be None for thread_binding")
+        thread = stop
+        stop = start
+        start = 0
+    elif stop is None:
+        stop = start
+        start = 0
     return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
         start, stop, thread, annotations
-    )
-
-
-def thread_binding(stop, thread, annotations=None) -> ForFrame:
-    return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
-        0, stop, thread, annotations
     )
 
 

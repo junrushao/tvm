@@ -133,7 +133,7 @@ def handle():
     return _ffi_api.Handle()
 
 
-def if_then_else(cond, t, f, dtype):
+def if_then_else(cond, t, f, dtype=None):
     return if_then_else_(cond, t, f)
 
 
