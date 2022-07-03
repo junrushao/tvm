@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script TIR Block Frame"""
-from typing import Any, Dict, List, Union, Tuple
+from typing import Any, Dict, List, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.tir import Buffer, BufferLoad, BufferRegion
@@ -47,7 +47,7 @@ def where(predicate) -> None:
 
 
 def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if isinstance(buffer_slices, Tuple):
+    if isinstance(buffer_slices, tuple):
         buffer_slices = list(buffer_slices)
     elif len(buffer_slices) == 1 and not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices[0]]
@@ -55,7 +55,7 @@ def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
 
 
 def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if isinstance(buffer_slices, Tuple):
+    if isinstance(buffer_slices, tuple):
         buffer_slices = list(buffer_slices)
     elif len(buffer_slices) == 1 and not isinstance(buffer_slices, List):
         buffer_slices = [buffer_slices[0]]
