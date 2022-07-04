@@ -33,8 +33,7 @@ def op_wrapper(func):
 def dtype_forward(func):
     def forwarded(*args, **kwargs):
         if "dtype" in kwargs:
-            args = (kwargs.get("dtype"),) + args
-            kwargs.pop("dtype")
+            args = (kwargs.pop("dtype"),) + args
         return func(*args, **kwargs)
 
     return forwarded
