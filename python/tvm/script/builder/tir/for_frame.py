@@ -32,35 +32,35 @@ class ForFrame(TIRFrame):
         return self.vars if len(self.vars) > 1 else self.vars[0]
 
 
-def serial(start, stop=None, annotations=None) -> ForFrame:
+def serial(start, stop=None, *, annotations=None) -> ForFrame:
     if stop is None:
         stop = start
         start = 0
     return _ffi_api.Serial(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def parallel(start, stop=None, annotations=None) -> ForFrame:
+def parallel(start, stop=None, *, annotations=None) -> ForFrame:
     if stop is None:
         stop = start
         start = 0
     return _ffi_api.Parallel(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def vectorized(start, stop=None, annotations=None) -> ForFrame:
+def vectorized(start, stop=None, *, annotations=None) -> ForFrame:
     if stop is None:
         stop = start
         start = 0
     return _ffi_api.Vectorized(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def unroll(start, stop=None, annotations=None) -> ForFrame:
+def unroll(start, stop=None, *, annotations=None) -> ForFrame:
     if stop is None:
         stop = start
         start = 0
     return _ffi_api.Unroll(start, stop, annotations)  # pylint: disable=no-member # type: ignore
 
 
-def thread_binding(start, stop=None, thread=None, annotations=None) -> ForFrame:
+def thread_binding(start, stop=None, thread=None, *, annotations=None) -> ForFrame:
     if thread is None:
         if not isinstance(stop, str):
             raise ValueError("Thread cannot be None for thread_binding")

@@ -47,18 +47,28 @@ def where(predicate) -> None:
 
 
 def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if isinstance(buffer_slices, tuple):
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]
+        else:
+            buffer_slices = [buffer_slices[0]]
+    else:
         buffer_slices = list(buffer_slices)
-    elif len(buffer_slices) == 1 and not isinstance(buffer_slices, list):
-        buffer_slices = [buffer_slices[0]]
     _ffi_api.Reads(buffer_slices)
 
 
 def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
-    if isinstance(buffer_slices, tuple):
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]
+        else:
+            buffer_slices = [buffer_slices[0]]
+    else:
         buffer_slices = list(buffer_slices)
-    elif len(buffer_slices) == 1 and not isinstance(buffer_slices, list):
-        buffer_slices = [buffer_slices[0]]
     _ffi_api.Writes(buffer_slices)
 
 
