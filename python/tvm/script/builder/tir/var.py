@@ -173,8 +173,8 @@ def buffer_decl(
     )
 
 
-def var(dtype) -> Var:
-    return Var("", dtype)  # pylint: disable=no-member # type: ignore
+def var(dtype, name="") -> Var:
+    return Var(name, dtype)  # pylint: disable=no-member # type: ignore
 
 
 Buffer = BufferProxy()

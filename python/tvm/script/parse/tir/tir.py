@@ -24,6 +24,8 @@ from ..parser import Parser
 
 from functools import partial
 
+from tvm.tir import PrimExpr, Var
+
 
 @dispatch.register(token="tir", type_name="For")
 def visit_for(self: Parser, node: doc.For) -> None:
@@ -58,8 +60,28 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         else:
             indices = [self.eval_expr(lhs.slice)]
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
+    elif isinstance(lhs, doc.Name) and isinstance(rhs, PrimExpr):
+        var = T.var(rhs.dtype, lhs.id)
+        self.eval_assign(lhs, var)
+        frame = T.let(var, rhs)
+        frame.add_callback(partial(frame.__exit__, None, None, None))
+        frame.__enter__()
     else:
         self.eval_assign(target=lhs, source=rhs)
+
+
+@dispatch.register(token="tir", type_name="AnnAssign")
+def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
+    lhs = node.target
+    rhs = self.eval_expr(node.value)
+    if isinstance(lhs, doc.Name) and isinstance(rhs, PrimExpr):
+        var = self.visit_tvm_annotation(node.annotation)
+        if not isinstance(var, Var):
+            self.report_error(node.annotation, "Annotation should be Var")
+        self.eval_assign(lhs, var)
+        frame = T.let(var, rhs)
+        frame.add_callback(partial(frame.__exit__, None, None, None))
+        frame.__enter__()
 
 
 @dispatch.register(token="tir", type_name="With")
@@ -124,3 +146,14 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     if isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+
+
+@dispatch.register(token="tir", type_name="If")
+def visit_if(self: Parser, node: doc.If) -> None:
+    with self.var_table.with_frame():
+        with T.if_(self.eval_expr(node.test)):
+            with T.then_():
+                self.visit_body(node.body)
+            if len(node.orelse):
+                with T.else_():
+                    self.visit_body(node.orelse)

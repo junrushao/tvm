@@ -152,6 +152,12 @@ class Parser(doc.NodeVisitor):
     def visit_Expr(self, node: doc.Expr) -> Any:
         return _dispatch(self, "Expr")(self, node)  # pylint: disable=invalid-name
 
+    def visit_If(self, node: doc.If) -> Any:
+        return _dispatch(self, "If")(self, node)  # pylint: disable=invalid-name
+
+    def visit_AnnAssign(self, node: doc.AnnAssign) -> Any:
+        return _dispatch(self, "AnnAssign")(self, node)  # pylint: disable=invalid-name
+
 
 def _handle_function(self: Parser, node: doc.FunctionDef) -> None:
     if not node.decorator_list:

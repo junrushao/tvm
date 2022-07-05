@@ -19,6 +19,7 @@
 from tvm.tir.expr import Broadcast, Ramp as ramp, Select, Shuffle
 from tvm.tir.generic import cast
 from tvm.tir import op
+from tvm import ir
 
 
 def op_wrapper(func):
@@ -87,6 +88,8 @@ ret = op_wrapper(op.ret)
 reinterpret = op_wrapper(op.reinterpret)
 round = op_wrapper(op.round)
 rsqrt = op_wrapper(op.rsqrt)
+shift_left = op_wrapper(op.shift_left)
+shift_right = op_wrapper(op.shift_right)
 sigmoid = op_wrapper(op.sigmoid)
 sin = op_wrapper(op.sin)
 sinh = op_wrapper(op.sinh)
@@ -208,3 +211,15 @@ def max(a, b):
     This is the default integer division behavior in C.
     """
     return _ffi_api.max(a, b)  # type: ignore
+
+
+class Ptr_:
+    def __getitem__(self, args):
+        if not isinstance(args, tuple):
+            args = (args,)
+        if len(args) == 1:
+            args = (args[0], "global")
+        return _ffi_api.Ptr(ir.PrimType(args[0]().dtype), args[1])
+
+
+Ptr = Ptr_()
