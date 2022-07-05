@@ -82,6 +82,8 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         frame = T.let(var, rhs)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
+    else:
+        self.eval_assign(target=lhs, source=rhs)
 
 
 @dispatch.register(token="tir", type_name="With")
