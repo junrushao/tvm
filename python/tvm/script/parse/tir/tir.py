@@ -70,15 +70,10 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     targets = node.targets[0]
     sources = self.eval_expr(node.value)
-    if isinstance(targets, tuple) or isinstance(sources, tuple):
-        if not (
-            isinstance(targets, tuple)
-            and isinstance(sources, tuple)
-            and len(targets) == len(sources)
-        ):
-            self.report_error(node, "The numbers of values in lhs and rhs should be equal")
-    else:
-        targets, sources = (targets,), (sources,)
+    if not isinstance(targets, tuple):
+        targets = (targets,)
+    if not isinstance(sources, tuple):
+        sources = (sources,)
     for lhs, rhs in zip(targets, sources):
         if isinstance(lhs, doc.Subscript):
             if isinstance(lhs.slice, doc.Tuple):
@@ -96,16 +91,13 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    if isinstance(lhs, doc.Name) and isinstance(rhs, PrimExpr):
-        var = self.visit_tvm_annotation(node.annotation)
-        if not isinstance(var, Var):
-            self.report_error(node.annotation, "Annotation should be Var")
-        self.eval_assign(target=lhs, source=var, bind_value=bind_value)
-        frame = T.let(var, rhs)
-        frame.add_callback(partial(frame.__exit__, None, None, None))
-        frame.__enter__()
-    else:
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
+    var = self.visit_tvm_annotation(node.annotation)
+    if not isinstance(var, Var):
+        self.report_error(node.annotation, "Annotation should be Var")
+    self.eval_assign(target=lhs, source=var, bind_value=bind_value)
+    frame = T.let(var, rhs)
+    frame.add_callback(partial(frame.__exit__, None, None, None))
+    frame.__enter__()
 
 
 @dispatch.register(token="tir", type_name="With")
