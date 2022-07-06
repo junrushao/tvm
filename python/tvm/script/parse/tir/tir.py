@@ -26,7 +26,7 @@ from functools import partial
 
 from tvm.ir import Array
 from tvm.tir import PrimExpr, Var, IterVar
-from typing import Any, Tuple, List
+from typing import Any
 
 
 def bind_value(self: Parser, name: str, value: Any) -> Any:
@@ -35,7 +35,7 @@ def bind_value(self: Parser, name: str, value: Any) -> Any:
         res = value.__enter__()
         def_(name, res)
         return res
-    elif isinstance(value, (T.Buffer_, IterVar, Var, Tuple, List)):
+    elif isinstance(value, (T.Buffer_, IterVar, Var, tuple, list)):
         def_(name, value)
         return value
     elif isinstance(value, PrimExpr):
