@@ -68,23 +68,18 @@ def visit_for(self: Parser, node: doc.For) -> None:
 def visit_assign(self: Parser, node: doc.Assign) -> None:
     if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
-    targets = node.targets[0]
-    sources = self.eval_expr(node.value)
-    if not isinstance(targets, tuple):
-        targets = (targets,)
-    if not isinstance(sources, tuple):
-        sources = (sources,)
-    for lhs, rhs in zip(targets, sources):
-        if isinstance(lhs, doc.Subscript):
-            if isinstance(lhs.slice, doc.Tuple):
-                indices = []
-                for index in lhs.slice.elts:
-                    indices.append(self.eval_expr(index))
-            else:
-                indices = [self.eval_expr(lhs.slice)]
-            T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
+    lhs = node.targets[0]
+    rhs = self.eval_expr(node.value)
+    if isinstance(lhs, doc.Subscript):
+        if isinstance(lhs.slice, doc.Tuple):
+            indices = []
+            for index in lhs.slice.elts:
+                indices.append(self.eval_expr(index))
         else:
-            self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
+            indices = [self.eval_expr(lhs.slice)]
+        T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
+    else:
+        self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
 
 
 @dispatch.register(token="tir", type_name="AnnAssign")
