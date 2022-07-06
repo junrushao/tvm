@@ -25,6 +25,7 @@ from .evaluator import eval_assign, eval_expr
 from .source import Source
 from .utils import deferred
 from .var_table import VarTable
+from typing import Callable
 
 DEFAULT_VISIT = {
     "Interactive",
@@ -98,11 +99,12 @@ class Parser(doc.NodeVisitor):
         self,
         target: doc.expr,
         source: Any,
+        bind_value: Callable[[str, Any], Any],
     ) -> Dict[str, Any]:
         var_values = eval_assign(self, target, source)
         for k, v in var_values.items():
-            def_(k, v)
-            self.var_table.add(k, v)
+            var = bind_value(self, k, v)
+            self.var_table.add(k, var)
         return var_values
 
     def report_error(self, node: doc.AST, msg: str) -> None:  # pylint: disable=no-self-use

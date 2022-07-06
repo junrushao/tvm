@@ -18,7 +18,7 @@
 from numbers import Integral
 
 from tvm._ffi import register_object as _register_object
-from tvm.ir import Array, PrimExpr, Range
+from tvm.ir import Array, PrimExpr, Range, PrimType
 from tvm.runtime import DataType, Object
 from tvm.tir import BufferLoad, BufferRegion, IntImm, Var
 
@@ -177,4 +177,14 @@ def var(dtype, name="") -> Var:
     return Var(name, dtype)  # pylint: disable=no-member # type: ignore
 
 
+class Ptr_:
+    def __getitem__(self, args):
+        if not isinstance(args, tuple):
+            args = (args,)
+        if len(args) == 1:
+            args = (args[0], "global")
+        return _ffi_api.Ptr(PrimType(args[0]().dtype), args[1])
+
+
 Buffer = BufferProxy()
+Ptr = Ptr_()
