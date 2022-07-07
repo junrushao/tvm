@@ -35,7 +35,10 @@ class Source:
             self.source = program
             self.full_source = program
         else:
-            self.source_name = inspect.getsourcefile(program)  # type: ignore
+            try:
+                self.source_name = inspect.getsourcefile(program)  # type: ignore
+            except TypeError:
+                self.source_name = "__main__"
             lines, self.start_line = inspect.getsourcelines(program)  # type: ignore
             if lines:
                 self.start_column = len(lines[0]) - len(lines[0].lstrip())

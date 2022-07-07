@@ -16,7 +16,7 @@
 # under the License.
 import inspect
 from contextlib import contextmanager
-from typing import Callable
+from typing import Any, Callable, Dict
 
 
 def deferred(f: Callable[[], None]):
@@ -30,7 +30,7 @@ def deferred(f: Callable[[], None]):
     return context()
 
 
-def inspect_function_capture(func: Callable):
+def inspect_function_capture(func: Callable) -> Dict[str, Any]:
     PREFIX = "tvm.script.builder."
     vars = {}
     closure_vars = inspect.getclosurevars(func)
@@ -48,4 +48,13 @@ def inspect_function_capture(func: Callable):
         if v is None or isinstance(v, (int, float, str, bool)):
             vars[k] = v
             continue
+    return vars
+
+
+def inspect_class_capture(cls: type) -> Dict[str, Any]:
+    vars = {}
+    for _, v in cls.__dict__.items():
+        if inspect.isfunction(v):
+            func_vars = inspect_function_capture(v)
+            vars.update(**func_vars)
     return vars
