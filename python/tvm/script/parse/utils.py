@@ -31,15 +31,10 @@ def deferred(f: Callable[[], None]):
 
 
 def extra_vars(func: Callable, module_prefix: str):
-    closure_vars = inspect.getclosurevars(func)
     vars = {}
-    for k, v in closure_vars.globals.items():
+    for k, v in func.__globals__.items():
         if inspect.ismodule(v) and v.__name__.startswith(module_prefix):
             vars[k] = v
-        elif (inspect.isfunction(v) or inspect.isclass(v)) and v.__module__.startswith(
-            module_prefix
-        ):
+        elif hasattr(v, "__module__") and v.__module__.startswith(module_prefix):
             vars[k] = v
-        else:
-            raise ValueError(f"Method {k} is not from {module_prefix}")
     return vars
