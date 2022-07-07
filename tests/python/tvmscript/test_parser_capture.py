@@ -19,7 +19,6 @@ def test_capture_func():
     print(scalar_func.script())
 
 
-
 def test_capture_class():
     from tvm.script.builder.tir import axis as ax
     from tvm.script.builder.tir import block, match_buffer

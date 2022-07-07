@@ -52,7 +52,7 @@ def inspect_function_capture(func: Callable) -> Dict[str, Any]:
 
 
 def inspect_class_capture(cls: type) -> Dict[str, Any]:
-    vars = {}
+    vars: Dict[str, Any] = {}
     for _, v in cls.__dict__.items():
         if inspect.isfunction(v):
             func_vars = inspect_function_capture(v)
