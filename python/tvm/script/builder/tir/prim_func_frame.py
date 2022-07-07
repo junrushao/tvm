@@ -38,7 +38,10 @@ def _is_defined_in_class(frames):
         maybe_class_frame = frames[2]
         statement_list = maybe_class_frame[4]
         first_statement = statement_list[0]
-        if first_statement.strip().startswith("class "):
+        line = first_statement.strip()
+        if line.startswith("class "):
+            return True
+        if line.startswith("@") and "ir_module" in line:
             return True
     return False
 

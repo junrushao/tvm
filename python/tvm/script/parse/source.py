@@ -67,17 +67,17 @@ class Source:
         return doc.parse(self.source)
 
 
-def _patched_inspect_getfile(object, _old_getfile=inspect.getfile):
+_getfile = inspect.getfile
+
+
+def _patched_inspect_getfile(object):
     if not inspect.isclass(object):
-        return _old_getfile(object)
-
-    # Lookup by parent module (as in current inspect)
-    if hasattr(object, "__module__"):
-        object_ = sys.modules.get(object.__module__)
-        if hasattr(object_, "__file__"):
-            return object_.__file__
-
-    # If parent module is __main__, lookup by methods (NEW)
+        return _getfile(object)
+    mod = getattr(object, "__module__", None)
+    if mod is not None:
+        file = getattr(sys.modules[mod], "__file__", None)
+        if file is not None:
+            return file
     for _, member in inspect.getmembers(object):
         if inspect.isfunction(member):
             if object.__qualname__ + "." + member.__name__ == member.__qualname__:
