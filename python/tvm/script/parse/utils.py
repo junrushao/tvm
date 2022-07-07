@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from contextlib import contextmanager
+import inspect
 from typing import Callable
 
 
@@ -27,3 +28,18 @@ def deferred(f: Callable[[], None]):
             f()
 
     return context()
+
+
+def extra_vars(func: Callable, module_prefix: str):
+    closure_vars = inspect.getclosurevars(func)
+    vars = {}
+    for k, v in closure_vars.globals.items():
+        if inspect.ismodule(v) and v.__name__.startswith(module_prefix):
+            vars[k] = v
+        elif (inspect.isfunction(v) or inspect.isclass(v)) and v.__module__.startswith(
+            module_prefix
+        ):
+            vars[k] = v
+        else:
+            raise ValueError(f"Method {k} is not from {module_prefix}")
+    return vars

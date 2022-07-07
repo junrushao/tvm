@@ -26,6 +26,7 @@ from tvm.tir.expr import Var
 
 from . import _ffi_api
 from .base import TIRFrame
+from ...parse.utils import extra_vars
 
 
 @_register_object("script.builder.tir.PrimFuncFrame")
@@ -52,7 +53,7 @@ def prim_func(f: Optional[Callable] = None) -> Union[PrimFuncFrame, PrimFunc, Ca
 
         if _is_defined_in_class(inspect.stack()):
             return f
-        return parse(f)
+        return parse(f, extra_vars(f, "tvm.script.builder.tir"))
     return _ffi_api.PrimFunc()  # pylint: disable=no-member # type: ignore
 
 
