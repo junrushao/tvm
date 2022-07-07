@@ -30,11 +30,22 @@ def deferred(f: Callable[[], None]):
     return context()
 
 
-def extra_vars(func: Callable, module_prefix: str):
+def inspect_function_capture(func: Callable):
+    PREFIX = "tvm.script.builder."
     vars = {}
-    for k, v in func.__globals__.items():
-        if inspect.ismodule(v) and v.__name__.startswith(module_prefix):
+    closure_vars = inspect.getclosurevars(func)
+    captured = {**closure_vars.nonlocals, **closure_vars.globals}
+    for k, v in captured.items():
+        # Case 1: a moduel like `T` or `tvm.script.builder.tir`
+        if inspect.ismodule(v) and v.__name__.startswith(PREFIX):
             vars[k] = v
-        elif hasattr(v, "__module__") and v.__module__.startswith(module_prefix):
+            continue
+        # Case 2: a function like `T.match_buffer`
+        if hasattr(v, "__module__") and v.__module__.startswith(PREFIX):
             vars[k] = v
+            continue
+        # Case 3: atomic types
+        if v is None or isinstance(v, (int, float, str, bool)):
+            vars[k] = v
+            continue
     return vars
