@@ -18,6 +18,7 @@
 import contextlib
 from functools import partial
 from typing import Any
+from copy import deepcopy
 
 from tvm.tir import IterVar, PrimExpr, Var
 
@@ -78,6 +79,34 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
         self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
+
+
+@dispatch.register(token="tir", type_name="AugAssign")
+def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
+    new_rhs = deepcopy(node.target)
+    new_rhs.ctx = doc.Load(
+        node.value.lineno,
+        node.value.col_offset,
+        node.value.end_lineno,
+        node.value.end_col_offset,
+    )
+    new_node = doc.Assign(
+        [node.target],
+        doc.BinOp(
+            new_rhs,
+            node.op,
+            node.value,
+            node.value.lineno,
+            node.value.col_offset,
+            node.value.end_lineno,
+            node.value.end_col_offset,
+        ),
+        node.lineno,
+        node.col_offset,
+        node.lineno,
+        node.end_col_offset,
+    )
+    self.visit_Assign(new_node)
 
 
 @dispatch.register(token="tir", type_name="AnnAssign")
