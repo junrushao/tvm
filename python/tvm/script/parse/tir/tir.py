@@ -96,20 +96,21 @@ def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
         node.value.end_col_offset,
     )
     node.target.ctx = doc.Load(*lhs_pos)
-    lhs_name = f"__tvm_tmp_value_aug_assign_lhs_{lhs_pos[0]}"
-    rhs_name = f"__tvm_tmp_value_aug_assign_rhs_{rhs_pos[0]}"
-    lhs = self.eval_expr(node.target)
-    rhs = self.eval_expr(node.value)
-    self.var_table.add(lhs_name, lhs)
-    self.var_table.add(rhs_name, rhs)
-    binop = doc.BinOp(
-        doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
-        node.op,
-        doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
-        *lhs_pos,
-    )
+    with self.var_table.with_frame():
+        lhs_name = f"__tvm_tmp_value_aug_assign_lhs_{lhs_pos[0]}"
+        rhs_name = f"__tvm_tmp_value_aug_assign_rhs_{rhs_pos[0]}"
+        lhs_expr = self.eval_expr(node.target)
+        rhs_expr = self.eval_expr(node.value)
+        self.var_table.add(lhs_name, lhs_expr)
+        self.var_table.add(rhs_name, rhs_expr)
+        binop = doc.BinOp(
+            doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
+            node.op,
+            doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
+            *lhs_pos,
+        )
+        rhs = self.eval_expr(binop)
     lhs = node.target
-    rhs = self.eval_expr(binop)
     lhs.ctx = doc.Store(*lhs_pos)
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
