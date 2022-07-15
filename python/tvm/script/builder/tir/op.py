@@ -19,6 +19,7 @@
 from tvm.tir.expr import Broadcast, Ramp as ramp, Select, Shuffle
 from tvm.tir.generic import cast
 from tvm.tir import op, type_annotation
+from tvm.tir.op import tvm_struct_get
 from tvm.target import Target as target
 
 
@@ -109,8 +110,6 @@ call_packed = dtype_forward(op.call_packed)
 call_pure_extern = dtype_forward(op.call_pure_extern)
 
 tvm_access_ptr = op_wrapper(op.tvm_access_ptr)
-from tvm.tir.op import tvm_struct_get
-
 tvm_struct_set = op_wrapper(op.tvm_struct_set)
 
 tvm_thread_allreduce = op_wrapper(op.tvm_thread_allreduce)

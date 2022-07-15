@@ -83,30 +83,44 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 
 @dispatch.register(token="tir", type_name="AugAssign")
 def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
-    new_rhs = deepcopy(node.target)
-    new_rhs.ctx = doc.Load(
+    lhs_pos = (
+        node.target.lineno,
+        node.target.col_offset,
+        node.target.end_lineno,
+        node.target.end_col_offset,
+    )
+    rhs_pos = (
         node.value.lineno,
         node.value.col_offset,
         node.value.end_lineno,
         node.value.end_col_offset,
     )
-    new_node = doc.Assign(
-        [node.target],
-        doc.BinOp(
-            new_rhs,
-            node.op,
-            node.value,
-            node.value.lineno,
-            node.value.col_offset,
-            node.value.end_lineno,
-            node.value.end_col_offset,
-        ),
-        node.lineno,
-        node.col_offset,
-        node.lineno,
-        node.end_col_offset,
+    node.target.ctx = doc.Load(*lhs_pos)
+    lhs_name = f"__tvm_tmp_value_aug_assign_lhs_{lhs_pos[0]}"
+    rhs_name = f"__tvm_tmp_value_aug_assign_rhs_{rhs_pos[0]}"
+    lhs = self.eval_expr(node.target)
+    rhs = self.eval_expr(node.value)
+    self.var_table.add(lhs_name, lhs)
+    self.var_table.add(rhs_name, rhs)
+    binop = doc.BinOp(
+        doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
+        node.op,
+        doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
+        *lhs_pos,
     )
-    self.visit_Assign(new_node)
+    lhs = node.target
+    rhs = self.eval_expr(binop)
+    lhs.ctx = doc.Store(*lhs_pos)
+    if isinstance(lhs, doc.Subscript):
+        if isinstance(lhs.slice, doc.Tuple):
+            indices = []
+            for index in lhs.slice.elts:
+                indices.append(self.eval_expr(index))
+        else:
+            indices = [self.eval_expr(lhs.slice)]
+        T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
+    else:
+        self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
 
 
 @dispatch.register(token="tir", type_name="AnnAssign")
