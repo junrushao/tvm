@@ -22,6 +22,7 @@
 #include <tvm/runtime/registry.h>
 
 #include "./for_frame.h"
+#include "./prim_func_frame.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -33,8 +34,8 @@ BlockFrame Block(String name, bool no_realize) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
-  n->reads.clear();
-  n->writes.clear();
+  n->reads = NullOpt;
+  n->writes = NullOpt;
   n->init = NullOpt;
   n->alloc_buffers.clear();
   n->match_buffers.clear();
@@ -48,11 +49,16 @@ BlockFrame Block(String name, bool no_realize) {
 void BlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   Array<tvm::tir::Buffer> tir_alloc_buffers;
-  for (const Buffer& buffer : alloc_buffers) {
-    tir_alloc_buffers.push_back(buffer->buffer);
+  for (const tvm::tir::Buffer& buffer : alloc_buffers) {
+    tir_alloc_buffers.push_back(buffer);
   }
-  tvm::tir::Block block(iter_vars, reads, writes, name, AsStmt(stmts), init, tir_alloc_buffers,
-                        match_buffers, annotations);
+  if (int detect_access = !reads.defined() | (!writes.defined() << 1)) {
+    annotations.Set("tir.script_parsing_detect_access",
+                    tvm::IntImm(DataType::Int(64), detect_access));
+  }
+  tvm::tir::Block block(iter_vars, reads.value_or(Array<tvm::tir::BufferRegion>()),
+                        writes.value_or(Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts), init,
+                        tir_alloc_buffers, match_buffers, annotations);
   if (no_realize) {
     CHECK(iter_values.empty())
         << "ValueError: Block bindings are not allowed when `no_realize=True`";
@@ -104,36 +110,40 @@ void Where(PrimExpr predicate) {
 void Reads(Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
   BlockFrame frame = FindBlockFrame("T.reads");
-  if (!frame->reads.empty()) {
+  if (frame->reads.defined()) {
     LOG(FATAL) << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
+  Array<tvm::tir::BufferRegion> reads;
   for (const ObjectRef& obj : buffer_slices) {
     if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      frame->reads.push_back(GetRef<BufferRegion>(buffer_region));
+      reads.push_back(GetRef<BufferRegion>(buffer_region));
     } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      frame->reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+      reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
     } else {
       LOG(FATAL) << "Invalid type for buffer reads.";
     }
   }
+  frame->reads = reads;
 }
 
 void Writes(Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
   BlockFrame frame = FindBlockFrame("T.writes");
-  if (!frame->writes.empty()) {
+  if (frame->writes.defined()) {
     LOG(FATAL) << "ValueError: Duplicate write region declaration, previous one is "
                << frame->writes;
   }
+  Array<tvm::tir::BufferRegion> writes;
   for (const ObjectRef& obj : buffer_slices) {
     if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      frame->writes.push_back(GetRef<BufferRegion>(buffer_region));
+      writes.push_back(GetRef<BufferRegion>(buffer_region));
     } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      frame->writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+      writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
     } else {
       LOG(FATAL) << "Invalid type for buffer writes.";
     }
   }
+  frame->writes = writes;
 }
 
 void BlockAttrs(Map<String, ObjectRef> attrs) {
@@ -144,13 +154,21 @@ void BlockAttrs(Map<String, ObjectRef> attrs) {
   frame->annotations = attrs;
 }
 
-Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<tvm::tir::Var> data,
-                   Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
-                   int offset_factor, String buffer_type_str, Array<IntImm> axis_separators) {
-  Buffer buffer(shape, dtype, "", data, strides, elem_offset, storage_scope, align, offset_factor,
-                buffer_type_str, axis_separators);
-  BlockFrame frame = FindBlockFrame("T.alloc_buffer");
-  frame->alloc_buffers.push_back(buffer);
+tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<tvm::tir::Var> data,
+                             Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope,
+                             int align, int offset_factor, String buffer_type_str,
+                             Array<IntImm> axis_separators) {
+  tvm::tir::Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope,
+                                       align, offset_factor, buffer_type_str, axis_separators);
+  if (Optional<BlockFrame> block_frame = Builder::Current()->GetLastFrame<BlockFrame>()) {
+    block_frame.value()->alloc_buffers.push_back(buffer);
+  } else if (Optional<PrimFuncFrame> prim_func_frame =
+                 Builder::Current()->GetLastFrame<PrimFuncFrame>()) {
+    prim_func_frame.value()->alloc_buffers.push_back(buffer);
+  } else {
+    LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
+                  "'T.alloc_buffer' is called under T.block() or T.prim_func()";
+  }
   return buffer;
 };
 

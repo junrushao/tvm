@@ -23,11 +23,11 @@ namespace script {
 namespace builder {
 namespace tir {
 
-Buffer::Buffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
-               Optional<tvm::tir::Var> data, Optional<Array<PrimExpr>> strides,
-               Optional<PrimExpr> elem_offset, String storage_scope, int align, int offset_factor,
-               String buffer_type_str, Optional<Array<IntImm>> axis_separators) {
-  ObjectPtr<BufferNode> n = make_object<BufferNode>();
+tvm::tir::Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                            Optional<tvm::tir::Var> data, Optional<Array<PrimExpr>> strides,
+                            Optional<PrimExpr> elem_offset, String storage_scope, int align,
+                            int offset_factor, String buffer_type_str,
+                            Optional<Array<IntImm>> axis_separators) {
   tvm::tir::Var buffer_data;
   if (!data.defined()) {
     DataType storage_dtype = dtype;
@@ -40,10 +40,13 @@ Buffer::Buffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
   }
   tvm::tir::BufferType buffer_type =
       (buffer_type_str == "auto_broadcast") ? tvm::tir::kAutoBroadcast : tvm::tir::kDefault;
-  n->buffer = tvm::tir::Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),
-                               elem_offset.value_or(PrimExpr()), buffer_name, align, offset_factor,
-                               buffer_type, axis_separators.value_or(Array<IntImm>()));
-  data_ = n;
+  if (!elem_offset.defined() && offset_factor) {
+    DataType shape_dtype = shape[0]->dtype;
+    elem_offset = tvm::tir::Var("elem_offset", shape_dtype);
+  }
+  return tvm::tir::Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),
+                          elem_offset.value_or(PrimExpr()), buffer_name, align, offset_factor,
+                          buffer_type, axis_separators.value_or(Array<IntImm>()));
 }
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
@@ -59,11 +62,6 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
           Namer::Name(GetRef<tvm::tir::Var>(v), name + "_s" + std::to_string(i));
         }
       }
-    });
-
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<BufferNode>([](const ObjectRef& node, String name) -> void {
-      Namer::Name(node.as<BufferNode>()->buffer, name);
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
@@ -87,16 +85,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       Namer::Name(var->var, name);
     });
 
-TVM_REGISTER_NODE_TYPE(BufferNode);
-TVM_REGISTER_GLOBAL("script.builder.tir.Buffer")
-    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, String buffer_name,
-                       Optional<tvm::tir::Var> data, Optional<Array<PrimExpr>> strides,
-                       Optional<PrimExpr> elem_offset, String storage_scope, int align,
-                       int offset_factor, String buffer_type_str,
-                       Optional<Array<IntImm>> axis_separators) {
-      return Buffer(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
-                    offset_factor, buffer_type_str, axis_separators);
-    });
+TVM_REGISTER_GLOBAL("script.builder.tir.BufferDecl").set_body_typed(BufferDecl);
 
 }  // namespace tir
 }  // namespace builder

@@ -44,8 +44,11 @@ from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize, type_ann
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
-from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
+from .op import call_packed, call_cpacked, call_packed_lowered, call_cpacked_lowered
+from .op import call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
+from .op import tvm_access_ptr, tvm_throw_last_error
+from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh
 from .op import cos, cosh, acos, acosh
@@ -59,7 +62,7 @@ from .op import q_multiply_shift, address_of, lookup_param, shift_left, shift_ri
 from .op import likely
 from .op import ptx_mma, ptx_mma_sp, ptx_ldmatrix, ptx_cp_async, ptx_wait_group, ptx_commit_group
 from .op import mma_store, mma_fill
-from .op import tvm_access_ptr, tvm_struct_get, tvm_struct_set
+from .op import tvm_access_ptr, tvm_tuple, tvm_struct_get, tvm_struct_set
 from .op import tvm_thread_allreduce, tvm_load_matrix_sync, tvm_mma_sync, tvm_bmma_sync
 from .op import tvm_fill_fragment, tvm_store_matrix_sync
 

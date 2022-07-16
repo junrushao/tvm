@@ -33,10 +33,10 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Optional<String> name;
   Array<tvm::tir::Var> args;
   Optional<Type> ret_type;
-  Map<tvm::tir::Var, Buffer> buffer_map;
-  Map<tvm::tir::Var, Buffer> preflattened_buffer_map;
+  Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
+  Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
   Map<String, ObjectRef> attrs;
-  BlockFrame root_block_frame{nullptr};
+  Array<tvm::tir::Buffer> alloc_buffers;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -46,14 +46,13 @@ class PrimFuncFrameNode : public TIRFrameNode {
     v->Visit("buffer_map", &buffer_map);
     v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
-    v->Visit("root_block_frame", &root_block_frame);
+    v->Visit("alloc_buffers", &alloc_buffers);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.PrimFuncFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
 
  public:
-  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 
@@ -64,18 +63,20 @@ class PrimFuncFrame : public TIRFrame {
 
 PrimFuncFrame PrimFunc();
 tvm::tir::Var Arg(String name, tvm::tir::Var var);
-Buffer Arg(String name, Buffer buffer);
+tvm::tir::Buffer Arg(String name, tvm::tir::Buffer buffer);
 void FuncName(String name);
 void FuncAttrs(Map<String, ObjectRef> attrs);
 tvm::Type FuncRet(tvm::Type ret_type);
 
-Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
-                   PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
-                   int offset_factor = 0, String buffer_type_str = "default",
-                   Array<IntImm> axis_separators = {});
+tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape,
+                             DataType dtype = DataType::Float(32),
+                             Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
+                             PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                             int align = -1, int offset_factor = 0,
+                             String buffer_type_str = "default",
+                             Array<IntImm> axis_separators = {});
 
-void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
+void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
                         DataType dtype = DataType::Float(32),
                         Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
                         PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
