@@ -20,6 +20,7 @@ from typing import List, Union
 import numpy as np
 from tvm.arith import Analyzer
 from tvm._ffi import register_object as _register_object
+from tvm.python.tvm.tir.expr import IntImm
 from tvm.runtime import Object, convert
 from tvm.runtime import ndarray as nd
 from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var, Let, Ramp
@@ -106,8 +107,8 @@ def allocate(
     condition: PrimExpr = None,
     annotations=None,
 ) -> AllocateFrame:
-    if condition is not None:
-        condition = cast(condition, "bool")
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.AllocateFrame(
         extents, dtype, scope, condition, annotations
     )  # pylint: disable=no-member # type: ignore
@@ -138,12 +139,14 @@ def attr(node: Object, attr_key: str, value: Union[PrimExpr, str]) -> AttrFrame:
 
 
 def while_(condition: PrimExpr) -> WhileFrame:
-    condition = cast(condition, "bool")
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.WhileFrame(condition)  # pylint: disable=no-member # type: ignore
 
 
 def if_(condition: PrimExpr) -> IfFrame:
-    condition = cast(condition, "bool")
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.IfFrame(condition)  # pylint: disable=no-member # type: ignore
 
 

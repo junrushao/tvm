@@ -16,12 +16,10 @@
 # under the License.
 """TVM Script TIR Op"""
 
-from tvm.tir.expr import Broadcast as broadcast, Ramp as ramp, Shuffle
-from tvm.tir.generic import cast
-from tvm.tir import op, type_annotation
-from tvm.tir.op import tvm_struct_get
-from tvm.target import Target as target
-from tvm.target.codegen import llvm_lookup_intrinsic_id
+import inspect
+from tvm.tir import op
+from tvm.tir import IntImm, PrimExpr, Select as select, CommReducer, Var
+from tvm.runtime import convert_to_object
 
 
 def op_wrapper(func):
@@ -179,36 +177,24 @@ def uint64(expr=None):
 
 
 def float8(expr=None):
-    from tvm.tir import PrimExpr
-    from tvm.runtime import convert_to_object
-
     if not isinstance(expr, PrimExpr):
         expr = convert_to_object(expr)
     return _ffi_api.Float8(expr)
 
 
 def float16(expr=None):
-    from tvm.tir import PrimExpr
-    from tvm.runtime import convert_to_object
-
     if not isinstance(expr, PrimExpr):
         expr = convert_to_object(expr)
     return _ffi_api.Float16(expr)
 
 
 def float32(expr=None):
-    from tvm.tir import PrimExpr
-    from tvm.runtime import convert_to_object
-
     if not isinstance(expr, PrimExpr):
         expr = convert_to_object(expr)
     return _ffi_api.Float32(expr)
 
 
 def float64(expr=None):
-    from tvm.tir import PrimExpr
-    from tvm.runtime import convert_to_object
-
     if not isinstance(expr, PrimExpr):
         expr = convert_to_object(expr)
     return _ffi_api.Float64(expr)
@@ -269,23 +255,19 @@ def max(a, b):
 
 
 def Select(condition, true_value, false_value):
-    from tvm.tir import Select as select
-
-    condition = cast(condition, "bool")
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return select(condition, true_value, false_value)
 
 
-def comm_reducer(lambda_func, identities):
+def comm_reducer(combiner, identity):
     """Create a CommReducer from lambda inputs/outputs and the identities"""
-    import inspect
-    from tvm.tir import CommReducer, Var
-
-    params = inspect.signature(lambda_func).parameters
+    params = inspect.signature(combiner).parameters
     num_args = len(params)
     args = []
-    for name, i in zip(params.keys(), identities + identities):
+    for name, i in zip(params.keys(), identity + identity):
         args.append(Var(name, i.dtype))
-    res = lambda_func(*tuple(args))
+    res = combiner(*args)
     if not isinstance(res, tuple):
         res = (res,)
-    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identities)
+    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
