@@ -42,14 +42,14 @@ void LetFrameNode::ExitWithScope() {
 
 void AllocateFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  tvm::tir::Buffer flattened_buffer = buffer->buffer.GetFlattenedBuffer();
-  AddToParent(tvm::tir::Allocate(buffer->buffer->data, flattened_buffer->dtype,
-                                 flattened_buffer->shape, condition, AsStmt(stmts), annotations));
+  tvm::tir::Buffer flattened_buffer = buffer.GetFlattenedBuffer();
+  AddToParent(tvm::tir::Allocate(buffer->data, flattened_buffer->dtype, flattened_buffer->shape,
+                                 condition, AsStmt(stmts), annotations));
 }
 
 void AllocateConstFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::AllocateConst(buffer->buffer->data, dtype, extents, data, AsStmt(stmts)));
+  AddToParent(tvm::tir::AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
 }
 
 void LaunchThreadFrameNode::ExitWithScope() {
@@ -149,13 +149,10 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
   n->extents = extents;
   n->dtype = dtype;
   n->storage_scope = storage_scope;
-  n->condition = condition.value_or(true);
-  if (!n->condition->dtype.is_bool()) {
-    n->condition = tvm::cast(DataType::Bool(), n->condition);
-  }
+  n->condition = condition.value_or(tvm::Bool(true));
   n->annotations = annotations.value_or(Map<String, ObjectRef>());
   n->buffer =
-      Buffer(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope, 0, 0, "default", {});
+      BufferDecl(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope, 0, 0, "default", {});
   return AllocateFrame(n);
 }
 
@@ -165,7 +162,7 @@ AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
   n->dtype = dtype;
   n->extents = extents;
   n->data = data;
-  n->buffer = Buffer(extents, dtype, "", NullOpt, {}, PrimExpr(), "", 0, 0, "default", {});
+  n->buffer = BufferDecl(extents, dtype, "", NullOpt, {}, PrimExpr(), "", 0, 0, "default", {});
   return AllocateConstFrame(n);
 }
 
@@ -194,11 +191,7 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
 
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
-  if (const auto* buffer = node.as<BufferNode>()) {
-    n->node = GetRef<Buffer>(buffer)->buffer;
-  } else {
-    n->node = node;
-  }
+  n->node = node;
   n->attr_key = attr_key;
   n->value = value;
   return AttrFrame(n);
@@ -233,12 +226,12 @@ tvm::tir::IterVar EnvThread(String thread_tag) {
   return IterVar(Range{nullptr}, Var("", DataType::Int(32)), IterVarType::kThreadIndex, thread_tag);
 }
 
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
-  AddToParent(tvm::tir::BufferStore(buffer->buffer, value, indices));
+void BufferStore(tvm::tir::Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  AddToParent(tvm::tir::BufferStore(buffer, value, indices));
 }
 
-void Prefetch(Buffer buffer, Array<Range> bounds) {
-  AddToParent(tvm::tir::Prefetch(buffer->buffer, bounds));
+void Prefetch(tvm::tir::Buffer buffer, Array<Range> bounds) {
+  AddToParent(tvm::tir::Prefetch(buffer, bounds));
 }
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }

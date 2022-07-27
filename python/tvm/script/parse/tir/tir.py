@@ -20,7 +20,7 @@ from functools import partial
 from typing import Any
 from copy import deepcopy
 
-from tvm.tir import IterVar, PrimExpr, Var
+from tvm.tir import IterVar, PrimExpr, Var, Buffer
 
 from ...builder import Frame, def_
 from ...builder import tir as T
@@ -34,7 +34,7 @@ def bind_value(self: Parser, name: str, value: Any) -> Any:
         res = value.__enter__()
         def_(name, res)
         return res
-    elif isinstance(value, (T.Buffer_, IterVar, Var, tuple, list)):
+    elif isinstance(value, (Buffer, IterVar, Var, tuple, list)):
         def_(name, value)
         return value
     elif isinstance(value, PrimExpr):
@@ -60,6 +60,14 @@ def visit_for(self: Parser, node: doc.For) -> None:
     with self.var_table.with_frame():
         with for_frame as iters:
             self.eval_assign(target=node.target, source=iters, bind_value=bind_value)
+            self.visit_body(node.body)
+
+
+@dispatch.register(token="tir", type_name="While")
+def visit_while(self: Parser, node: doc.While) -> None:
+    with self.var_table.with_frame():
+        cond = self.eval_expr(node.test)
+        with T.while_(cond):
             self.visit_body(node.body)
 
 
@@ -97,8 +105,8 @@ def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
     )
     node.target.ctx = doc.Load(*lhs_pos)
     with self.var_table.with_frame():
-        lhs_name = f"__tvm_tmp_value_aug_assign_lhs_{lhs_pos[0]}"
-        rhs_name = f"__tvm_tmp_value_aug_assign_rhs_{rhs_pos[0]}"
+        lhs_name = f"__tvm_tmp_value_aug_assign_lhs"
+        rhs_name = f"__tvm_tmp_value_aug_assign_rhs"
         lhs_expr = self.eval_expr(node.target)
         rhs_expr = self.eval_expr(node.value)
         self.var_table.add(lhs_name, lhs_expr)
@@ -207,3 +215,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
             if len(node.orelse):
                 with T.else_():
                     self.visit_body(node.orelse)
+
+
+@dispatch.register(token="tir", type_name="Assert")
+def visit_assert(self: Parser, node: doc.Assert) -> None:
+    cond = self.eval_expr(node.test)
+    msg = self.eval_expr(node.msg)
+    frame = T.Assert(cond, msg)
+    frame.add_callback(partial(frame.__exit__, None, None, None))
+    frame.__enter__()

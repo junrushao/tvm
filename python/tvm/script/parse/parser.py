@@ -143,6 +143,9 @@ class Parser(doc.NodeVisitor):
     def visit_For(self, node: doc.For) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "For")(self, node)
 
+    def visit_While(self, node: doc.While) -> Any:
+        return _dispatch(self, "While")(self, node)  # pylint: disable=invalid-name
+
     def visit_With(self, node: doc.With) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "With")(self, node)
 
@@ -160,6 +163,9 @@ class Parser(doc.NodeVisitor):
 
     def visit_AugAssign(self, node: doc.AugAssign) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "AugAssign")(self, node)
+
+    def visit_Assert(self, node: doc.Assert) -> Any:
+        return _dispatch(self, "Assert")(self, node)  # pylint: disable=invalid-name
 
 
 def _handle_function(self: Parser, node: doc.FunctionDef) -> None:

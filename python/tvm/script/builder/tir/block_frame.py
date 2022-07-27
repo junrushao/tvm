@@ -19,7 +19,8 @@ from typing import Any, Dict, List, Union
 from numbers import Integral
 
 from tvm._ffi import register_object as _register_object
-from tvm.tir import Buffer, BufferLoad, BufferRegion, PrimExpr
+from tvm.tir import Buffer, BufferLoad, BufferRegion, PrimExpr, IntImm
+from tvm.tir.generic import cast
 
 from . import _ffi_api
 from .base import TIRFrame
@@ -44,6 +45,8 @@ def init() -> BlockInitFrame:
 
 
 def where(predicate) -> None:
+    if isinstance(predicate, bool):
+        predicate = IntImm("bool", predicate)
     _ffi_api.Where(predicate)  # pylint: disable=no-member # type: ignore
 
 

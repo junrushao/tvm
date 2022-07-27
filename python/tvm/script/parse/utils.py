@@ -33,8 +33,9 @@ def deferred(f: Callable[[], None]):
 def inspect_function_capture(func: Callable) -> Dict[str, Any]:
     PREFIX = "tvm.script.builder."
     vars = {}
-    closure_vars = inspect.getclosurevars(func)
-    captured = {**closure_vars.nonlocals, **closure_vars.globals}
+    nonlocals = inspect.getclosurevars(func).nonlocals
+    globals = func.__globals__
+    captured = {**nonlocals, **globals}
     for k, v in captured.items():
         # Case 1: a moduel like `T` or `tvm.script.builder.tir`
         if inspect.ismodule(v) and v.__name__.startswith(PREFIX):

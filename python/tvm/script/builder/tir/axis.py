@@ -24,28 +24,36 @@ from . import _ffi_api
 from typing import List, Union
 
 
+def as_range(dom) -> Range:
+    if isinstance(dom, Range):
+        return dom
+    if isinstance(dom, (list, tuple)):
+        return Range(dom[0], dom[1])
+    return Range(0, dom)
+
+
 def spatial(dom, binding, dtype="int32") -> IterVar:
-    if not isinstance(dom, Range):
-        dom = Range(0, dom)
-    return _ffi_api.AxisSpatial(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.AxisSpatial(
+        as_range(dom), binding, dtype
+    )  # pylint: disable=no-member # type: ignore
 
 
 def reduce(dom, binding, dtype="int32") -> IterVar:
-    if not isinstance(dom, Range):
-        dom = Range(0, dom)
-    return _ffi_api.AxisReduce(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.AxisReduce(
+        as_range(dom), binding, dtype
+    )  # pylint: disable=no-member # type: ignore
 
 
 def scan(dom, binding, dtype="int32") -> IterVar:
-    if not isinstance(dom, Range):
-        dom = Range(0, dom)
-    return _ffi_api.AxisScan(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.AxisScan(
+        as_range(dom), binding, dtype
+    )  # pylint: disable=no-member # type: ignore
 
 
 def opaque(dom, binding, dtype="int32") -> IterVar:
-    if not isinstance(dom, Range):
-        dom = Range(0, dom)
-    return _ffi_api.AxisOpaque(dom, binding, dtype)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.AxisOpaque(
+        as_range(dom), binding, dtype
+    )  # pylint: disable=no-member # type: ignore
 
 
 def remap(kinds, bindings, dtype="int32") -> Union[List[IterVar], IterVar]:

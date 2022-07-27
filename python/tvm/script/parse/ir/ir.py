@@ -25,3 +25,8 @@ def visit_class_def(self: Parser, node: doc.ClassDef) -> None:
         with I.ir_module():
             with self.with_dispatch_token("ir"):
                 self.visit_body(node.body)
+
+
+@dispatch.register(token="ir", type_name="Assign")
+def visit_assign(self: Parser, node: doc.Assign) -> None:
+    pass

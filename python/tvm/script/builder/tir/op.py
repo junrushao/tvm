@@ -16,11 +16,10 @@
 # under the License.
 """TVM Script TIR Op"""
 
-from tvm.tir.expr import Broadcast, Ramp as ramp, Select, Shuffle
-from tvm.tir.generic import cast
-from tvm.tir import op, type_annotation
-from tvm.tir.op import tvm_struct_get
-from tvm.target import Target as target
+import inspect
+from tvm.tir import op
+from tvm.tir import IntImm, PrimExpr, Select as select, CommReducer, Var
+from tvm.runtime import convert_to_object
 
 
 def op_wrapper(func):
@@ -52,7 +51,6 @@ atan2 = op_wrapper(op.atan2)
 atanh = op_wrapper(op.atanh)
 ceil = op_wrapper(op.ceil)
 clz = op_wrapper(op.clz)
-comm_reducer = op_wrapper(op.comm_reducer)
 copysign = op_wrapper(op.copysign)
 cos = op_wrapper(op.cos)
 cosh = op_wrapper(op.cosh)
@@ -86,7 +84,7 @@ popcount = op_wrapper(op.popcount)
 power = op_wrapper(op.power)
 q_multiply_shift = op_wrapper(op.q_multiply_shift)
 ret = op_wrapper(op.ret)
-reinterpret = op_wrapper(op.reinterpret)
+reinterpret = dtype_forward(op.reinterpret)
 round = op_wrapper(op.round)
 rsqrt = op_wrapper(op.rsqrt)
 shift_left = op_wrapper(op.shift_left)
@@ -101,15 +99,25 @@ trunc = op_wrapper(op.trunc)
 truncdiv = op_wrapper(op.truncdiv)
 truncmod = op_wrapper(op.truncmod)
 
-call_cpacked = dtype_forward(op.call_cpacked)
+tvm_access_ptr = op_wrapper(op.tvm_access_ptr)
+tvm_throw_last_error = op_wrapper(op.tvm_throw_last_error)
+tvm_stack_alloca = op_wrapper(op.tvm_stack_alloca)
+tvm_stack_make_shape = op_wrapper(op.tvm_stack_make_shape)
+tvm_stack_make_array = op_wrapper(op.tvm_stack_make_array)
+
+call_packed = op_wrapper(op.call_packed)
+call_cpacked = op_wrapper(op.call_cpacked)
+call_packed_lowered = op_wrapper(op.call_packed_lowered)
+call_cpacked_lowered = op_wrapper(op.call_cpacked_lowered)
+
 call_extern = dtype_forward(op.call_extern)
 call_intrin = dtype_forward(op.call_intrin)
 call_llvm_intrin = dtype_forward(op.call_llvm_intrin)
 call_llvm_pure_intrin = dtype_forward(op.call_llvm_pure_intrin)
-call_packed = dtype_forward(op.call_packed)
 call_pure_extern = dtype_forward(op.call_pure_extern)
 
 tvm_access_ptr = op_wrapper(op.tvm_access_ptr)
+tvm_tuple = op_wrapper(op.tvm_tuple)
 tvm_struct_set = op_wrapper(op.tvm_struct_set)
 
 tvm_thread_allreduce = op_wrapper(op.tvm_thread_allreduce)
@@ -128,6 +136,10 @@ ptx_commit_group = op_wrapper(op.ptx_commit_group)
 mma_store = op_wrapper(op.mma_store)
 mma_fill = op_wrapper(op.mma_fill)
 
+tvm_call_packed = call_cpacked
+tvm_call_cpacked = call_cpacked
+tvm_call_packed_lowered = call_cpacked_lowered
+tvm_call_cpacked_lowered = call_cpacked_lowered
 
 from . import _ffi_api
 
@@ -165,18 +177,26 @@ def uint64(expr=None):
 
 
 def float8(expr=None):
+    if not isinstance(expr, PrimExpr):
+        expr = convert_to_object(expr)
     return _ffi_api.Float8(expr)
 
 
 def float16(expr=None):
+    if not isinstance(expr, PrimExpr):
+        expr = convert_to_object(expr)
     return _ffi_api.Float16(expr)
 
 
 def float32(expr=None):
+    if not isinstance(expr, PrimExpr):
+        expr = convert_to_object(expr)
     return _ffi_api.Float32(expr)
 
 
 def float64(expr=None):
+    if not isinstance(expr, PrimExpr):
+        expr = convert_to_object(expr)
     return _ffi_api.Float64(expr)
 
 
@@ -232,3 +252,22 @@ def max(a, b):
     This is the default integer division behavior in C.
     """
     return _ffi_api.max(a, b)  # type: ignore
+
+
+def Select(condition, true_value, false_value):
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
+    return select(condition, true_value, false_value)
+
+
+def comm_reducer(combiner, identity):
+    """Create a CommReducer from lambda inputs/outputs and the identities"""
+    params = inspect.signature(combiner).parameters
+    num_args = len(params)
+    args = []
+    for name, i in zip(params.keys(), identity + identity):
+        args.append(Var(name, i.dtype))
+    res = combiner(*args)
+    if not isinstance(res, tuple):
+        res = (res,)
+    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)

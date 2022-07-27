@@ -16,23 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_BUILDER_TIR_VAR_H_
-#define TVM_SCRIPT_BUILDER_TIR_VAR_H_
 
-#include "./base.h"
+/*!
+ * \file tir/ir/script/script_complete.h
+ * \brief Used by TVM Script parser to expand incomplete TIR input
+ */
+
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
-namespace script {
-namespace builder {
 namespace tir {
-tvm::tir::Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name,
-                            Optional<tvm::tir::Var> data, Optional<Array<PrimExpr>> strides,
-                            Optional<PrimExpr> elem_offset, String storage_scope, int align,
-                            int offset_factor, String buffer_type_str,
-                            Optional<Array<IntImm>> axis_separators);
-}  // namespace tir
-}  // namespace builder
-}  // namespace script
-}  // namespace tvm
 
-#endif  // TVM_SCRIPT_BUILDER_TIR_VAR_H_
+PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates);
+
+}  // namespace tir
+}  // namespace tvm

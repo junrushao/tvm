@@ -100,6 +100,64 @@ def call_cpacked(*args, span=None):
     return Call("int32", Op.get("tir.tvm_call_cpacked"), call_args, span)
 
 
+def call_packed_lowered(*args, span=None):
+    """Lowered version of call packed.
+
+    The argument to packed function can be Expr or Buffer.
+    The argument is the corresponding POD type when Expr is presented.
+
+    When the argument is Buffer, the corresponding PackedFunc
+    will recieve an TVMArrayHandle whose content is valid during the callback period.
+    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffer.
+        Positional arguments.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+
+    See Also
+    --------
+    te.extern : Create tensor with extern function call.
+    """
+    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    return Call("int32", Op.get("tir.tvm_call_packed_lowered"), call_args, span)
+
+
+def call_cpacked_lowered(*args, span=None):
+    """Lowered version of call c-packed.
+
+    Same as call_packed, except that the first argument is the function name
+    (as in call_extern), and the last argument is the resource handle.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffer.
+        Positional arguments.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+
+    See Also
+    --------
+    te.extern : Create tensor with extern function call.
+    """
+    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    return Call("int32", Op.get("tir.tvm_call_cpacked_lowered"), call_args, span)
+
+
 def call_intrin(dtype, func_name, *args, span=None):
     """Build expression by calling an intrinsic function.
 
@@ -213,7 +271,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    llvm_id = codegen.llvm_lookup_intrinsic_id(name) if isinstance(name, str) else name
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
         dtype,
@@ -249,7 +307,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    llvm_id = codegen.llvm_lookup_intrinsic_id(name) if isinstance(name, str) else name
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
         dtype,
@@ -260,14 +318,33 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
+def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
+    return call_intrin("handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+
+
+def tvm_throw_last_error():
+    return call_intrin("handle", "tir.tvm_throw_last_error")
+
+
+def tvm_stack_alloca(dtype_str, num):
+    return call_intrin("handle", "tir.tvm_stack_alloca", dtype_str, num)
+
+
+def tvm_stack_make_shape(*args):
+    return call_intrin("handle", "tir.tvm_stack_make_shape", *args)
+
+
+def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
+    return call_intrin(
+        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+    )
+
+
 def address_of(buffer_load, span=None):
     """Returns the address of an element in the buffer
 
     Parameters
     ----------
-    dtype : str
-        The data type of the result.
-
     buffer_load: BufferLoad
         The buffer load.
 
@@ -306,7 +383,7 @@ def tvm_access_ptr(dtype, data, offset, extent, rw_mask):
 
 
 def tvm_tuple(*value):
-    return call_intrin("handle", "tir.tvm_tuple", value)
+    return call_intrin("handle", "tir.tvm_tuple", *value)
 
 
 def tvm_struct_get(arr, index, field_id, dtype):
@@ -317,16 +394,8 @@ def tvm_struct_set(arr, index, field_id, value):
     return call_intrin("handle", "tir.tvm_struct_set", arr, index, field_id, value)
 
 
-def tvm_thread_allreduce(size, source0, cond, reduce_temp0, thread_idx1):
-    return call_intrin(
-        "handle",
-        "tir.tvm_thread_allreduce",
-        size,
-        source0,
-        cond,
-        reduce_temp0,
-        thread_idx1,
-    )
+def tvm_thread_allreduce(*freduce_args):
+    return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
 
 
 def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
@@ -420,7 +489,26 @@ def ptx_mma(
     accumulator,
     c_index,
     saturate,
+    operator=None,
 ):
+    if operator is None:
+        return call_intrin(
+            "handle",
+            "tir.ptx_mma",
+            shape,
+            A_layout,
+            B_layout,
+            A_dtype,
+            B_dtype,
+            C_dtype,
+            multiplicand_a,
+            a_index,
+            multiplicand_b,
+            b_index,
+            accumulator,
+            c_index,
+            saturate,
+        )
     return call_intrin(
         "handle",
         "tir.ptx_mma",
@@ -437,6 +525,7 @@ def ptx_mma(
         accumulator,
         c_index,
         saturate,
+        operator,
     )
 
 

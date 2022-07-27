@@ -78,7 +78,7 @@ class ExprEvaluator:
             if node.id not in self.value_table:
                 self.parser.report_error(node, "Undefined variable: %s" % node.id)
             return node
-        if (not isinstance(node, doc.expr)) or isinstance(
+        if (not isinstance(node, (doc.expr, doc.slice))) or isinstance(
             node,
             (
                 doc.Constant,
@@ -87,7 +87,6 @@ class ExprEvaluator:
                 doc.boolop,
                 doc.unaryop,
                 doc.cmpop,
-                doc.slice,
             ),
         ):
             return node
@@ -137,7 +136,7 @@ class ExprEvaluator:
         value = _eval_expr(value, self.value_table)
         method = getattr(value, func_name, None)
         if method is not None:
-            return method(value)
+            return method()
         return default_func(value)
 
     def _eval_binary(

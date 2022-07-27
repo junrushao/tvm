@@ -18,10 +18,13 @@
 from typing import List, Union
 
 import numpy as np
+from tvm.arith import Analyzer
 from tvm._ffi import register_object as _register_object
-from tvm.runtime import Object
+from tvm.python.tvm.tir.expr import IntImm
+from tvm.runtime import Object, convert
 from tvm.runtime import ndarray as nd
-from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var
+from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var, Let, Ramp
+from tvm.tir.generic import cast
 
 from .. import _ffi_api as _base_ffi_api
 from . import _ffi_api
@@ -91,8 +94,10 @@ def Assert(condition: PrimExpr, message: str) -> AssertFrame:
     return _ffi_api.AssertFrame(condition, message)  # pylint: disable=no-member # type: ignore
 
 
-def let(var: Var, value: PrimExpr) -> LetFrame:
-    return _ffi_api.LetFrame(var, value)  # pylint: disable=no-member # type: ignore
+def let(var: Var, value: PrimExpr, body: PrimExpr = None) -> LetFrame:
+    if body is None:
+        return _ffi_api.LetFrame(var, value)  # pylint: disable=no-member # type: ignore
+    return Let(var, value, body)
 
 
 def allocate(
@@ -102,6 +107,8 @@ def allocate(
     condition: PrimExpr = None,
     annotations=None,
 ) -> AllocateFrame:
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.AllocateFrame(
         extents, dtype, scope, condition, annotations
     )  # pylint: disable=no-member # type: ignore
@@ -126,18 +133,20 @@ def realize(
 
 
 def attr(node: Object, attr_key: str, value: Union[PrimExpr, str]) -> AttrFrame:
-    if isinstance(node, str):
-        node = StringImm(node)
-    if isinstance(value, str):
-        value = StringImm(value)
+    node = convert(node)
+    value = convert(value)
     return _ffi_api.AttrFrame(node, attr_key, value)  # pylint: disable=no-member # type: ignore
 
 
 def while_(condition: PrimExpr) -> WhileFrame:
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.WhileFrame(condition)  # pylint: disable=no-member # type: ignore
 
 
 def if_(condition: PrimExpr) -> IfFrame:
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.IfFrame(condition)  # pylint: disable=no-member # type: ignore
 
 
@@ -153,8 +162,21 @@ def env_thread(thread_tag: str) -> IterVar:
     return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore
 
 
-def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[PrimExpr]) -> None:
-    return _ffi_api.BufferStore(buffer, value, indices)  # pylint: disable=no-member # type: ignore
+def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, slice]]) -> None:
+    expr_indices = []
+    for index in indices:
+        if isinstance(index, slice):
+            step = 1 if index.step is None else index.step
+            lanes = Analyzer().simplify((index.stop - index.start + step - 1) // step)
+            if lanes == 1:
+                expr_indices.append(index.start)
+            else:
+                expr_indices.append(Ramp(index.start, step, int(lanes)))
+        else:
+            expr_indices.append(index)
+    return _ffi_api.BufferStore(
+        buffer, value, expr_indices
+    )  # pylint: disable=no-member # type: ignore
 
 
 def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
