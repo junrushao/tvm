@@ -35,11 +35,9 @@ PrimFuncFrame FindPrimFuncFrame(const String& method) {
   Builder builder = Builder::Current();
   if (Optional<PrimFuncFrame> prim_func_frame = builder->GetLastFrame<PrimFuncFrame>()) {
     return prim_func_frame.value();
-  } else {
-    LOG(FATAL) << "ValueError: PrimFunc frame not find. Please ensure '" << method
-               << "' is called under T.prim_func()";
   }
-  LOG(FATAL) << "ValueError: '" << method << "' must be called immediately under T.prim_func()";
+  LOG(FATAL) << "ValueError: PrimFunc frame not find. Please ensure '" << method
+             << "' is called under T.prim_func()";
   throw;
 }
 
@@ -52,7 +50,7 @@ void PrimFuncFrameNode::ExitWithScope() {
                           /*buffer_map=*/buffer_map,
                           /*preflattened_buffer_map=*/preflattened_buffer_map,
                           /*attrs=*/attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs));
-  func = tvm::tir::ScriptComplete(func, alloc_buffers);
+  func = tvm::tir::ScriptComplete(func, root_alloc_buffers);
   Builder builder = Builder::Current();
   if (builder->frames.empty()) {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
@@ -74,7 +72,7 @@ PrimFuncFrame PrimFunc() {
   n->buffer_map.clear();
   n->preflattened_buffer_map.clear();
   n->attrs.clear();
-  n->alloc_buffers.clear();
+  n->root_alloc_buffers.clear();
   return PrimFuncFrame(n);
 }
 

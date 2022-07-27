@@ -36,7 +36,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
   Map<String, ObjectRef> attrs;
-  Array<tvm::tir::Buffer> alloc_buffers;
+  Array<tvm::tir::Buffer> root_alloc_buffers;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -46,7 +46,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
     v->Visit("buffer_map", &buffer_map);
     v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
-    v->Visit("alloc_buffers", &alloc_buffers);
+    v->Visit("root_alloc_buffers", &root_alloc_buffers);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.PrimFuncFrame";

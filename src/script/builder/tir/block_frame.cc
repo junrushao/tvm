@@ -52,7 +52,7 @@ void BlockFrameNode::ExitWithScope() {
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
-  if (int detect_access = !reads.defined() | (!writes.defined() << 1)) {
+  if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     annotations.Set("tir.script_parsing_detect_access",
                     tvm::IntImm(DataType::Int(64), detect_access));
   }
@@ -91,10 +91,9 @@ void BlockInitFrameNode::ExitWithScope() {
 BlockFrame FindBlockFrame(const String& method) {
   if (Optional<BlockFrame> block_frame = Builder::Current()->GetLastFrame<BlockFrame>()) {
     return block_frame.value();
-  } else {
-    LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
-               << "' is called under T.block()";
   }
+  LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
+             << "' is called under T.block()";
   throw;
 }
 
@@ -164,7 +163,7 @@ tvm::tir::Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<tvm
     block_frame.value()->alloc_buffers.push_back(buffer);
   } else if (Optional<PrimFuncFrame> prim_func_frame =
                  Builder::Current()->GetLastFrame<PrimFuncFrame>()) {
-    prim_func_frame.value()->alloc_buffers.push_back(buffer);
+    prim_func_frame.value()->root_alloc_buffers.push_back(buffer);
   } else {
     LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
                   "'T.alloc_buffer' is called under T.block() or T.prim_func()";

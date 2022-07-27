@@ -80,7 +80,7 @@ class AllocateFrameNode : public TIRFrameNode {
   String storage_scope;
   PrimExpr condition;
   Map<String, ObjectRef> annotations;
-  tvm::tir::Buffer buffer{nullptr};
+  tvm::tir::Buffer buffer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
@@ -109,7 +109,7 @@ class AllocateConstFrameNode : public TIRFrameNode {
   DataType dtype;
   Array<PrimExpr> extents;
   tvm::runtime::NDArray data;
-  tvm::tir::Buffer buffer{nullptr};
+  tvm::tir::Buffer buffer;
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("dtype", &dtype);

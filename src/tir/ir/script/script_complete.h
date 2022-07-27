@@ -29,20 +29,6 @@
 namespace tvm {
 namespace tir {
 
-/*! \brief Generate surrounding loops automatically */
-class ScriptCompleter : public StmtMutator {
- public:
-  explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map) : buffer_var_map_(buffer_var_map) {}
-  /*! \brief Whether the stmt contains at least one block. */
-  bool contains_block = false;
-
- private:
-  Map<Var, Buffer>* buffer_var_map_;
-  Stmt VisitStmt_(const BlockRealizeNode* op) override;
-
-  Stmt VisitStmt_(const BlockNode* op) override;
-};
-
 PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates);
 
 }  // namespace tir
