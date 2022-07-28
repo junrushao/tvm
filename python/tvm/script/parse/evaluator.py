@@ -42,11 +42,11 @@ class ExprEvaluator:
         result = self._visit(node)
         if isinstance(result, doc.Name):
             if result.id not in self.value_table:
-                self.parser.report_error(result, "Undefined variable: %s" % result.id)
+                self.parser.report_error(result, f"Undefined variable: {result.id}")
             return self.value_table[result.id]
         if isinstance(result, doc.Constant):
             return result.value
-        raise TypeError("Unexpected result type: %s" % type(result))
+        raise TypeError(f"Unexpected result type: {type(result)}")
 
     def _add_intermediate_result(self, value: Any) -> doc.Name:
         name = f"__tvm_tmp_value_{self.new_value_count}"
@@ -76,7 +76,7 @@ class ExprEvaluator:
         assert isinstance(node, doc.AST)
         if isinstance(node, doc.Name):
             if node.id not in self.value_table:
-                self.parser.report_error(node, "Undefined variable: %s" % node.id)
+                self.parser.report_error(node, f"Undefined variable: {node.id}")
             return node
         if (not isinstance(node, (doc.expr, doc.slice))) or isinstance(
             node,
@@ -101,26 +101,30 @@ class ExprEvaluator:
         try:
             if isinstance(node, doc.Lambda):
                 value = _eval_expr(node, self.value_table)
-            elif isinstance(node, doc.BoolOp) and isinstance(fields["op"], doc.And):
-                value = self._eval_binary(
-                    fields["values"],
-                    lhs_func_name="__tvm_logical_and__",
-                    rhs_func_name="__tvm_r_logical_and__",
-                    default_func=lambda lhs, rhs: lhs and rhs,
-                )
-            elif isinstance(node, doc.BoolOp) and isinstance(fields["op"], doc.Or):
-                value = self._eval_binary(
-                    fields["values"],
-                    lhs_func_name="__tvm_logical_or__",
-                    rhs_func_name="__tvm_r_logical_or__",
-                    default_func=lambda lhs, rhs: lhs or rhs,
-                )
-            elif isinstance(node, doc.UnaryOp) and isinstance(fields["op"], doc.Not):
-                value = self._eval_unary(
-                    fields["operand"],
-                    func_name="__tvm_logical_not__",
-                    default_func=lambda v: not v,
-                )
+            elif isinstance(node, doc.BoolOp):
+                if isinstance(fields["op"], (doc.And, doc.Or)):
+                    # value = self._eval_binary(
+                    #     fields["values"],
+                    #     lhs_func_name="__tvm_logical_and__",
+                    #     rhs_func_name="__tvm_r_logical_and__",
+                    #     default_func=lambda lhs, rhs: lhs and rhs,
+                    # )
+                    pass
+                elif isinstance(fields["op"], doc.Not):
+                    # value = self._eval_unary(
+                    #     fields["operand"],
+                    #     func_name="__tvm_logical_not__",
+                    #     default_func=lambda v: not v,
+                    # )
+                    pass
+                else:
+                    raise TypeError(f"Unexpected operator: {fields['op']}")
+            elif isinstance(node, doc.BinOp):
+                pass
+            elif isinstance(node, doc.UnaryOp):
+                pass
+            elif isinstance(node, doc.Compare):
+                pass
             else:
                 value = _eval_expr(node.__class__(**fields), self.value_table)
         except Exception as e:
@@ -181,7 +185,7 @@ def eval_assign(
     try:
         return _eval_assign(target, source)
     except Exception as e:
-        parser.report_error(target, "Failed to evaluate assignment: %s" % str(e))
+        parser.report_error(target, f"Failed to evaluate assignment: {str(e)}")
         raise
 
 
