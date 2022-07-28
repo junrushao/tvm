@@ -24,23 +24,8 @@ if TYPE_CHECKING:
     from .parser import Parser
 
 
-ParseMethod = Callable[
-    ["Parser", AST],
-    None,
-]
-
-
-class DispatchTable:
-    """Dispatch table for parse methods"""
-
-    _instance: Optional["DispatchTable"] = None
-    table: Dict[Tuple[str, str], ParseMethod]
-
-    def __init__(self):
-        self.table = {}
-
-
-DispatchTable._instance = DispatchTable()  # pylint: disable=protected-access
+ParseMethod = Callable[["Parser", AST], None]
+_TABLE: Dict[Tuple[str, str], ParseMethod] = {}
 
 
 def register(
@@ -50,9 +35,7 @@ def register(
     """Register a method for a dispatch token and type name"""
 
     def f(method: ParseMethod):
-        DispatchTable._instance.table[  # pylint: disable=protected-access
-            (token, type_name)
-        ] = method
+        _TABLE[(token, type_name)] = method
 
     return f
 
@@ -62,7 +45,4 @@ def get(
     type_name: str,
     default: Optional[ParseMethod] = None,
 ) -> Optional[ParseMethod]:
-    return DispatchTable._instance.table.get(  # pylint: disable=protected-access
-        (token, type_name),
-        default,
-    )
+    return _TABLE.get((token, type_name), default)
