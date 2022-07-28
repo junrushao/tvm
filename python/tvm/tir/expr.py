@@ -183,21 +183,6 @@ class ExprOp(object):
     def __bool__(self):
         return self.__nonzero__()
 
-    def __tvm_logical_not__(self):
-        return _ffi_api._OpNot(self, None)  # type: ignore
-
-    def __tvm_logical_and__(self, rhs):
-        return _ffi_api._OpAnd(self, rhs, None)  # type: ignore
-
-    def __tvm_logical_or__(self, rhs):
-        return _ffi_api._OpOr(self, rhs, None)  # type: ignore
-
-    def __tvm_r_logical_and__(self, lhs):
-        return _ffi_api._OpAnd(lhs, self, None)  # type: ignore
-
-    def __tvm_r_logical_or__(self, lhs):
-        return _ffi_api._OpOr(lhs, self, None)  # type: ignore
-
     def equal(self, other, span=None):
         """Build an equal check expression with other expr.
 

@@ -18,13 +18,21 @@
 from typing import List, Union
 
 import numpy as np
-from tvm.arith import Analyzer
 from tvm._ffi import register_object as _register_object
-from tvm.python.tvm.tir.expr import IntImm
+from tvm.arith import Analyzer
 from tvm.runtime import Object, convert
 from tvm.runtime import ndarray as nd
-from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var, Let, Ramp
-from tvm.tir.generic import cast
+from tvm.tir import (
+    Buffer,
+    BufferRegion,
+    IntImm,
+    IterVar,
+    Let,
+    PrimExpr,
+    Ramp,
+    StringImm,
+    Var,
+)
 
 from .. import _ffi_api as _base_ffi_api
 from . import _ffi_api

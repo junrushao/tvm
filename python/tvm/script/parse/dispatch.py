@@ -16,7 +16,7 @@
 # under the License.
 """The dispatcher"""
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type
 
 from .doc import AST
 
@@ -24,35 +24,18 @@ if TYPE_CHECKING:
     from .parser import Parser
 
 
-ParseMethod = Callable[
-    ["Parser", AST],
-    None,
-]
+ParseMethod = Callable[["Parser", AST], None]
+ParseVTable: Dict[Tuple[str, str], ParseMethod] = {}
+
+OpMethod = Callable[..., Any]
+OpVTable: Dict[Tuple[Type, AST, int], OpMethod] = {}
 
 
-class DispatchTable:
-    """Dispatch table for parse methods"""
-
-    _instance: Optional["DispatchTable"] = None
-    table: Dict[Tuple[str, str], ParseMethod]
-
-    def __init__(self):
-        self.table = {}
-
-
-DispatchTable._instance = DispatchTable()  # pylint: disable=protected-access
-
-
-def register(
-    token: str,
-    type_name: str,
-):
+def register(token: str, type_name: str):
     """Register a method for a dispatch token and type name"""
 
     def f(method: ParseMethod):
-        DispatchTable._instance.table[  # pylint: disable=protected-access
-            (token, type_name)
-        ] = method
+        ParseVTable[(token, type_name)] = method
 
     return f
 
@@ -62,7 +45,20 @@ def get(
     type_name: str,
     default: Optional[ParseMethod] = None,
 ) -> Optional[ParseMethod]:
-    return DispatchTable._instance.table.get(  # pylint: disable=protected-access
-        (token, type_name),
-        default,
-    )
+    return ParseVTable.get((token, type_name), default)
+
+
+def register_op(ty: Type, op: AST, operand_index: int):  # pylint: disable=invalid-name
+    def f(method: OpMethod):
+        OpVTable[(ty, op, operand_index)] = method
+
+    return f
+
+
+def get_op(
+    ty: Type,  # pylint: disable=invalid-name
+    op: Type,
+    operand_index: int,
+    default: Optional[OpMethod] = None,
+) -> Optional[OpMethod]:
+    return OpVTable.get((ty, op, operand_index), default)

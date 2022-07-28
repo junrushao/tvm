@@ -18,9 +18,8 @@
 import contextlib
 from functools import partial
 from typing import Any
-from copy import deepcopy
 
-from tvm.tir import IterVar, PrimExpr, Var, Buffer
+from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
 from ...builder import Frame, def_
 from ...builder import tir as T
@@ -46,6 +45,7 @@ def bind_value(self: Parser, name: str, value: Any) -> Any:
         return var
     else:
         self.report_error("Do not know how to bind type: " + str(type(value)))
+        raise NotImplementedError
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -90,7 +90,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 
 
 @dispatch.register(token="tir", type_name="AugAssign")
-def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
+def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
     lhs_pos = (
         node.target.lineno,
         node.target.col_offset,
@@ -105,19 +105,19 @@ def visit_aug_ssign(self: Parser, node: doc.AugAssign) -> None:
     )
     node.target.ctx = doc.Load(*lhs_pos)
     with self.var_table.with_frame():
-        lhs_name = f"__tvm_tmp_value_aug_assign_lhs"
-        rhs_name = f"__tvm_tmp_value_aug_assign_rhs"
+        lhs_name = "__tvm_tmp_value_aug_assign_lhs"
+        rhs_name = "__tvm_tmp_value_aug_assign_rhs"
         lhs_expr = self.eval_expr(node.target)
         rhs_expr = self.eval_expr(node.value)
         self.var_table.add(lhs_name, lhs_expr)
         self.var_table.add(rhs_name, rhs_expr)
-        binop = doc.BinOp(
+        op = doc.BinOp(
             doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
             node.op,
             doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
             *lhs_pos,
         )
-        rhs = self.eval_expr(binop)
+        rhs = self.eval_expr(op)
     lhs = node.target
     lhs.ctx = doc.Store(*lhs_pos)
     if isinstance(lhs, doc.Subscript):
