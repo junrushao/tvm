@@ -23,7 +23,9 @@ from ..dispatch import OpMethod, register_op
 
 
 def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
-    def r(op: doc.AST, i: int, m: OpMethod):  # pylint: disable=invalid-name
+    ty._dispatch_type = ty  # pylint: disable=protected-access
+
+    def r(op: Type, i: int, m: OpMethod):  # pylint: disable=invalid-name
         register_op(ty, op, i)(m)
 
     for i in [0, 1]:

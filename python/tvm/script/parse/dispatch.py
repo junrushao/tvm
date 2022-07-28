@@ -48,7 +48,7 @@ def get(
     return ParseVTable.get((token, type_name), default)
 
 
-def register_op(ty: Type, op: AST, operand_index: int):
+def register_op(ty: Type, op: AST, operand_index: int):  # pylint: disable=invalid-name
     def f(method: OpMethod):
         OpVTable[(ty, op, operand_index)] = method
 
@@ -56,8 +56,8 @@ def register_op(ty: Type, op: AST, operand_index: int):
 
 
 def get_op(
-    ty: Type,
-    op: AST,
+    ty: Type,  # pylint: disable=invalid-name
+    op: Type,
     operand_index: int,
     default: Optional[OpMethod] = None,
 ) -> Optional[OpMethod]:

@@ -16,12 +16,44 @@
 # under the License.
 """AST Evaluation"""
 import ast
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
-from . import doc
+from . import dispatch, doc
 
 if TYPE_CHECKING:
     from .parser import Parser
+
+DEFAULT_OP: Dict[Type, Callable[..., Any]] = {
+    doc.Add: lambda a, b: a + b,
+    doc.Sub: lambda a, b: a - b,
+    doc.Mult: lambda a, b: a * b,
+    doc.Div: lambda a, b: a / b,
+    doc.FloorDiv: lambda a, b: a // b,
+    doc.Mod: lambda a, b: a % b,
+    doc.LShift: lambda a, b: a << b,
+    doc.RShift: lambda a, b: a >> b,
+    doc.BitOr: lambda a, b: a | b,
+    doc.BitXor: lambda a, b: a ^ b,
+    doc.BitAnd: lambda a, b: a & b,
+    doc.MatMult: lambda a, b: a @ b,
+    doc.Pow: lambda a, b: a**b,
+    doc.Eq: lambda a, b: a == b,
+    doc.NotEq: lambda a, b: a != b,
+    doc.Lt: lambda a, b: a < b,
+    doc.LtE: lambda a, b: a <= b,
+    doc.Gt: lambda a, b: a > b,
+    doc.GtE: lambda a, b: a >= b,
+    doc.Is: lambda a, b: a is b,
+    doc.IsNot: lambda a, b: a is not b,
+    doc.In: lambda a, b: a in b,
+    doc.NotIn: lambda a, b: a not in b,
+    doc.And: lambda a, b: a and b,
+    doc.Or: lambda a, b: a or b,
+    doc.Invert: lambda a: ~a,
+    doc.Not: lambda a: not a,
+    doc.UAdd: lambda a: +a,
+    doc.USub: lambda a: -a,
+}
 
 
 class ExprEvaluator:
@@ -100,70 +132,37 @@ class ExprEvaluator:
                     fields[field] = attr
         try:
             if isinstance(node, doc.Lambda):
-                value = _eval_expr(node, self.value_table)
+                value = self._eval_expr(node)
             elif isinstance(node, doc.BoolOp):
-                if isinstance(fields["op"], (doc.And, doc.Or)):
-                    # value = self._eval_binary(
-                    #     fields["values"],
-                    #     lhs_func_name="__tvm_logical_and__",
-                    #     rhs_func_name="__tvm_r_logical_and__",
-                    #     default_func=lambda lhs, rhs: lhs and rhs,
-                    # )
-                    pass
-                elif isinstance(fields["op"], doc.Not):
-                    # value = self._eval_unary(
-                    #     fields["operand"],
-                    #     func_name="__tvm_logical_not__",
-                    #     default_func=lambda v: not v,
-                    # )
-                    pass
-                else:
-                    raise TypeError(f"Unexpected operator: {fields['op']}")
-            elif isinstance(node, doc.BinOp):
-                pass
-            elif isinstance(node, doc.UnaryOp):
-                pass
+                op = fields["op"]
+                if not isinstance(op, (doc.And, doc.Or)):
+                    raise TypeError(f"Unexpected operator: {op}")
+                value = self._eval_expr(fields["values"][0])
+                for rhs in fields["values"][1:]:
+                    value = _eval_op(op, values=[value, self._eval_expr(rhs)])
             elif isinstance(node, doc.Compare):
-                pass
+                value = self._eval_expr(fields["left"])
+                for op, rhs in zip(fields["ops"], fields["comparators"]):
+                    value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+            elif isinstance(node, doc.UnaryOp):
+                value = self._eval_expr(fields["operand"])
+                value = _eval_op(fields["op"], values=[value])
+            elif isinstance(node, doc.BinOp):
+                value = _eval_op(
+                    fields["op"],
+                    values=[
+                        self._eval_expr(fields["left"]),
+                        self._eval_expr(fields["right"]),
+                    ],
+                )
             else:
-                value = _eval_expr(node.__class__(**fields), self.value_table)
+                value = self._eval_expr(node.__class__(**fields))
         except Exception as e:
             self.parser.report_error(node, str(e))
         return self._add_intermediate_result(value)
 
-    def _eval_unary(
-        self,
-        value: Any,
-        func_name: str,
-        default_func: Callable,
-    ):
-        value = _eval_expr(value, self.value_table)
-        method = getattr(value, func_name, None)
-        if method is not None:
-            return method()
-        return default_func(value)
-
-    def _eval_binary(
-        self,
-        values: List[Any],
-        lhs_func_name: str,
-        rhs_func_name: str,
-        default_func: Callable,
-    ):
-        assert len(values) > 0
-        values = [_eval_expr(v, self.value_table) for v in values if v is not None]
-        lhs = values[0]
-        for rhs in values[1:]:
-            method = getattr(lhs, lhs_func_name, None)
-            if method is not None:
-                lhs = method(rhs)
-                continue
-            method = getattr(rhs, rhs_func_name, None)
-            if method is not None:
-                lhs = method(lhs)
-                continue
-            lhs = default_func(lhs, rhs)
-        return lhs
+    def _eval_expr(self, v: Any) -> Any:
+        return _eval_expr(v, self.value_table)
 
 
 def eval_expr(
@@ -202,6 +201,21 @@ def _eval_expr(
     node = ast.fix_missing_locations(node)
     exe = compile(node, filename="<ast>", mode="eval")
     return eval(exe, dict_globals)  # pylint: disable=eval-used
+
+
+def _eval_op(
+    op: doc.AST,
+    values: List[Any],
+):
+    op_type = type(op)  # pylint: disable=protected-access
+    for i, v in enumerate(values):
+        v_type = getattr(type(v), "_dispatch_type", None)
+        if v_type is None:
+            continue
+        f = dispatch.get_op(ty=v_type, op=op_type, operand_index=i, default=None)
+        if f is not None:
+            return f(*values)
+    return DEFAULT_OP[op_type](*values)
 
 
 def _eval_assign(
