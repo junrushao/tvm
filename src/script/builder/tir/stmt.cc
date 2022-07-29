@@ -49,7 +49,8 @@ void AllocateFrameNode::ExitWithScope() {
 
 void AllocateConstFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts)));
+  AddToParent(
+      tvm::tir::AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts), annotations));
 }
 
 void LaunchThreadFrameNode::ExitWithScope() {
@@ -151,18 +152,20 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
   n->storage_scope = storage_scope;
   n->condition = condition.value_or(tvm::Bool(true));
   n->annotations = annotations.value_or(Map<String, ObjectRef>());
-  n->buffer =
-      BufferDecl(extents, dtype, "", NullOpt, {}, PrimExpr(), storage_scope, 0, 0, "default", {});
+  n->buffer = BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, storage_scope, 0, 0,
+                         "default", NullOpt);
   return AllocateFrame(n);
 }
 
 AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents) {
+                                 Array<PrimExpr> extents, Map<String, ObjectRef> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
   n->data = data;
-  n->buffer = BufferDecl(extents, dtype, "", NullOpt, {}, PrimExpr(), "", 0, 0, "default", {});
+  n->annotations = annotations;
+  n->buffer =
+      BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, "", 0, 0, "default", NullOpt);
   return AllocateConstFrame(n);
 }
 

@@ -31,7 +31,7 @@ inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_l
   using namespace tvm::tir;
   Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, 1));
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
   }
   return BufferRegion(buffer_load->buffer, ranges);
 }

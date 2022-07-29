@@ -71,7 +71,7 @@ tvm::Type FuncRet(tvm::Type ret_type);
 tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape,
                              DataType dtype = DataType::Float(32),
                              Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
-                             PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                             PrimExpr elem_offset = PrimExpr(), String storage_scope = "global",
                              int align = -1, int offset_factor = 0,
                              String buffer_type_str = "default",
                              Array<IntImm> axis_separators = {});
@@ -79,7 +79,7 @@ tvm::tir::Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape,
 void PreflattenedBuffer(tvm::tir::Buffer postflattened_buffer, Array<PrimExpr> shape,
                         DataType dtype = DataType::Float(32),
                         Optional<tvm::tir::Var> data = NullOpt, Array<PrimExpr> strides = {},
-                        PrimExpr elem_offset = PrimExpr(), String storage_scope = "",
+                        PrimExpr elem_offset = PrimExpr(), String storage_scope = "global",
                         int align = -1, int offset_factor = 0, String buffer_type_str = "default",
                         Array<IntImm> axis_separators = {});
 

@@ -270,8 +270,14 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     """
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
+    from .expr import IntImm
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name) if isinstance(name, str) else name
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
         dtype,
@@ -306,8 +312,14 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     """
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
+    from .expr import IntImm
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name) if isinstance(name, str) else name
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
         dtype,
@@ -476,6 +488,7 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
 
 
 def ptx_mma(
+    dtype,
     shape,
     A_layout,
     B_layout,
@@ -493,7 +506,7 @@ def ptx_mma(
 ):
     if operator is None:
         return call_intrin(
-            "handle",
+            dtype,
             "tir.ptx_mma",
             shape,
             A_layout,
@@ -510,7 +523,7 @@ def ptx_mma(
             saturate,
         )
     return call_intrin(
-        "handle",
+        dtype,
         "tir.ptx_mma",
         shape,
         A_layout,
@@ -530,6 +543,7 @@ def ptx_mma(
 
 
 def ptx_mma_sp(
+    dtype,
     shape,
     A_layout,
     B_layout,
@@ -548,7 +562,7 @@ def ptx_mma_sp(
     saturate,
 ):
     return call_intrin(
-        "handle",
+        dtype,
         "tir.ptx_mma_sp",
         shape,
         A_layout,
@@ -569,9 +583,9 @@ def ptx_mma_sp(
     )
 
 
-def ptx_ldmatrix(trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
+def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
     return call_intrin(
-        "handle",
+        dtype,
         "tir.ptx_ldmatrix",
         trans,
         num,
@@ -583,23 +597,23 @@ def ptx_ldmatrix(trans, num, type, local_ptr, local_offset, smem_ptr, smem_offse
     )
 
 
-def ptx_cp_async(shared_ptr, shared_offset, global_ptr, global_offset, bytes):
+def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
     return call_intrin(
-        "handle", "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
     )
 
 
 def ptx_commit_group():
-    return call_intrin("handle", "tir.ptx_commit_group")
+    return call_intrin("", "tir.ptx_commit_group")
 
 
 def ptx_wait_group(num):
-    return call_intrin("handle", "tir.ptx_wait_group", num)
+    return call_intrin("", "tir.ptx_wait_group", num)
 
 
-def mma_store(m, n, dst_ptr, src_ptr, src_offset, dst_stride):
+def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
     return call_intrin(
-        "handle",
+        dtype,
         "tir.mma_store",
         m,
         n,
@@ -610,9 +624,9 @@ def mma_store(m, n, dst_ptr, src_ptr, src_offset, dst_stride):
     )
 
 
-def mma_fill(local_size, local_ptr, offset):
+def mma_fill(dtype, local_size, local_ptr, offset):
     return call_intrin(
-        "handle",
+        dtype,
         "tir.mma_fill",
         local_size,
         local_ptr,
@@ -1791,6 +1805,28 @@ def truncmod(a, b, span=None):
     return _ffi_api._OpTruncMod(a, b, span)  # type: ignore
 
 
+def ceildiv(a, b, span=None):
+    """Compute the ceildiv of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+    """
+    return _ffi_api._OpCeilDiv(a, b, span)  # type: ignore
+
+
 def floordiv(a, b, span=None):
     """Compute the floordiv of two expressions.
 
@@ -2006,6 +2042,22 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+
+def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+    return call_intrin(
+        "handle",
+        "tir.TVMBackendAllocWorkspace",
+        device_type,
+        device_id,
+        nbytes,
+        dtype_code_hint,
+        dtype_bits_hint,
+    )
+
+
+def TVMBackendFreeWorkspace(device_type, device_id, ptr):
+    call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
 # pylint: disable=unnecessary-lambda

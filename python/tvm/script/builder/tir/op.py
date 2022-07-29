@@ -59,6 +59,7 @@ exp = op_wrapper(op.exp)
 exp2 = op_wrapper(op.exp2)
 exp10 = op_wrapper(op.exp10)
 floor = op_wrapper(op.floor)
+ceildiv = op_wrapper(op.ceildiv)
 floordiv = op_wrapper(op.floordiv)
 floormod = op_wrapper(op.floormod)
 fmod = op_wrapper(op.fmod)
@@ -127,19 +128,22 @@ tvm_bmma_sync = op_wrapper(op.tvm_bmma_sync)
 tvm_fill_fragment = op_wrapper(op.tvm_fill_fragment)
 tvm_store_matrix_sync = op_wrapper(op.tvm_store_matrix_sync)
 
-ptx_mma = op_wrapper(op.ptx_mma)
-ptx_mma_sp = op_wrapper(op.ptx_mma_sp)
-ptx_ldmatrix = op_wrapper(op.ptx_ldmatrix)
-ptx_cp_async = op_wrapper(op.ptx_cp_async)
+ptx_mma = dtype_forward(op.ptx_mma)
+ptx_mma_sp = dtype_forward(op.ptx_mma_sp)
+ptx_ldmatrix = dtype_forward(op.ptx_ldmatrix)
+ptx_cp_async = dtype_forward(op.ptx_cp_async)
 ptx_wait_group = op_wrapper(op.ptx_wait_group)
 ptx_commit_group = op_wrapper(op.ptx_commit_group)
-mma_store = op_wrapper(op.mma_store)
-mma_fill = op_wrapper(op.mma_fill)
+mma_store = dtype_forward(op.mma_store)
+mma_fill = dtype_forward(op.mma_fill)
 
-tvm_call_packed = call_cpacked
+tvm_call_packed = call_packed
 tvm_call_cpacked = call_cpacked
-tvm_call_packed_lowered = call_cpacked_lowered
+tvm_call_packed_lowered = call_packed_lowered
 tvm_call_cpacked_lowered = call_cpacked_lowered
+
+TVMBackendAllocWorkspace = op_wrapper(op.TVMBackendAllocWorkspace)
+TVMBackendFreeWorkspace = op_wrapper(op.TVMBackendFreeWorkspace)
 
 from . import _ffi_api
 

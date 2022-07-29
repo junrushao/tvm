@@ -20,7 +20,7 @@ from numbers import Integral
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Array, PrimExpr, Range, PrimType
 from tvm.runtime import DataType, Object
-from tvm.tir import BufferLoad, BufferRegion, IntImm, Var
+from tvm.tir import BufferLoad, BufferRegion, IntImm, Var, IterVar
 from tvm import tir
 
 from . import _ffi_api
@@ -63,7 +63,7 @@ class BufferProxy:
         data=None,
         strides=None,
         elem_offset=None,
-        scope="",
+        scope="global",
         align=0,
         offset_factor=0,
         buffer_type="",
@@ -90,6 +90,11 @@ class BufferProxy:
 
 def var(dtype, name="") -> Var:
     return Var(name, dtype)  # pylint: disable=no-member # type: ignore
+
+
+def iter_var(var, dom, iter_type, thread_tag):
+    iter_type = getattr(IterVar, iter_type)
+    return IterVar(dom, var, iter_type, thread_tag)
 
 
 class Ptr_:

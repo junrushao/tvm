@@ -110,12 +110,14 @@ class AllocateConstFrameNode : public TIRFrameNode {
   Array<PrimExpr> extents;
   tvm::runtime::NDArray data;
   tvm::tir::Buffer buffer;
+  Map<String, ObjectRef> annotations;
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);
     v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("data", &data);
     v->Visit("buffer", &buffer);
+    v->Visit("annotations", &annotations);
   }
 
   static constexpr const char* _type_key = "script.builder.tir.AllocateConstFrame";
@@ -291,8 +293,9 @@ LetFrame Let(tvm::tir::Var var, PrimExpr value);
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
                        Optional<PrimExpr> condition = NullOpt,
                        Optional<Map<String, ObjectRef>> annotations = NullOpt);
-AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents);
+AllocateConstFrame AllocateConst(
+    tvm::runtime::NDArray data, DataType dtype, Array<PrimExpr> extents,
+    Map<String, ObjectRef> annotations = NullValue<Map<String, ObjectRef>>());
 LaunchThreadFrame LaunchThread(tvm::tir::IterVar iter_var, PrimExpr extent);
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);

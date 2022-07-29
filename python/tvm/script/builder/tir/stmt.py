@@ -19,20 +19,10 @@ from typing import List, Union
 
 import numpy as np
 from tvm._ffi import register_object as _register_object
-from tvm.arith import Analyzer
 from tvm.runtime import Object, convert
 from tvm.runtime import ndarray as nd
-from tvm.tir import (
-    Buffer,
-    BufferRegion,
-    IntImm,
-    IterVar,
-    Let,
-    PrimExpr,
-    Ramp,
-    StringImm,
-    Var,
-)
+from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var, Let, Ramp, IntImm
+from tvm.tir.generic import cast
 
 from .. import _ffi_api as _base_ffi_api
 from . import _ffi_api
@@ -122,9 +112,11 @@ def allocate(
     )  # pylint: disable=no-member # type: ignore
 
 
-def allocate_const(data: List[PrimExpr], dtype: str, extents: List[PrimExpr]) -> AllocateConstFrame:
+def allocate_const(
+    data: List[PrimExpr], dtype: str, extents: List[PrimExpr], annotations=None
+) -> AllocateConstFrame:
     return _ffi_api.AllocateConstFrame(
-        nd.array(np.asarray(data, dtype)), dtype, extents
+        nd.array(np.asarray(data, dtype)), dtype, extents, annotations
     )  # pylint: disable=no-member # type: ignore
 
 

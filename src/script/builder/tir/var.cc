@@ -41,7 +41,7 @@ tvm::tir::Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer
   tvm::tir::BufferType buffer_type =
       (buffer_type_str == "auto_broadcast") ? tvm::tir::kAutoBroadcast : tvm::tir::kDefault;
   if (!elem_offset.defined() && offset_factor) {
-    DataType shape_dtype = shape[0]->dtype;
+    DataType shape_dtype = shape.empty() ? DataType::Int(32) : shape[0]->dtype;
     elem_offset = tvm::tir::Var("elem_offset", shape_dtype);
   }
   return tvm::tir::Buffer(buffer_data, dtype, shape, strides.value_or(Array<PrimExpr>()),

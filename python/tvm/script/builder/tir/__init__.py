@@ -38,7 +38,7 @@ from .prim_func_frame import (
     preflattened_buffer,
     prim_func,
 )
-from .var import Buffer, buffer_decl, var, Ptr
+from .var import Buffer, buffer_decl, var, Ptr, iter_var
 from .stmt import (
     Assert,
     let,
@@ -65,7 +65,7 @@ from tvm.target import Target as target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 
 from .op import abs, acos, acosh, address_of, asin, asinh, atan, atan2, atanh
-from .op import ceil, clz, copysign, cos, cosh, erf, exp, exp2, exp10
+from .op import ceil, ceildiv, clz, copysign, cos, cosh, erf, exp, exp2, exp10
 from .op import floor, floordiv, floormod, fmod, hypot
 from .op import if_then_else, infinity, isfinite, isinf, isnan, isnullptr
 from .op import ldexp, likely, log, log1p, log2, log10, lookup_param
@@ -84,6 +84,7 @@ from .op import ptx_mma, ptx_mma_sp, ptx_ldmatrix
 from .op import ptx_cp_async, ptx_wait_group, ptx_commit_group
 from .op import mma_store, mma_fill
 from .op import tvm_call_packed, tvm_call_cpacked, tvm_call_packed_lowered, tvm_call_cpacked_lowered
+from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import int8, int16, int32, int64
 from .op import uint8, uint16, uint32, uint64
 from .op import float8, float16, float32, float64
