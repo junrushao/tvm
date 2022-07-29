@@ -110,7 +110,7 @@ class ExprEvaluator:
             if node.id not in self.value_table:
                 self.parser.report_error(node, f"Undefined variable: {node.id}")
             return node
-        if (not isinstance(node, (doc.expr, doc.slice))) or isinstance(
+        if isinstance(
             node,
             (
                 doc.Constant,
@@ -122,44 +122,78 @@ class ExprEvaluator:
             ),
         ):
             return node
+        if not isinstance(node, (doc.expr, doc.slice)):
+            return node
+        if isinstance(node, doc.Lambda):
+            return self._eval_lambda(node)
         fields = {}
-        if not isinstance(node, doc.Lambda):
-            for field in node.__class__._FIELDS:  # pylint: disable=protected-access
-                attr = getattr(node, field)
-                if isinstance(attr, (doc.AST, tuple, list)):
-                    fields[field] = self._visit(attr)
-                else:
-                    fields[field] = attr
+        for field in node.__class__._FIELDS:  # pylint: disable=protected-access
+            attr = getattr(node, field)
+            if isinstance(attr, (doc.AST, tuple, list)):
+                fields[field] = self._visit(attr)
+            else:
+                fields[field] = attr
         try:
-            if isinstance(node, doc.Lambda):
-                value = self._eval_expr(node)
-            elif isinstance(node, doc.BoolOp):
-                op = fields["op"]
-                if not isinstance(op, (doc.And, doc.Or)):
-                    raise TypeError(f"Unexpected operator: {op}")
-                value = self._eval_expr(fields["values"][0])
-                for rhs in fields["values"][1:]:
-                    value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+            if isinstance(node, doc.BoolOp):
+                value = self._eval_bool_op(fields)
             elif isinstance(node, doc.Compare):
-                value = self._eval_expr(fields["left"])
-                for op, rhs in zip(fields["ops"], fields["comparators"]):
-                    value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+                value = self._eval_compare(fields)
             elif isinstance(node, doc.UnaryOp):
-                value = self._eval_expr(fields["operand"])
-                value = _eval_op(fields["op"], values=[value])
+                value = self._eval_unary_op(fields)
             elif isinstance(node, doc.BinOp):
-                value = _eval_op(
-                    fields["op"],
-                    values=[
-                        self._eval_expr(fields["left"]),
-                        self._eval_expr(fields["right"]),
-                    ],
-                )
+                value = self._eval_bin_op(fields)
+            elif isinstance(node, doc.Slice):
+                value = self._eval_slice(fields)
             else:
                 value = self._eval_expr(node.__class__(**fields))
         except Exception as e:
             self.parser.report_error(node, str(e))
         return self._add_intermediate_result(value)
+
+    def _eval_lambda(self, node: doc.Lambda) -> Any:
+        try:
+            value = self._eval_expr(node)
+        except Exception as e:
+            self.parser.report_error(node, str(e))
+        return self._add_intermediate_result(value)
+
+    def _eval_bool_op(self, fields: Dict[str, Any]) -> Any:
+        op = fields["op"]
+        if not isinstance(op, (doc.And, doc.Or)):
+            raise TypeError(f"Unexpected operator: {op}")
+        value = self._eval_expr(fields["values"][0])
+        for rhs in fields["values"][1:]:
+            value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+        return value
+
+    def _eval_compare(self, fields: Dict[str, Any]) -> Any:
+        value = self._eval_expr(fields["left"])
+        for op, rhs in zip(fields["ops"], fields["comparators"]):
+            value = _eval_op(op, values=[value, self._eval_expr(rhs)])
+        return value
+
+    def _eval_unary_op(self, fields: Dict[str, Any]) -> Any:
+        value = self._eval_expr(fields["operand"])
+        value = _eval_op(fields["op"], values=[value])
+        return value
+
+    def _eval_bin_op(self, fields: Dict[str, Any]) -> Any:
+        return _eval_op(
+            fields["op"],
+            values=[
+                self._eval_expr(fields["left"]),
+                self._eval_expr(fields["right"]),
+            ],
+        )
+
+    def _eval_slice(self, fields: Dict[str, Any]) -> Any:
+        lower, upper, step = fields["lower"], fields["upper"], fields["step"]
+
+        lower = self._eval_expr(lower) if lower is not None else None
+        upper = self._eval_expr(upper) if upper is not None else None
+        step = self._eval_expr(step) if step is not None else None
+
+        return slice(lower, upper, step)
 
     def _eval_expr(self, v: Any) -> Any:
         return _eval_expr(v, self.value_table)
@@ -195,7 +229,7 @@ def _eval_expr(
     node = doc.from_doc(node)
     if isinstance(node, ast.expr):
         node = ast.Expression(body=node)
-    assert isinstance(node, ast.Expression)
+    assert isinstance(node, ast.Expression), "Expects an ast.Expression, but gets: " + str(node)
     if dict_globals is None:
         dict_globals = {}
     node = ast.fix_missing_locations(node)
