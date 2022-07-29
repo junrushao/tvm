@@ -175,6 +175,8 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
                 expr_indices.append(Ramp(index.start, step, int(lanes)))
         else:
             expr_indices.append(index)
+    if isinstance(value, bool) and buffer.dtype == "bool":
+        value = IntImm("bool", value)
     return _ffi_api.BufferStore(
         buffer, value, expr_indices
     )  # pylint: disable=no-member # type: ignore

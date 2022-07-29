@@ -17,9 +17,26 @@
 from typing import Type
 
 from tvm import tir
+from tvm.tir import IntImm
 
 from .. import doc
 from ..dispatch import OpMethod, register_op
+
+
+def And(a, b):
+    if isinstance(a, bool):
+        a = IntImm("bool", a)
+    if isinstance(b, bool):
+        b = IntImm("bool", b)
+    return tir.And(a, b)
+
+
+def Or(a, b):
+    if isinstance(a, bool):
+        a = IntImm("bool", a)
+    if isinstance(b, bool):
+        b = IntImm("bool", b)
+    return tir.Or(a, b)
 
 
 def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
@@ -55,8 +72,8 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
         # doc.In <-- not implemented
         # doc.NotIn <-- not implemented
         # Case 3. boolop
-        r(doc.And, i, tir.And)
-        r(doc.Or, i, tir.Or)
+        r(doc.And, i, And)
+        r(doc.Or, i, Or)
     for i in [0]:
         #  Case 4. unaryop
         r(doc.Invert, i, lambda a: ~a)

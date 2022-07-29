@@ -42,9 +42,8 @@ void LetFrameNode::ExitWithScope() {
 
 void AllocateFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  tvm::tir::Buffer flattened_buffer = buffer.GetFlattenedBuffer();
-  AddToParent(tvm::tir::Allocate(buffer->data, flattened_buffer->dtype, flattened_buffer->shape,
-                                 condition, AsStmt(stmts), annotations));
+  AddToParent(tvm::tir::Allocate(buffer->data, buffer->dtype, buffer->shape, condition,
+                                 AsStmt(stmts), annotations));
 }
 
 void AllocateConstFrameNode::ExitWithScope() {
