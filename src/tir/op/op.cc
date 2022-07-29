@@ -997,7 +997,6 @@ REGISTER_MAKE_BINARY_OP(_OpDiv, div);
 REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
 REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
 REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
-REGISTER_MAKE_BINARY_OP(_OpCeilDiv, ceildiv);
 REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
 REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);

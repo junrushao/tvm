@@ -19,6 +19,7 @@ from typing import List, Union
 
 import numpy as np
 from tvm._ffi import register_object as _register_object
+from tvm.arith import Analyzer
 from tvm.runtime import Object, convert
 from tvm.runtime import ndarray as nd
 from tvm.tir import Buffer, BufferRegion, IterVar, PrimExpr, StringImm, Var, Let, Ramp, IntImm

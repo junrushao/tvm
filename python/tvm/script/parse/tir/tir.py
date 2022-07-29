@@ -20,6 +20,7 @@ from functools import partial
 from typing import Any
 
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
+from tvm.ir import PrimType
 
 from ...builder import Frame, def_
 from ...builder import tir as T
@@ -167,6 +168,10 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         self.var_table.add("range", T.serial)
         with T.prim_func():
             T.func_name(node.name)
+            ret_type = self.eval_expr(node.returns)
+            if callable(ret_type):
+                ret_type = PrimType(ret_type().dtype)
+            T.func_ret(ret_type)
             with self.with_dispatch_token("tir"):
                 # TODO: define the GlobalVar, handle the return value
                 self.visit(node.args)
