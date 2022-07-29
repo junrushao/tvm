@@ -114,7 +114,7 @@ inline Pass SimplifyForFeatureExtraction() {
  * \brief Create a list of passes that preprocesses the IR for feature extraction
  * \return The list of passes created
  */
-inline Sequential PassListForPerStoreFeature() {
+inline Sequential PassListForFeatureExtraction() {
   return Sequential({
       tir::transform::RemoveWeightLayoutRewriteBlock(),
       tir::transform::SimplifyForFeatureExtraction(),
