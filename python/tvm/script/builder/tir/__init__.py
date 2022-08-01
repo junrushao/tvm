@@ -38,7 +38,7 @@ from .prim_func_frame import (
     preflattened_buffer,
     prim_func,
 )
-from .var import Buffer, buffer_decl, var, Ptr, iter_var
+from .var import Buffer, buffer_decl, var, Ptr, iter_var, void
 from .stmt import (
     Assert,
     let,
@@ -57,7 +57,7 @@ from .stmt import (
     evaluate,
 )
 
-from tvm.tir.expr import Broadcast as broadcast, Ramp as ramp, Shuffle
+from tvm.tir.expr import Broadcast as broadcast, Ramp as ramp, Shuffle, Let
 from tvm.tir.generic import cast
 from tvm.tir import type_annotation
 from tvm.tir.op import tvm_struct_get

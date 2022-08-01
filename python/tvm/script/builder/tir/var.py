@@ -101,10 +101,13 @@ class Ptr_:
     def __getitem__(self, args):
         if not isinstance(args, tuple):
             args = (args,)
-        if len(args) == 1:
-            args = (args[0], "global")
-        return _ffi_api.Ptr(PrimType(args[0]().dtype), args[1])
+        if not len(args) in [1, 2]:
+            raise ValueError("T.Ptr should have 1 or 2 arguments")
+        ptr_type = args[0]().dtype if callable(args[0]) else args[0]
+        storate_scope = args[1] if len(args) > 1 else "global"
+        return _ffi_api.Ptr(PrimType(ptr_type), storate_scope)
 
 
 Buffer = BufferProxy()
 Ptr = Ptr_()
+void = ""

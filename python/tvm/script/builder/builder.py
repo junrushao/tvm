@@ -49,13 +49,13 @@ class Builder(Object):
 DefType = TypeVar("DefType", bound=Object)
 
 
-def def_(name: str, var: DefType) -> DefType:
-    return _ffi_api.Def(name, var)  # pylint: disable=no-member # type: ignore
+def name(var_name: str, var: DefType) -> DefType:
+    return _ffi_api.Name(var_name, var)  # pylint: disable=no-member # type: ignore
 
 
-def def_many(
-    names: List[str],
+def name_many(
+    var_names: List[str],
     vars: List[DefType],  # pylint: disable=redefine-builtin
 ) -> List[DefType]:
-    assert len(names) == len(vars)
-    return [def_(name, var) for name, var in zip(names, vars)]
+    assert len(var_names) == len(vars)
+    return [name(name, var) for name, var in zip(var_names, vars)]

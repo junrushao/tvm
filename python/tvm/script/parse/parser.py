@@ -101,7 +101,7 @@ class Parser(doc.NodeVisitor):
     ) -> Dict[str, Any]:
         var_values = eval_assign(self, target, source)
         for k, v in var_values.items():
-            var = bind_value(self, k, v)
+            var = bind_value(self, target, k, v)
             self.var_table.add(k, var)
         return var_values
 

@@ -22,31 +22,61 @@ from typing import Any
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 from tvm.ir import PrimType
 
-from ...builder import Frame, def_
+from ...builder import Frame, name
 from ...builder import tir as T
 from .. import dispatch, doc
 from ..parser import Parser
 
 
-def bind_value(self: Parser, name: str, value: Any) -> Any:
-    if isinstance(value, Frame):
+def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+    if isinstance(value, (list, tuple)):
+        for i in range(len(value)):
+            bind_with_value(self, f"{var_name}_{i}", value[i])
+        return value
+    elif isinstance(value, (Buffer, Var)):
+        name(var_name, value)
+        return value
+    else:
+        self.report_error(node, f"Do not know how to bind type: {type(value)} in with statement")
+        raise NotImplementedError
+
+
+def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+    if isinstance(value, (list, tuple)):
+        for i in range(len(value)):
+            bind_for_value(self, f"{var_name}_{i}", value[i])
+        return value
+    elif isinstance(value, Var):
+        name(var_name, value)
+        return value
+    else:
+        self.report_error(node, f"Do not know how to bind type: {type(value)} in for statement")
+        raise NotImplementedError
+
+
+def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+    if isinstance(value, (list, tuple)):
+        for i in range(len(value)):
+            bind_assign_value(self, f"{var_name}_{i}", value[i])
+        return value
+    elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))
         res = value.__enter__()
-        def_(name, res)
+        name(var_name, res)
         return res
-    elif isinstance(value, (Buffer, IterVar, Var, tuple, list)):
-        def_(name, value)
+    elif isinstance(value, (Buffer, IterVar)) or (
+        isinstance(value, Var) and not self.var_table.exist(value)
+    ):
+        name(var_name, value)
         return value
     elif isinstance(value, PrimExpr):
         var = T.var(value.dtype)
-        def_(name, var)
+        name(var_name, var)
         frame = T.let(var, value)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
-    else:
-        self.report_error("Do not know how to bind type: " + str(type(value)))
-        raise NotImplementedError
+    return value
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -60,7 +90,7 @@ def visit_for(self: Parser, node: doc.For) -> None:
         )
     with self.var_table.with_frame():
         with for_frame as iters:
-            self.eval_assign(target=node.target, source=iters, bind_value=bind_value)
+            self.eval_assign(target=node.target, source=iters, bind_value=bind_for_value)
             self.visit_body(node.body)
 
 
@@ -87,7 +117,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
             indices = [self.eval_expr(lhs.slice)]
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
+        self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
 @dispatch.register(token="tir", type_name="AugAssign")
@@ -130,18 +160,18 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
             indices = [self.eval_expr(lhs.slice)]
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_value)
+        self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
 @dispatch.register(token="tir", type_name="AnnAssign")
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    var = self.visit_tvm_annotation(node.annotation)
-    if not isinstance(var, Var):
+    ann_var = self.visit_tvm_annotation(node.annotation)
+    if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
-    self.eval_assign(target=lhs, source=var, bind_value=bind_value)
-    frame = T.let(var, rhs)
+    self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
+    frame = T.let(ann_var, rhs)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 
@@ -158,7 +188,7 @@ def visit_with(self: Parser, node: doc.With) -> None:
                 )
             rhs = stack.enter_context(frame)
             if item.optional_vars is not None:
-                self.eval_assign(target=item.optional_vars, source=rhs, bind_value=bind_value)
+                self.eval_assign(target=item.optional_vars, source=rhs, bind_value=bind_with_value)
         self.visit_body(node.body)
 
 

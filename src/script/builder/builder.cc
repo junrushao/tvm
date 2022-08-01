@@ -72,20 +72,9 @@ void Namer::Name(ObjectRef node, String name) {
   f(node, name);
 }
 
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::runtime::ArrayNode>([](const ObjectRef& node, String name) -> void {
-      using namespace tvm::runtime;
-      ArrayNode* array = const_cast<ArrayNode*>(node.as<ArrayNode>());
-      ICHECK(array);
-      int n = array->size();
-      for (int i = 0; i < n; ++i) {
-        Namer::Name(array->at(i), name + std::to_string(i));
-      }
-    });
-
 namespace details {
 
-ObjectRef DefImpl(String name, ObjectRef obj) {
+ObjectRef NameImpl(String name, ObjectRef obj) {
   Namer::Name(obj, name);
   return obj;
 }
@@ -100,7 +89,7 @@ TVM_REGISTER_GLOBAL("script.builder.BuilderExit").set_body_method(&Builder::Exit
 TVM_REGISTER_GLOBAL("script.builder.BuilderCurrent").set_body_typed(Builder::Current);
 TVM_REGISTER_GLOBAL("script.builder.BuilderGet")
     .set_body_method<Builder>(&BuilderNode::Get<ObjectRef>);
-TVM_REGISTER_GLOBAL("script.builder.Def").set_body_typed(Def<ObjectRef>);
+TVM_REGISTER_GLOBAL("script.builder.Name").set_body_typed(Name<ObjectRef>);
 
 }  // namespace builder
 }  // namespace script

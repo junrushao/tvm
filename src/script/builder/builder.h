@@ -65,7 +65,7 @@ template <class TObjectRef>
 inline TObjectRef Def(String name, TObjectRef obj);
 
 namespace details {
-ObjectRef DefImpl(String name, ObjectRef obj);
+ObjectRef NameImpl(String name, ObjectRef obj);
 }
 
 class Namer {
@@ -77,8 +77,8 @@ class Namer {
 };
 
 template <class TObjectRef>
-inline TObjectRef Def(String name, TObjectRef obj) {
-  return Downcast<TObjectRef>(details::DefImpl(name, obj));
+inline TObjectRef Name(String name, TObjectRef obj) {
+  return Downcast<TObjectRef>(details::NameImpl(name, obj));
 }
 
 template <typename TFrame>

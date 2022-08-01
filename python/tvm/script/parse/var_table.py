@@ -62,3 +62,9 @@ class VarTable:
 
     def get(self) -> Dict[str, Any]:
         return {key: values[-1] for key, values in self.name2value.items() if values}
+
+    def exist(self, value: Any):
+        for v in self.name2value.values():
+            if v is value:
+                return True
+        return False
