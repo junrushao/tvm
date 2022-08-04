@@ -327,16 +327,44 @@ struct Feature {
 
 }  // namespace group3
 
+namespace group5 {
+
+/*! \brief Group 5 feature */
+struct Feature {
+  int64_t outer_prod;        // The product of lengths of outer loops
+  int num_loops;             // The number of outer loops
+  int auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
+
+  static constexpr int64_t kCount = 3;
+
+  void Export(std::vector<double>* v) const {
+    double vs[] = {
+        slog(outer_prod),
+        slog(num_loops),
+        slog(auto_unroll_max_step),
+    };
+    v->insert(v->end(), std::begin(vs), std::end(vs));
+  }
+
+  explicit Feature(const LoopNest& loop_nest) {
+    this->outer_prod = loop_nest.prod;
+    this->num_loops = loop_nest.loops.size();
+    this->auto_unroll_max_step = loop_nest.auto_unroll.empty() ? 0 : loop_nest.auto_unroll.back();
+  }
+};
+
+}  // namespace group5
+
 /*! \brief The feature extracted */
 struct Feature {
   const BlockRealizeNode* block_realize = nullptr;
   // int buffer_order = -1;
-  // TODO: add feature group 2,4,5
+  // TODO: add feature group 2,4
   std::unique_ptr<group1::Feature> group1 = nullptr;
   // std::unique_ptr<group2::Feature> group2 = nullptr;
   std::unique_ptr<group3::Feature> group3 = nullptr;
   // std::unique_ptr<group4::Feature> group4 = nullptr;
-  // std::unique_ptr<group5::Feature> group5 = nullptr;
+  std::unique_ptr<group5::Feature> group5 = nullptr;
 
   // bool operator<(const Feature& other) const { return buffer_order < other.buffer_order; }
 };
@@ -363,10 +391,10 @@ class PerBlockFeatureCollector : private StmtVisitor {
       Feature& feature = it.second;
       if (feature.block_realize != nullptr) {
         ICHECK(feature.group1);
-        // TODO: add feature group 2,4,5
+        // TODO: add feature group 2,4
         // ICHECK(feature.group2);
         ICHECK(feature.group3);
-        // ICHECK(feature.group5);
+        ICHECK(feature.group5);
         // if (feature.group4 == nullptr) {
         //   feature.group4 = std::make_unique<group4::Feature>();
         // }
@@ -404,7 +432,8 @@ class PerBlockFeatureCollector : private StmtVisitor {
     feature.group3 =
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes_, feature.group1->arith_ops);
-    // TODO: add groups 2,4,5
+    feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
+    // TODO: add groups 2,4
     // Erase the feature of the root block
     if (scopes_.empty()) {
       block_features_.erase(realize);
@@ -518,11 +547,11 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       std::vector<double>& result = (*results)[i];
       result.reserve(feature_vector_length);
       feature.group1->Export(&result);
-      // TODO: add feature group 2,4,5
+      // TODO: add feature group 2,4
       // feature.group2->Export(&result, this->buffers_per_block);
       feature.group3->Export(&result);
       // feature.group4->Export(&result, feature.group5->outer_prod);
-      // feature.group5->Export(&result);
+      feature.group5->Export(&result);
     }
   }
 
@@ -555,12 +584,12 @@ FeatureExtractor FeatureExtractor::PerBlockFeature(int buffers_per_block,
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
   n->extract_workload = extract_workload;
-  // TODO: add feature group 2,4,5
-  n->feature_vector_length = group1::Feature::kCount +           //
-                             arith_intensity_curve_num_samples;  //
+  // TODO: add feature group 2,4
+  n->feature_vector_length = group1::Feature::kCount +            //
+                             arith_intensity_curve_num_samples +  //
+                             group5::Feature::kCount;
   //                            group2::Feature::SubFeature::kCount * buffers_per_block +  //
   //                            group4::Feature::kCount +                                  //
-  //                            group5::Feature::kCount;
   return FeatureExtractor(n);
 }
 
