@@ -18,8 +18,9 @@
 import sys
 from typing import Callable, List
 
-import tvm
 from numpy.testing import assert_allclose
+
+import tvm
 from tvm import meta_schedule as ms
 from tvm import te, tir
 from tvm.script import tir as T
@@ -224,7 +225,10 @@ def test_cpu_matmul():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (1, N_FEATURES)
+
 
 def test_cpu_fusion():
     # pylint: disable=all
@@ -258,6 +262,7 @@ def test_cpu_fusion():
     )
     feature = feature.numpy()
     # assert feature.shape == (2, N_FEATURES)
+
 
 def test_gpu():
     def _create_schedule():
@@ -319,12 +324,14 @@ def test_gpu():
     feature = feature.numpy()
     # assert feature.shape == (4, N_FEATURES)
 
+
 def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerBlockFeature()
     (feature,) = extractor.extract_from(
         _make_context(tvm.target.Target("llvm")),
         candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
     )
+
 
 if __name__ == "__main__":
     test_cpu_matmul()

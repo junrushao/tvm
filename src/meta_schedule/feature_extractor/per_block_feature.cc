@@ -254,14 +254,87 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
 
 }  // namespace group1
 
+namespace group3 {
+
+/*! \brief Group 3 feature */
+struct Feature {
+  /*!
+   * \brief See the wiki page [1] for details
+   *
+   * [1] https://en.wikipedia.org/wiki/Roofline_model
+   */
+  std::vector<double> arith_intensity_curve;
+
+  void Export(std::vector<double>* v) const {
+    v->insert(v->end(), arith_intensity_curve.begin(), arith_intensity_curve.end());
+  }
+
+  explicit Feature(int n_samples, const LoopNest& loop_nest, const IntVec& for_touched_bytes,
+                   const group1::Feature::ArithOps& arith_ops)
+      : arith_intensity_curve(n_samples, 0.0) {
+    const std::vector<const ForNode*>& loops = loop_nest.loops;
+    ICHECK_EQ(loops.size(), for_touched_bytes.size());
+    int n_loops = loops.size();
+    // Calculate `memory_bytes`
+    std::vector<double> memory_bytes;
+    memory_bytes.resize(n_loops);
+    for (int i = 0; i < n_loops; ++i) {
+      memory_bytes[n_loops - 1 - i] = std::log2(for_touched_bytes[i]);
+    }
+    // Calculate `compute_ops` and `cur_compute_ops`
+    std::vector<double> compute_ops;
+    double total_compute_ops = arith_ops.float_mad + arith_ops.float_add_sub + arith_ops.float_mul +
+                               arith_ops.float_div_mod + arith_ops.float_cmp +
+                               arith_ops.float_math_func + arith_ops.float_other_func;
+    total_compute_ops /= loop_nest.prod;
+    for (int i = n_loops - 1; i >= 0; --i) {
+      if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
+        total_compute_ops *= *extent;
+      }
+      compute_ops.push_back(std::log2(total_compute_ops));
+    }
+    // Fill the feature set
+    if (total_compute_ops <= 0 || compute_ops.empty()) {
+      for (int i = 0; i < n_samples; ++i) {
+        arith_intensity_curve[i] = 0.0;
+      }
+      return;
+    }
+    total_compute_ops = compute_ops.back();  // i.e. total_compute_ops = log2(total_compute_ops)
+    int p = 0;
+    for (int i = 0; i < n_samples; ++i) {
+      double& result = arith_intensity_curve[i];
+      double cur_compute_ops = static_cast<double>(i + 1) / n_samples * total_compute_ops;
+      // Find the first `p` that `compute[p] >= total * (i + 1) / N`
+      for (; p < n_loops; ++p) {
+        if (compute_ops[p] >= cur_compute_ops - 1e-4) {
+          break;
+        }
+      }
+      CHECK_LT(p, n_loops);
+      if (p == 0) {
+        result = compute_ops[p] / memory_bytes[p];
+      } else {
+        double base = compute_ops[p - 1] / memory_bytes[p - 1];
+        double slope =
+            (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
+            (compute_ops[p] - compute_ops[p - 1]);
+        result = base + slope * (cur_compute_ops - compute_ops[p - 1]);
+      }
+    }
+  }
+};
+
+}  // namespace group3
+
 /*! \brief The feature extracted */
 struct Feature {
   const BlockRealizeNode* block_realize = nullptr;
   // int buffer_order = -1;
-  // TODO: add feature group 1-5
+  // TODO: add feature group 2,4,5
   std::unique_ptr<group1::Feature> group1 = nullptr;
   // std::unique_ptr<group2::Feature> group2 = nullptr;
-  // std::unique_ptr<group3::Feature> group3 = nullptr;
+  std::unique_ptr<group3::Feature> group3 = nullptr;
   // std::unique_ptr<group4::Feature> group4 = nullptr;
   // std::unique_ptr<group5::Feature> group5 = nullptr;
 
@@ -290,9 +363,9 @@ class PerBlockFeatureCollector : private StmtVisitor {
       Feature& feature = it.second;
       if (feature.block_realize != nullptr) {
         ICHECK(feature.group1);
-        // TODO: add feature group 2-5
+        // TODO: add feature group 2,4,5
         // ICHECK(feature.group2);
-        // ICHECK(feature.group3);
+        ICHECK(feature.group3);
         // ICHECK(feature.group5);
         // if (feature.group4 == nullptr) {
         //   feature.group4 = std::make_unique<group4::Feature>();
@@ -315,7 +388,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
     Feature& feature = block_features_[realize];
     feature.block_realize = realize;
     feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
-    // TODO: add groups 2-5
     if (!scopes_.empty()) {
       ordered_blocks_.push_back(realize);
     }
@@ -327,6 +399,13 @@ class PerBlockFeatureCollector : private StmtVisitor {
     if (!scopes_.empty()) {
       AddArithOpsToScope(&feature.group1->arith_ops);
     }
+    int n_loops = loop_nest_.loops.size();
+    for_touched_bytes_ = IntVec(n_loops, 0);
+    feature.group3 =
+        std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
+                                          for_touched_bytes_, feature.group1->arith_ops);
+    // TODO: add groups 2,4,5
+    // Erase the feature of the root block
     if (scopes_.empty()) {
       block_features_.erase(realize);
     }
@@ -337,14 +416,12 @@ class PerBlockFeatureCollector : private StmtVisitor {
     const int64_t* extent = GetLoopIntExtent(loop);
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
     if ((extent && (*extent != 1)) || for_vec) {
-      outer_loop_prod_ *= *extent;
       dfs_path_.push_back(loop);
-      analyzer_.Bind(loop->loop_var, loop->min);
+      // analyzer_.Bind(loop->loop_var, loop->min);
     }
     StmtVisitor::VisitStmt_(loop);
     loop_nest_.Pop(loop, for_vec, auto_unroll);
     if ((extent && (*extent != 1)) || for_vec) {
-      outer_loop_prod_ /= *extent;
       dfs_path_.pop_back();
     }
   }
@@ -365,8 +442,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
         break;
       }
       ICHECK(stmt->IsInstance<tir::ForNode>());
-      const int64_t* extent = GetLoopIntExtent(static_cast<const tir::ForNode*>(stmt));
-      if (*extent >= 1) {
+      if (const int64_t* extent = GetLoopIntExtent(static_cast<const tir::ForNode*>(stmt))) {
         prod_loop_extent *= *extent;
       }
     }
@@ -374,7 +450,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
     group1::Feature::ArithOps& parent_arith_ops = block_features_[scope].group1->arith_ops;
 #define TVM_FEATURE_MATH_OP_ADD(Name)                         \
   parent_arith_ops.Name = arith_ops->Name * prod_loop_extent; \
-  arith_ops->Name *= outer_loop_prod_
+  arith_ops->Name *= loop_nest_.prod;
     TVM_FEATURE_MATH_OP_ADD(float_mad);
     TVM_FEATURE_MATH_OP_ADD(float_add_sub);
     TVM_FEATURE_MATH_OP_ADD(float_mul);
@@ -397,11 +473,10 @@ class PerBlockFeatureCollector : private StmtVisitor {
   bool is_gpu_;
   int64_t cache_line_bytes_;
   int64_t arith_intensity_curve_num_samples_;
-  int64_t outer_loop_prod_ = 1;
   arith::Analyzer analyzer_;
-  BlockVec scopes_;
-  BlockVec ordered_blocks_;
-  PathVec dfs_path_;
+  std::vector<const BlockRealizeNode*> scopes_;
+  std::vector<const BlockRealizeNode*> ordered_blocks_;
+  std::vector<const StmtNode*> dfs_path_;
   LoopNest loop_nest_ = {};
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
@@ -443,9 +518,9 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       std::vector<double>& result = (*results)[i];
       result.reserve(feature_vector_length);
       feature.group1->Export(&result);
-      // TODO: add feature group 2-5
+      // TODO: add feature group 2,4,5
       // feature.group2->Export(&result, this->buffers_per_block);
-      // feature.group3->Export(&result);
+      feature.group3->Export(&result);
       // feature.group4->Export(&result, feature.group5->outer_prod);
       // feature.group5->Export(&result);
     }
@@ -480,10 +555,10 @@ FeatureExtractor FeatureExtractor::PerBlockFeature(int buffers_per_block,
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
   n->extract_workload = extract_workload;
-  // TODO: add feature group 2-5
-  n->feature_vector_length = group1::Feature::kCount;
+  // TODO: add feature group 2,4,5
+  n->feature_vector_length = group1::Feature::kCount +           //
+                             arith_intensity_curve_num_samples;  //
   //                            group2::Feature::SubFeature::kCount * buffers_per_block +  //
-  //                            arith_intensity_curve_num_samples +                        //
   //                            group4::Feature::kCount +                                  //
   //                            group5::Feature::kCount;
   return FeatureExtractor(n);
