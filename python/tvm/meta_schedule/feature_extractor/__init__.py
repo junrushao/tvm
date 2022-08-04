@@ -21,4 +21,5 @@ measure candidates for use in cost model.
 """
 from .feature_extractor import FeatureExtractor, PyFeatureExtractor
 from .per_store_feature import PerStoreFeature
+from .per_block_feature import PerBlockFeature
 from .random_feature_extractor import RandomFeatureExtractor
