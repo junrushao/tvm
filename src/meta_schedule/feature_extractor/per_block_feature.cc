@@ -312,6 +312,10 @@ class PerBlockFeatureCollector : private StmtVisitor {
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
   void VisitStmt_(const BlockRealizeNode* realize) final {
+    Feature& feature = block_features_[realize];
+    feature.block_realize = realize;
+    feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
+    // TODO: add groups 2-5
     if (!scopes_.empty()) {
       ordered_blocks_.push_back(realize);
     }
@@ -320,24 +324,12 @@ class PerBlockFeatureCollector : private StmtVisitor {
     StmtVisitor::VisitStmt_(realize);
     dfs_path_.pop_back();
     scopes_.pop_back();
-    if (scopes_.empty()) {
-      return;
-    }
-    // Get the ancestor loops from inner to outer, up to the parent scope
-    ForVec loops;
-    for (auto iter = dfs_path_.rbegin(); iter != dfs_path_.rend(); ++iter) {
-      const StmtNode* stmt = *iter;
-      if (stmt->IsInstance<ForNode>()) {
-        loops.push_back(static_cast<const ForNode*>(stmt));
-      }
-    }
-    Feature& feature = block_features_[realize];
-    feature.block_realize = realize;
-    feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
     if (!scopes_.empty()) {
       AddArithOpsToScope(&feature.group1->arith_ops);
     }
-    // TODO: add groups 2-5
+    if (scopes_.empty()) {
+      block_features_.erase(realize);
+    }
   }
 
   void VisitStmt_(const ForNode* loop) final {
