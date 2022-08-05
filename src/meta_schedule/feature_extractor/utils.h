@@ -33,6 +33,8 @@ namespace tir {
 
 /*! \brief Type for multi-dimensional index */
 using MultiIndex = std::vector<PrimExpr>;
+/*! \brief Type for a region */
+using NDIntSet = Array<arith::IntSet>;
 /*! \brief Vector of int64_t */
 using IntVec = std::vector<int64_t>;
 /*! \brief Vector of for loops */
@@ -244,6 +246,91 @@ inline IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_
   }
   return access_shape;
 }
+/*!
+ * \brief Calculate the size of the regions unioned together.
+ * \param regions The regions that the buffer is accessed
+ * \param access_shape The shape of the data access
+ * \param analyzer The analyzer that contains the domain information
+ * \return The size of the single region after union
+ */
+inline int64_t RegionUnionSize(const Array<NDIntSet>& regions, std::vector<int64_t>* access_shape,
+                               arith::Analyzer* analyzer) {
+  if (regions.empty()) {
+    return 1;
+  }
+  access_shape->clear();
+  int64_t numel = 1;
+  int n_regions = regions.size();
+  int ndim = regions[0].size();
+  for (int i = 0; i < ndim; ++i) {
+    // Calculate the union set
+    Array<arith::IntSet> int_sets;
+    int_sets.reserve(n_regions);
+    for (int j = 0; j < n_regions; ++j) {
+      int_sets.push_back(regions[j][i]);
+    }
+    arith::IntSet union_set = arith::Union(int_sets);
+    // Update the area
+    int64_t min = analyzer->const_int_bound(union_set.min())->min_value;
+    int64_t max = analyzer->const_int_bound(union_set.max())->max_value;
+    if (arith::ConstIntBound::kNegInf < min && max < arith::ConstIntBound::kPosInf) {
+      numel *= max - min + 1;
+      access_shape->push_back(max - min + 1);
+    } else {
+      access_shape->push_back(1);
+    }
+  }
+  return numel;
+}
+
+class CoefficientExtractor : private ExprVisitor {
+ public:
+  static int64_t Extract(const PrimExpr& expr, const Var& var) {
+    CoefficientExtractor extractor(var);
+    extractor.VisitExpr(expr);
+    return (extractor.visited_var && !extractor.visited_mul && !extractor.visited_add)
+               ? 1
+               : (extractor.visited_var ? extractor.stride : 0);
+  }
+
+ private:
+  explicit CoefficientExtractor(const Var& var)
+      : var(var), stride(0), visited_var(false), visited_add(false), visited_mul(false) {}
+
+  void VisitExpr_(const MulNode* node) override {
+    ExprVisitor::VisitExpr_(node);
+    if (visited_var && !visited_add) {
+      if (const auto* a = node->a.as<IntImmNode>()) {
+        visited_mul = true;
+        stride = a->value;
+      } else if (const auto* b = node->b.as<IntImmNode>()) {
+        visited_mul = true;
+        stride = b->value;
+      }
+    }
+  }
+
+  void VisitExpr_(const AddNode* node) override {
+    ExprVisitor::VisitExpr_(node);
+    if (visited_var && !visited_mul) {
+      visited_add = true;
+      stride = 1;
+    }
+  }
+
+  void VisitExpr_(const VarNode* node) override {
+    if (node == var.get()) {
+      visited_var = true;
+      stride = 2;
+    }
+  }
+
+  const Var& var;
+  int64_t stride;
+  bool visited_var;
+  bool visited_add;
+  bool visited_mul;
+};
 
 /*!
  * \brief Given a list of multi-index pattern, return the minimal stride of a variable on it
@@ -254,55 +341,6 @@ inline IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_
  */
 inline int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices,
                             const IntVec& buffer_stride, const Var& var) {
-  class CoefficientExtractor : private ExprVisitor {
-   public:
-    static int64_t Extract(const PrimExpr& expr, const Var& var) {
-      CoefficientExtractor extractor(var);
-      extractor.VisitExpr(expr);
-      return (extractor.visited_var && !extractor.visited_mul && !extractor.visited_add)
-                 ? 1
-                 : (extractor.visited_var ? extractor.stride : 0);
-    }
-
-   private:
-    explicit CoefficientExtractor(const Var& var)
-        : var(var), stride(0), visited_var(false), visited_add(false), visited_mul(false) {}
-
-    void VisitExpr_(const MulNode* node) override {
-      ExprVisitor::VisitExpr_(node);
-      if (visited_var && !visited_add) {
-        if (const auto* a = node->a.as<IntImmNode>()) {
-          visited_mul = true;
-          stride = a->value;
-        } else if (const auto* b = node->b.as<IntImmNode>()) {
-          visited_mul = true;
-          stride = b->value;
-        }
-      }
-    }
-
-    void VisitExpr_(const AddNode* node) override {
-      ExprVisitor::VisitExpr_(node);
-      if (visited_var && !visited_mul) {
-        visited_add = true;
-        stride = 1;
-      }
-    }
-
-    void VisitExpr_(const VarNode* node) override {
-      if (node == var.get()) {
-        visited_var = true;
-        stride = 2;
-      }
-    }
-
-    const Var& var;
-    int64_t stride;
-    bool visited_var;
-    bool visited_add;
-    bool visited_mul;
-  };
-
   constexpr int64_t kNotFound = std::numeric_limits<int64_t>::max();
   int ndim = buffer_stride.size();
   // Calculate the min stride possible
@@ -312,6 +350,34 @@ inline int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices,
     // Find the rightest dimension that contains the given variable
     for (int i = ndim - 1; i >= 0; --i) {
       int64_t coef = CoefficientExtractor::Extract(multi_index[i], var);
+      if (coef != 0) {
+        result = std::min(result, std::abs(coef) * buffer_stride[i]);
+        break;
+      }
+    }
+  }
+  return (result == kNotFound) ? 0 : result;
+}
+
+/*!
+ * \brief Given an array of regions, return the minimal stride of a variable on it
+ * \param regions The regions that the buffer is accessed
+ * \param buffer_stride The stride of the buffer
+ * \param var The variable to be checked
+ * \return The minimal stride of the variable on the regions
+ */
+inline int64_t VarStrideOnRegion(const Array<NDIntSet>& regions,
+                                 const std::vector<int64_t>& buffer_stride, const tir::Var& var) {
+  constexpr int64_t kNotFound = std::numeric_limits<int64_t>::max();
+  int ndim = buffer_stride.size();
+  // Calculate the min stride possible
+  int64_t result = kNotFound;
+  for (const NDIntSet& region : regions) {
+    ICHECK_EQ(region.size(), buffer_stride.size());
+    // Find the rightest dimension that contains the given variable
+    for (int i = ndim - 1; i >= 0; --i) {
+      PrimExpr idx = region[i].min();
+      int64_t coef = CoefficientExtractor::Extract(idx, var);
       if (coef != 0) {
         result = std::min(result, std::abs(coef) * buffer_stride[i]);
         break;
