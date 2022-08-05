@@ -261,6 +261,8 @@ def test_cpu_fusion():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (2, N_FEATURES)
 
 
@@ -322,6 +324,8 @@ def test_gpu():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (4, N_FEATURES)
 
 
@@ -331,7 +335,13 @@ def test_cpu_layout_transform():
         _make_context(tvm.target.Target("llvm")),
         candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
     )
+    feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
 
 
 if __name__ == "__main__":
     test_cpu_matmul()
+    # test_cpu_fusion()
+    # test_gpu()
+    # test_cpu_layout_transform()
