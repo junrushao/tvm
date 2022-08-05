@@ -13,14 +13,13 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-# from . import parser, parser_v1
-# from .parser import ir as ir_v2
-# from .parser import ir_module as ir_module_v2
-# from .parser import tir as tir_v2
-# from .parser_v1 import from_source, ir_module, tir
-
-from .parser import ir, ir_module
-from .parser import parse as from_source
-from .parser import tir
+# under the Licens.
+"""The parser"""
+from . import dispatch as _dispatch
+from . import doc as _doc
+from . import ir
+from . import parser as _parser
+from . import tir
+from .entry import parse
+from .ir import ir_module
+from .tir import prim_func

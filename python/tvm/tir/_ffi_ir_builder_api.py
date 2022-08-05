@@ -14,13 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-# from . import parser, parser_v1
-# from .parser import ir as ir_v2
-# from .parser import ir_module as ir_module_v2
-# from .parser import tir as tir_v2
-# from .parser_v1 import from_source, ir_module, tir
+"""FFI APIs for tvm.ir"""
+import tvm._ffi
 
-from .parser import ir, ir_module
-from .parser import parse as from_source
-from .parser import tir
+tvm._ffi._init_api("ir_builder.tir", __name__)  # pylint: disable=protected-access

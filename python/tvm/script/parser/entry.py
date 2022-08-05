@@ -14,13 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-# from . import parser, parser_v1
-# from .parser import ir as ir_v2
-# from .parser import ir_module as ir_module_v2
-# from .parser import tir as tir_v2
-# from .parser_v1 import from_source, ir_module, tir
+# pylint: disable=missing-docstring
+"""The entry point of TVM parser."""
+from typing import Any, Union
 
-from .parser import ir, ir_module
-from .parser import parse as from_source
-from .parser import tir
+from tvm.ir.ir_builder import IRBuilder
+
+from . import doc
+from .parser import Parser
+from .source import Source
+
+
+def parse(program: Union[doc.AST, Any, str], extra_vars=None):
+    source = Source(program)
+    parser = Parser(source)
+    with IRBuilder() as builder:
+        parser.parse(extra_vars=extra_vars)
+    return builder.get()
