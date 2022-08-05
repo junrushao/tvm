@@ -327,6 +327,81 @@ struct Feature {
 
 }  // namespace group3
 
+namespace group4 {
+
+/*! \brief Group 4 feature */
+struct Feature {
+  // Since allocated buffers can be in local, shared, or global memory, each attribute below is
+  // divided into three cases.
+  // The size of allocated buffer in bytes
+  int64_t alloc_size_local = 0;
+  int64_t alloc_size_shared = 0;
+  int64_t alloc_size_global = 0;
+  // alloc_outer_prod * alloc_inner_prod
+  int64_t alloc_prod_local = 0;
+  int64_t alloc_prod_shared = 0;
+  int64_t alloc_prod_global = 0;
+  // The product of lengths of loops outside the scope of the alloc
+  int64_t alloc_outer_prod_local = 1;
+  int64_t alloc_outer_prod_shared = 1;
+  int64_t alloc_outer_prod_global = 1;
+
+  static constexpr int64_t kCount = 12;
+
+  void Export(std::vector<double>* v, int64_t outer_prod) const {
+    double vs[] = {
+        slog(alloc_size_local),
+        slog(alloc_size_shared),
+        slog(alloc_size_global),
+        slog(alloc_prod_local),
+        slog(alloc_prod_shared),
+        slog(alloc_prod_global),
+        slog(alloc_outer_prod_local),
+        slog(alloc_outer_prod_shared),
+        slog(alloc_outer_prod_global),
+        slog(static_cast<double>(outer_prod) / alloc_outer_prod_local),
+        slog(static_cast<double>(outer_prod) / alloc_outer_prod_shared),
+        slog(static_cast<double>(outer_prod) / alloc_outer_prod_global),
+    };
+    v->insert(v->end(), std::begin(vs), std::end(vs));
+  }
+
+  Feature() = default;
+
+  explicit Feature(const LoopNest& loop_nest, const BlockRealizeNode* realize,
+                   arith::Analyzer* analyzer) {
+    for (const Buffer& buffer : realize->block->alloc_buffers) {
+      std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
+      int64_t numel = 1;
+      for (int64_t x : shape) {
+        numel *= x;
+      }
+      const runtime::StorageScope storage_scope = runtime::StorageScope::Create(buffer.scope());
+      switch (storage_scope.rank) {
+        case runtime::StorageRank::kLocal:
+          alloc_size_local += numel * buffer->dtype.bytes();
+          alloc_prod_local += numel * loop_nest.prod;
+          alloc_outer_prod_local *= loop_nest.prod;
+          break;
+        case runtime::StorageRank::kShared:
+          alloc_size_shared += numel * buffer->dtype.bytes();
+          alloc_prod_shared += numel * loop_nest.prod;
+          alloc_outer_prod_shared *= loop_nest.prod;
+          break;
+        case runtime::StorageRank::kGlobal:
+          alloc_size_global += numel * buffer->dtype.bytes();
+          alloc_prod_global += numel * loop_nest.prod;
+          alloc_outer_prod_global *= loop_nest.prod;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+};
+
+}  // namespace group4
+
 namespace group5 {
 
 /*! \brief Group 5 feature */
@@ -359,11 +434,11 @@ struct Feature {
 struct Feature {
   const BlockRealizeNode* block_realize = nullptr;
   // int buffer_order = -1;
-  // TODO: add feature group 2,4
+  // TODO: add feature group 2
   std::unique_ptr<group1::Feature> group1 = nullptr;
   // std::unique_ptr<group2::Feature> group2 = nullptr;
   std::unique_ptr<group3::Feature> group3 = nullptr;
-  // std::unique_ptr<group4::Feature> group4 = nullptr;
+  std::unique_ptr<group4::Feature> group4 = nullptr;
   std::unique_ptr<group5::Feature> group5 = nullptr;
 
   // bool operator<(const Feature& other) const { return buffer_order < other.buffer_order; }
@@ -379,10 +454,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
     for (const auto& kv : mod->functions) {
       if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
         collector(func->body);
-        // TODO: handle allocation-related features
-        // for (const auto& it : func->buffer_map) {
-        //   collector.HandleBufferAlloc(it.second);
-        // }
       }
     }
     std::vector<Feature> result;
@@ -391,13 +462,11 @@ class PerBlockFeatureCollector : private StmtVisitor {
       Feature& feature = it.second;
       if (feature.block_realize != nullptr) {
         ICHECK(feature.group1);
-        // TODO: add feature group 2,4
+        // TODO: add feature group 2
         // ICHECK(feature.group2);
         ICHECK(feature.group3);
+        ICHECK(feature.group4);
         ICHECK(feature.group5);
-        // if (feature.group4 == nullptr) {
-        //   feature.group4 = std::make_unique<group4::Feature>();
-        // }
         result.push_back(std::move(feature));
       }
     }
@@ -432,8 +501,9 @@ class PerBlockFeatureCollector : private StmtVisitor {
     feature.group3 =
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes_, feature.group1->arith_ops);
+    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_);
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
-    // TODO: add groups 2,4
+    // TODO: add groups 2
     // Erase the feature of the root block
     if (scopes_.empty()) {
       block_features_.erase(realize);
@@ -547,10 +617,10 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       std::vector<double>& result = (*results)[i];
       result.reserve(feature_vector_length);
       feature.group1->Export(&result);
-      // TODO: add feature group 2,4
+      // TODO: add feature group 2
       // feature.group2->Export(&result, this->buffers_per_block);
       feature.group3->Export(&result);
-      // feature.group4->Export(&result, feature.group5->outer_prod);
+      feature.group4->Export(&result, feature.group5->outer_prod);
       feature.group5->Export(&result);
     }
   }
@@ -584,12 +654,12 @@ FeatureExtractor FeatureExtractor::PerBlockFeature(int buffers_per_block,
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
   n->extract_workload = extract_workload;
-  // TODO: add feature group 2,4
+  // TODO: add feature group 2
   n->feature_vector_length = group1::Feature::kCount +            //
                              arith_intensity_curve_num_samples +  //
+                             group4::Feature::kCount +            //
                              group5::Feature::kCount;
   //                            group2::Feature::SubFeature::kCount * buffers_per_block +  //
-  //                            group4::Feature::kCount +                                  //
   return FeatureExtractor(n);
 }
 
