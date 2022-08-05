@@ -18,8 +18,9 @@
 import sys
 from typing import Callable, List
 
-import tvm
 from numpy.testing import assert_allclose
+
+import tvm
 from tvm import meta_schedule as ms
 from tvm import te, tir
 from tvm.script import tir as T
@@ -224,7 +225,10 @@ def test_cpu_matmul():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (1, N_FEATURES)
+
 
 def test_cpu_fusion():
     # pylint: disable=all
@@ -257,7 +261,10 @@ def test_cpu_fusion():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (2, N_FEATURES)
+
 
 def test_gpu():
     def _create_schedule():
@@ -317,7 +324,10 @@ def test_gpu():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
     # assert feature.shape == (4, N_FEATURES)
+
 
 def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerBlockFeature()
@@ -325,6 +335,13 @@ def test_cpu_layout_transform():
         _make_context(tvm.target.Target("llvm")),
         candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
     )
+    feature = feature.numpy()
+    print(feature.shape)
+    print(feature)
+
 
 if __name__ == "__main__":
     test_cpu_matmul()
+    # test_cpu_fusion()
+    # test_gpu()
+    # test_cpu_layout_transform()
