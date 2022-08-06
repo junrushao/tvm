@@ -20,7 +20,7 @@ import inspect
 from typing import Callable, Union
 
 from tvm.tir import Buffer, PrimFunc
-from tvm.tir.ir_builder import buffer_decl, ptr
+from tvm.tir.ir_builder_v2 import buffer_decl, ptr
 
 from ..entry import parse
 from ..utils import inspect_function_capture

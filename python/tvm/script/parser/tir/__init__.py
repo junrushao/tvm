@@ -21,9 +21,9 @@ from tvm.tir.expr import Broadcast as broadcast
 from tvm.tir.expr import Let
 from tvm.tir.expr import Ramp as ramp
 from tvm.tir.expr import Shuffle
-from tvm.tir.ir_builder import max  # pylint: disable=redefined-builtin
-from tvm.tir.ir_builder import min  # pylint: disable=redefined-builtin
-from tvm.tir.ir_builder import (
+from tvm.tir.ir_builder_v2 import max  # pylint: disable=redefined-builtin
+from tvm.tir.ir_builder_v2 import min  # pylint: disable=redefined-builtin
+from tvm.tir.ir_builder_v2 import (
     Select,
     alloc_buffer,
     allocate,

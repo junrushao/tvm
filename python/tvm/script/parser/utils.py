@@ -59,5 +59,5 @@ def inspect_class_capture(cls: type) -> Dict[str, Any]:
     for _, v in cls.__dict__.items():
         if inspect.isfunction(v):
             func_vars = inspect_function_capture(v)
-            vars.update(**func_vars)
+            result.update(**func_vars)
     return result

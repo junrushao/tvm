@@ -21,8 +21,8 @@ from typing import List
 from tvm._ffi import register_object as _register_object
 from tvm.ir.ir_builder import IRBuilderFrame
 
-from .expr import Var
 from .buffer import Buffer
+from .expr import Var
 
 
 @_register_object("ir_builder.tir.TIRFrame")
