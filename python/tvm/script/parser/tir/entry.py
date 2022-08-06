@@ -88,6 +88,8 @@ class PtrProxy:
         return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
 
     def __getitem__(self, keys):
+        if not isinstance(keys, tuple):
+            return self(keys)
         return self(*keys)
 
 
