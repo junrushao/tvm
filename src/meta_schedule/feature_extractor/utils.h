@@ -34,7 +34,7 @@ namespace tir {
 /*! \brief Type for multi-dimensional index */
 using MultiIndex = std::vector<PrimExpr>;
 /*! \brief Type for a region */
-using NDIntSet = Array<arith::IntSet>;
+using tvm::support::NDIntSet;
 /*! \brief Vector of int64_t */
 using IntVec = std::vector<int64_t>;
 /*! \brief Vector of for loops */
@@ -253,8 +253,8 @@ inline IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_
  * \param analyzer The analyzer that contains the domain information
  * \return The size of the single region after union
  */
-inline int64_t RegionUnionSize(const Array<NDIntSet>& regions, std::vector<int64_t>* access_shape,
-                               arith::Analyzer* analyzer) {
+inline int64_t RegionUnionSize(const std::vector<NDIntSet>& regions,
+                               std::vector<int64_t>* access_shape, arith::Analyzer* analyzer) {
   if (regions.empty()) {
     return 1;
   }
@@ -366,7 +366,7 @@ inline int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices,
  * \param var The variable to be checked
  * \return The minimal stride of the variable on the regions
  */
-inline int64_t VarStrideOnRegion(const Array<NDIntSet>& regions,
+inline int64_t VarStrideOnRegion(const std::vector<NDIntSet>& regions,
                                  const std::vector<int64_t>& buffer_stride, const tir::Var& var) {
   constexpr int64_t kNotFound = std::numeric_limits<int64_t>::max();
   int ndim = buffer_stride.size();

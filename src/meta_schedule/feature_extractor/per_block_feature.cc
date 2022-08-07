@@ -283,7 +283,7 @@ struct Feature {
     /*! \brief The access type of the buffer */
     AccessType access_type = AccessType::kUnknownRW;
     /*! \brief The regions that the buffer is accessed */
-    Array<NDIntSet> regions = {};
+    std::vector<NDIntSet> regions = {};
     // Access information
     /*! \brief loop_accessed_numel[i][...] means the number of elements accessed by loops[i] */
     std::vector<std::unordered_map<const BufferNode*, int64_t>> loop_accessed_numel = {};
@@ -364,8 +364,8 @@ struct Feature {
 
     void SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes);
 
-    explicit SubFeature(const BufferNode* buffer, AccessType access_type, Array<NDIntSet> regions,
-                        int n_loops)
+    explicit SubFeature(const BufferNode* buffer, AccessType access_type,
+                        std::vector<NDIntSet> regions, int n_loops)
         : buffer(buffer),
           access_type(access_type),
           regions(regions),
@@ -481,7 +481,7 @@ void Feature::Init(const BlockRealizeNode* realize, int n_loops, arith::Analyzer
   // Step 3. Apply the substitution to each tensor region
   struct BufferInfo {
     AccessType access_type = AccessType::kUnknownRW;
-    Array<NDIntSet> regions = {};
+    std::vector<NDIntSet> regions = {};
   };
   std::unordered_map<const BufferNode*, BufferInfo> buffer_info;
   buffer_info.reserve(realize->block->reads.size() + realize->block->writes.size());
