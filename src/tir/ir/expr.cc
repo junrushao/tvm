@@ -20,6 +20,7 @@
 /*!
  * \file expr.cc
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -829,12 +830,23 @@ TVM_REGISTER_GLOBAL("tir.Call")
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
-               it->IsInstance<IterVarNode>())
+               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
             << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
         } else if (const auto* expr = it.as<PrimExprNode>()) {
           prim_expr_args.push_back(GetRef<PrimExpr>(expr));
+        } else if (const auto* br = it.as<BufferRegionNode>()) {
+          BufferRegion buffer_region = GetRef<BufferRegion>(br);
+          Array<PrimExpr> indices;
+          for (Range r : buffer_region->region) {
+            if (arith::Analyzer().CanProveEqual(r->extent, 1)) {
+              indices.push_back(r->min);
+            } else {
+              indices.push_back(tir::Ramp(r->min, 1, Downcast<IntImm>(r->extent)->value));
+            }
+          }
+          prim_expr_args.push_back(BufferLoad(buffer_region->buffer, indices));
         } else {
           prim_expr_args.push_back(Downcast<IterVar>(it).operator PrimExpr());
         }

@@ -32,3 +32,8 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
 @dispatch.register(token="ir", type_name="Assign")
 def _visit_assign(_self: Parser, _node: doc.Assign) -> None:
     pass
+
+
+@dispatch.register(token="ir", type_name="Expr")
+def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
+    pass

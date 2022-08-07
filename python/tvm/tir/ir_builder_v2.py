@@ -70,6 +70,9 @@ def ptr(dtype, storage_scope="global"):
     return _ffi_api.Ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
 
 
+buffer_var = ptr
+
+
 def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
     return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
 
@@ -398,6 +401,35 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
 
+def decl_buffer(
+    shape,
+    dtype="float32",
+    data=None,
+    strides=None,
+    elem_offset=None,
+    scope="",
+    align=0,
+    offset_factor=0,
+    buffer_type="",
+    axis_separators=None,
+) -> frame.DeclBufferFrame:
+
+    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    return _ffi_api.DeclBuffer(  # pylint: disable=no-member # type: ignore
+        shape,
+        dtype,
+        "",
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        buffer_type,
+        axis_separators,
+    )
+
+
 def launch_thread(
     iter_var: IterVar,  # pylint: disable=redefined-outer-name
     extent: PrimExpr,
@@ -561,7 +593,10 @@ def comm_reducer(combiner, identity):
     num_args = len(params)
     args = []
     for name, i in zip(params.keys(), identity + identity):
-        args.append(Var(name, i.dtype))
+        if isinstance(i, int):
+            args.append(Var(name, "int32"))
+        else:
+            args.append(Var(name, i.dtype))
     res = combiner(*args)
     if not isinstance(res, tuple):
         res = (res,)
@@ -597,6 +632,7 @@ def _dtype_forward(func):
 
 
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
+fabs = abs
 acos = _op_wrapper(_tir_op.acos)
 acosh = _op_wrapper(_tir_op.acosh)
 address_of = _op_wrapper(_tir_op.address_of)
@@ -727,6 +763,7 @@ __all__ = [
     "broadcast",
     "buffer_decl",
     "buffer_store",
+    "buffer_var",
     "call_cpacked",
     "call_cpacked_lowered",
     "call_extern",
@@ -750,6 +787,8 @@ __all__ = [
     "exp",
     "exp10",
     "exp2",
+    "decl_buffer",
+    "fabs",
     "float16",
     "float32",
     "float64",

@@ -109,3 +109,10 @@ class ThenFrame(TIRFrame):
 @_register_object("ir_builder.tir.ElseFrame")
 class ElseFrame(TIRFrame):
     ...
+
+
+@_register_object("ir_builder.tir.DeclBufferFrame")
+class DeclBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer

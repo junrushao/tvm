@@ -49,6 +49,17 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                 axis_separators.value_or(Array<IntImm>()));
 }
 
+DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                           Optional<Var> data, Optional<Array<PrimExpr>> strides,
+                           Optional<PrimExpr> elem_offset, String storage_scope, int align,
+                           int offset_factor, String buffer_type,
+                           Optional<Array<IntImm>> axis_separators) {
+  ObjectPtr<DeclBufferFrameNode> n = make_object<DeclBufferFrameNode>();
+  n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
+                         align, offset_factor, buffer_type, axis_separators);
+  return DeclBufferFrame(n);
+}
+
 PrimExpr Ptr(runtime::DataType dtype, String storage_scope) {
   return tvm::tir::Var("", tvm::PointerType(PrimType(dtype), storage_scope));
 }
@@ -592,6 +603,7 @@ TVM_REGISTER_GLOBAL("ir_builder.tir.While").set_body_typed(While);
 TVM_REGISTER_GLOBAL("ir_builder.tir.If").set_body_typed(If);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Else").set_body_typed(Else);
+TVM_REGISTER_GLOBAL("ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
 TVM_REGISTER_GLOBAL("ir_builder.tir.LaunchThread").set_body_typed(LaunchThread);
 TVM_REGISTER_GLOBAL("ir_builder.tir.EnvThread").set_body_typed(EnvThread);
 TVM_REGISTER_GLOBAL("ir_builder.tir.BufferStore").set_body_typed(BufferStore);

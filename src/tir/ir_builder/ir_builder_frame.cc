@@ -179,6 +179,11 @@ void ElseFrameNode::ExitWithScope() {
   FindIfFrame("T.else_")->else_stmts = stmts;
 }
 
+void DeclBufferFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
+}
+
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
@@ -195,6 +200,7 @@ TVM_REGISTER_NODE_TYPE(WhileFrameNode);
 TVM_REGISTER_NODE_TYPE(IfFrameNode);
 TVM_REGISTER_NODE_TYPE(ThenFrameNode);
 TVM_REGISTER_NODE_TYPE(ElseFrameNode);
+TVM_REGISTER_NODE_TYPE(DeclBufferFrameNode);
 
 }  // namespace tir
 }  // namespace ir_builder
