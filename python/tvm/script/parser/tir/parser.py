@@ -32,7 +32,7 @@ from ..parser import Parser
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         for i, v in enumerate(value):
-            bind_with_value(self, f"{var_name}_{i}", v)
+            bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
     elif isinstance(value, (Buffer, Var)):
         name(var_name, value)
@@ -45,7 +45,7 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
 def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         for i, v in enumerate(value):
-            bind_with_value(self, f"{var_name}_{i}", v)
+            bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
     elif isinstance(value, Var):
         name(var_name, value)
@@ -58,7 +58,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
 def bind_assign_value(self: Parser, _node: doc.expr, var_name: str, value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         for i, v in enumerate(value):
-            bind_with_value(self, f"{var_name}_{i}", v)
+            bind_with_value(self, _node, f"{var_name}_{i}", v)
         return value
     elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))
@@ -248,7 +248,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
         with T.If(self.eval_expr(node.test)):
             with T.Then():
                 self.visit_body(node.body)
-            if len(node.orelse):
+            if node.orelse:
                 with T.Else():
                     self.visit_body(node.orelse)
 

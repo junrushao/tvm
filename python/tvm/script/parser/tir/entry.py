@@ -93,5 +93,5 @@ class PtrProxy:
         return self(*keys)
 
 
-Buffer = BufferProxy()
-Ptr = PtrProxy()
+Buffer = BufferProxy()  # pylint: disable=invalid-name
+Ptr = PtrProxy()  # pylint: disable=invalid-name

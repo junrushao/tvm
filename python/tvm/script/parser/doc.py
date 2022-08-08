@@ -120,7 +120,7 @@ def parse(
     mode="exec",
 ) -> doc.AST:
     try:
-        program = ast.parse(
+        program = ast.parse(  # pylint: disable=unexpected-keyword-arg
             source=source,
             filename=filename,
             mode=mode,

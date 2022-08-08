@@ -631,6 +631,8 @@ def _dtype_forward(func):
     return wrapped
 
 
+# pylint: disable=invalid-name
+
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
 fabs = abs
 acos = _op_wrapper(_tir_op.acos)
@@ -729,6 +731,8 @@ tvm_call_packed_lowered = call_packed_lowered
 tvm_call_cpacked_lowered = call_cpacked_lowered
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
+
+# pylint: enable=invalid-name
 
 
 __all__ = [

@@ -54,8 +54,8 @@ def register_op(ty: Type, op: AST, operand_index: int):  # pylint: disable=inval
     return f
 
 
-def get_op(
-    ty: Type,  # pylint: disable=invalid-name
+def get_op(  # pylint: disable=invalid-name
+    ty: Type,
     op: Type,
     operand_index: int,
     default: Optional[OpMethod] = None,

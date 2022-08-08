@@ -28,6 +28,8 @@ from .parser_v1 import from_source as from_source_v1
 from .parser_v1 import ir_module as ir_module_v1
 from .parser_v1 import tir as tir_v1
 
+# pylint: disable=invalid-name
+
 ir = ir_v2
 ir_module = ir_module_v2
 tir = tir_v2

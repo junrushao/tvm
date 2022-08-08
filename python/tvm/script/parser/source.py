@@ -68,7 +68,7 @@ class Source:
         return doc.parse(self.source)
 
 
-_getfile = inspect.getfile
+_getfile = inspect.getfile  # pylint: disable=invalid-name
 
 
 def _patched_inspect_getfile(obj):

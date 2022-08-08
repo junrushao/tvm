@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-docstring
 """A generic IRBuilder across the TVM stack"""
 from typing import List, TypeVar
 
@@ -67,9 +68,9 @@ def name(s: str, v: DefType) -> DefType:
     return _ffi_api.IRBuilderName(s, v)  # pylint: disable=no-member # type: ignore
 
 
-def name_many(
+def name_many(  # pylint: disable=invalid-name
     s: List[str],
-    vs: List[DefType],  # pylint: disable=invalid-name
+    vs: List[DefType],
 ) -> List[DefType]:
     assert len(s) == len(vs)
     return [name(i, v) for i, v in zip(s, vs)]

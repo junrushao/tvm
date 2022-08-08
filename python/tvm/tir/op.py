@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name
+# pylint: disable=redefined-builtin,invalid-name,no-member,protected-access
 """Operators used in TIR expression."""
 from typing import Any, Optional
-import tvm._ffi
-from tvm.ir.base import Span
-from tvm.runtime import convert, const
-from tvm.ir import Array, Op
 
-from .buffer import Buffer
-from .expr import Call, PrimExprWithOp, StringImm, Var, CommReducer
+import tvm._ffi
+from tvm.ir import Array, Op
+from tvm.ir.base import Span
+from tvm.runtime import const, convert
+
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import Call, CommReducer, PrimExprWithOp, StringImm, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -270,6 +271,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     """
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
+
     from .expr import IntImm
 
     if isinstance(name, str):
@@ -278,7 +280,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
         llvm_id = name.value
     else:
         llvm_id = name
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    assert llvm_id != 0, f"{name} is not an LLVM intrinsic"
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_intrin"),
@@ -312,6 +314,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     """
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
+
     from .expr import IntImm
 
     if isinstance(name, str):
@@ -320,7 +323,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         llvm_id = name.value
     else:
         llvm_id = name
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    assert llvm_id != 0, f"{name} is not an LLVM intrinsic"
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -368,7 +371,7 @@ def address_of(buffer_load, span=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.address_of", buffer_load)
+    return call_intrin("handle", "tir.address_of", buffer_load, span=span)
 
 
 def lookup_param(param_name, span=None):
@@ -387,11 +390,7 @@ def lookup_param(param_name, span=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.lookup_param", param_name)
-
-
-def tvm_access_ptr(dtype, data, offset, extent, rw_mask):
-    return call_intrin("handle", "tir.tvm_access_ptr", dtype, data, offset, extent, rw_mask)
+    return call_intrin("handle", "tir.lookup_param", param_name, span=span)
 
 
 def tvm_tuple(*value):
@@ -487,7 +486,7 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     )
 
 
-def ptx_mma(
+def ptx_mma(  # pylint: disable=missing-docstring
     dtype,
     shape,
     A_layout,
@@ -542,7 +541,7 @@ def ptx_mma(
     )
 
 
-def ptx_mma_sp(
+def ptx_mma_sp(  # pylint: disable=missing-docstring
     dtype,
     shape,
     A_layout,
@@ -670,9 +669,9 @@ def any(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    val = _ffi_api._OpOr(args[0], args[1], span)  # type: ignore
+    val = _ffi_api._OpOr(args[0], args[1], span)  # type: ignore # pylint: disable=no-member,protected-access
     for i in range(2, len(args)):
-        val = _ffi_api._OpOr(val, args[i], span)  # type: ignore
+        val = _ffi_api._OpOr(val, args[i], span)  # type: ignore # pylint: disable=no-member,protected-access
     return val
 
 
@@ -697,9 +696,9 @@ def all(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    val = _ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
+    val = _ffi_api._OpAnd(args[0], args[1], span)  # type: ignore  # pylint: disable=no-member,protected-access
     for i in range(2, len(args)):
-        val = _ffi_api._OpAnd(val, args[i], span)  # type: ignore
+        val = _ffi_api._OpAnd(val, args[i], span)  # type: ignore  # pylint: disable=no-member,protected-access
     return val
 
 
@@ -1477,7 +1476,7 @@ def isnullptr(x, span=None):
     y : PrimExpr
         The result.
     """
-    return call_intrin("bool", "tir.isnullptr", x)  # type: ignore
+    return call_intrin("bool", "tir.isnullptr", x, span=span)  # type: ignore
 
 
 def isfinite(x, span=None):
@@ -1869,26 +1868,6 @@ def floormod(a, b, span=None):
         The result expression.
     """
     return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
-
-
-def ceildiv(lhs, rhs, span=None):
-    """Generic ceildiv operator.
-
-    Parameters
-    ----------
-    lhs : object
-        The left operand.
-    rhs : object
-        The right operand.
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    op : tvm.Expr
-        The result Expr of ceildiv operaton.
-    """
-    return _ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
