@@ -336,6 +336,26 @@ def _register_subscription_handling():
     register_from_doc("Subscript")(subscript_from_doc)
 
 
+def _register_index_handling():
+    if _py_version() >= (3, 9):
+        return
+
+    def index_to_doc(x: ast.Index) -> doc.Expr:
+        return to_doc(x.value)
+
+    def index_from_doc(x: doc.Expr) -> ast.Index:
+        result = ast.Index(value=from_doc(x), ctx=from_doc(x.ctx))
+        result.lineno = x.lineno
+        result.col_offset = x.col_offset
+        result.end_lineno = x.end_lineno
+        result.end_col_offset = x.end_col_offset
+        return result
+
+    register_to_doc("Index")(index_to_doc)
+    register_from_doc("Index")(index_from_doc)
+
+
 _register_default()
 _register_constant_handling()
 _register_subscription_handling()
+_register_index_handling()
