@@ -369,8 +369,8 @@ inline int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices,
  * \param var The variable to be checked
  * \return The minimal stride of the variable on the regions
  */
-inline int64_t VarStrideOnRegion(const std::vector<NDIntSet>& regions,
-                                 const std::vector<int64_t>& buffer_stride, const tir::Var& var) {
+inline int64_t GetVarStride(const std::vector<NDIntSet>& regions, const IntVec& buffer_stride,
+                            const Var& var) {
   constexpr int64_t kNotFound = std::numeric_limits<int64_t>::max();
   int ndim = buffer_stride.size();
   // Calculate the min stride possible

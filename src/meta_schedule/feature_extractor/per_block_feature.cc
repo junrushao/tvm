@@ -585,7 +585,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // Calculate this->min_stride
   int64_t& stride = this->min_stride = 0;
   for (i = n_loops - 1; i >= 0; --i) {
-    stride = utils::VarStrideOnRegion(this->regions, buffer_stride, loops[i]->loop_var);
+    stride = utils::GetVarStride(this->regions, buffer_stride, loops[i]->loop_var);
     if (stride != 0) {
       break;
     }
