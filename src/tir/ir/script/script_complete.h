@@ -21,8 +21,8 @@
  * \file tir/ir/script/script_complete.h
  * \brief Used by TVM Script parser to expand incomplete TIR input
  */
-#ifndef TVM_TIR_IR_SCRIPT_COMPLETE_H_
-#define TVM_TIR_IR_SCRIPT_COMPLETE_H_
+#ifndef TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
+#define TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -34,4 +34,4 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates);
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_IR_SCRIPT_COMPLETE_H_
+#endif  // TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
