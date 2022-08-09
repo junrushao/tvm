@@ -23,6 +23,8 @@
 #include <tvm/ir/function.h>
 #include <tvm/node/node.h>
 
+#include <vector>
+
 namespace tvm {
 namespace ir_builder {
 
@@ -84,7 +86,7 @@ class IRBuilderNode : public runtime::Object {
 
 class IRBuilder : public runtime::ObjectRef {
  public:
-  explicit IRBuilder();
+  IRBuilder();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRBuilder, ObjectRef, IRBuilderNode);
 
  public:

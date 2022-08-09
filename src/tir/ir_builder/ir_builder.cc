@@ -153,7 +153,7 @@ Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
                   "'T.alloc_buffer' is called under T.block() or T.prim_func()";
   }
   return buffer;
-};
+}
 
 namespace axis {
 
@@ -382,7 +382,7 @@ Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype, Optio
     LOG(FATAL) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
   return buffer;
-};
+}
 
 void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape, DataType dtype,
                         Optional<Var> data, Array<PrimExpr> strides, PrimExpr elem_offset,
@@ -402,7 +402,7 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape, Data
   }
   LOG(FATAL) << "ValueError: postflattened buffer " << postflattened_buffer->name
              << " does not exist.";
-};
+}
 
 AssertFrame Assert(PrimExpr condition, String message) {
   ObjectPtr<AssertFrameNode> n = make_object<AssertFrameNode>();

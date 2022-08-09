@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_BUILDER_TIR_BASE_H_
-#define TVM_SCRIPT_BUILDER_TIR_BASE_H_
+#ifndef TVM_TIR_IR_BUILDER_UTILS_H_
+#define TVM_TIR_IR_BUILDER_UTILS_H_
 
 #include <tvm/tir/ir_builder.h>
 #include <tvm/tir/stmt.h>
@@ -89,4 +89,4 @@ inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_l
 }  // namespace ir_builder
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_BUILDER_TIR_BASE_H_
+#endif  // TVM_TIR_IR_BUILDER_UTILS_H_
