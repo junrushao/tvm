@@ -1002,8 +1002,8 @@ class PerBlockFeatureCollector : private StmtVisitor {
     }
     std::vector<Feature> result;
     result.reserve(collector.block_features_.size());
-    for (auto& it : collector.block_features_) {
-      Feature& feature = it.second;
+    for (const BlockRealizeNode* realize : collector.ordered_blocks_) {
+      Feature& feature = collector.block_features_.at(realize);
       if (feature.block_realize != nullptr) {
         ICHECK(feature.group1);
         ICHECK(feature.group2);
@@ -1024,6 +1024,9 @@ class PerBlockFeatureCollector : private StmtVisitor {
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
   void VisitStmt_(const BlockRealizeNode* realize) final {
+    if (!scopes_.empty()) {
+      ordered_blocks_.push_back(realize);
+    }
     Feature& feature = block_features_[realize];
     feature.block_realize = realize;
     feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
@@ -1118,6 +1121,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
   std::unordered_map<const BlockRealizeNode*, Feature> block_features_ = {};
+  std::vector<const BlockRealizeNode*> ordered_blocks_;
 };
 
 }  // namespace per_block_feature
