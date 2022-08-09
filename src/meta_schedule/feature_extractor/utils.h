@@ -22,6 +22,7 @@
 #include <memory>
 #include <numeric>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -220,13 +221,13 @@ inline runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src) {
  * \brief Relax each of the multi-indexing pattern according to the domains bound in the analyzer,
  * and then union them into a single region
  * \param multi_index_pattern A list of multi-index pattern to be relaxed
- * \param numel The size of the single region after union
  * \param analyzer The analyzer that contains the domain information
- * \return The relaxed and unioned region
+ * \return numel The size of the single region after union
+ * \return access_shape The relaxed and unioned region
  */
-inline IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
-                            arith::Analyzer* analyzer) {
-  *numel = 1;
+inline std::tuple<int64_t, IntVec> RelaxAndUnion(const std::vector<MultiIndex>& multi_indices,
+                                                 arith::Analyzer* analyzer) {
+  int64_t numel = 1;
   if (multi_indices.empty()) {
     return {};
   }
@@ -241,24 +242,26 @@ inline IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_
       minimum = std::min(minimum, bound->min_value);
       maximum = std::max(maximum, bound->max_value);
     }
-    *numel *= maximum - minimum + 1;
+    numel *= maximum - minimum + 1;
     access_shape[i] = maximum - minimum + 1;
   }
-  return access_shape;
+  return make_tuple(numel, access_shape);
 }
+
 /*!
- * \brief Calculate the size of the regions unioned together.
+ * \brief Relax each of the regions according to the domains bound in the analyzer,
+ * and then union them into a single region
  * \param regions The regions that the buffer is accessed
- * \param access_shape The shape of the data access
  * \param analyzer The analyzer that contains the domain information
- * \return The size of the single region after union
+ * \return numel The size of the single region after union
+ * \return access_shape The relaxed and unioned region
  */
-inline int64_t RegionUnionSize(const std::vector<NDIntSet>& regions,
-                               std::vector<int64_t>* access_shape, arith::Analyzer* analyzer) {
+inline std::tuple<int64_t, IntVec> RelaxAndUnion(const std::vector<NDIntSet>& regions,
+                                                 arith::Analyzer* analyzer) {
+  IntVec access_shape = {};
   if (regions.empty()) {
-    return 1;
+    return make_tuple(1, access_shape);
   }
-  access_shape->clear();
   int64_t numel = 1;
   int n_regions = regions.size();
   int ndim = regions[0].size();
@@ -275,12 +278,12 @@ inline int64_t RegionUnionSize(const std::vector<NDIntSet>& regions,
     int64_t max = analyzer->const_int_bound(union_set.max())->max_value;
     if (arith::ConstIntBound::kNegInf < min && max < arith::ConstIntBound::kPosInf) {
       numel *= max - min + 1;
-      access_shape->push_back(max - min + 1);
+      access_shape.push_back(max - min + 1);
     } else {
-      access_shape->push_back(1);
+      access_shape.push_back(1);
     }
   }
-  return numel;
+  return make_tuple(numel, access_shape);
 }
 
 class CoefficientExtractor : private ExprVisitor {

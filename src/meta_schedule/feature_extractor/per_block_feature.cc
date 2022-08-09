@@ -543,7 +543,9 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       const BufferNode* buffer = feature.buffer;
       // Note: `feature.access_shape` for `i == 0` is the only one preserved,
       // while others are discarded
-      int64_t numel = utils::RegionUnionSize(feature.regions, &feature.access_shape, analyzer);
+      std::tuple<int64_t, IntVec> res = utils::RelaxAndUnion(feature.regions, analyzer);
+      int64_t numel = std::get<0>(res);
+      feature.access_shape = std::get<1>(res);
       feature.loop_accessed_numel[i][buffer] = numel;
       touched_bytes += numel * buffer->dtype.bytes();
       (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
