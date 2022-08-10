@@ -750,15 +750,11 @@ class inline:
         self.i = 0
 
     def __iter__(self):
-        return self
+        def f():
+            for i in self.value:
+                yield inline(i)
 
-    def __next__(self):
-        if isinstance(self.value, (tuple, list)):
-            if self.i < len(self.value):
-                v = self.value[self.i]
-                self.i += 1
-                return inline(v)
-        raise StopIteration
+        return f()
 
 
 __all__ = [
