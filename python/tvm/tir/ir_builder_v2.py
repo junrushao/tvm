@@ -744,6 +744,23 @@ TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 # pylint: enable=invalid-name
 
 
+class inline:
+    def __init__(self, value) -> None:
+        self.value = value
+        self.i = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if isinstance(self.value, (tuple, list)):
+            if self.i < len(self.value):
+                v = self.value[self.i]
+                self.i += 1
+                return inline(v)
+        raise StopIteration
+
+
 __all__ = [
     "Assert",
     "Else",
@@ -819,6 +836,7 @@ __all__ = [
     "if_then_else",
     "infinity",
     "init",
+    "inline",
     "int16",
     "int32",
     "int32x16",

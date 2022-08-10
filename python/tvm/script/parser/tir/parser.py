@@ -56,7 +56,9 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
 
 
 def bind_assign_value(self: Parser, _node: doc.expr, var_name: str, value: Any) -> Any:
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, T.inline):
+        return value.value
+    elif isinstance(value, (list, tuple)):
         for i, v in enumerate(value):
             bind_with_value(self, _node, f"{var_name}_{i}", v)
         return value
