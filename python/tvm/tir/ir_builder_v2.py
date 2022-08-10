@@ -741,8 +741,6 @@ tvm_call_cpacked_lowered = call_cpacked_lowered
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 
-# pylint: enable=invalid-name
-
 
 class inline:
     def __init__(self, value) -> None:
@@ -755,6 +753,9 @@ class inline:
                 yield inline(i)
 
         return f()
+
+
+# pylint: enable=invalid-name
 
 
 __all__ = [
