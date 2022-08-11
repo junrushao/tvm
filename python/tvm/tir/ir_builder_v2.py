@@ -529,6 +529,10 @@ def int32x4(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Int32x4(expr)  # pylint: disable=no-member # type: ignore
 
 
+def int32x8(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    return _ffi_api.Int32x8(expr)  # pylint: disable=no-member # type: ignore
+
+
 def int32x16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     return _ffi_api.Int32x16(expr)  # pylint: disable=no-member # type: ignore
 
@@ -841,6 +845,7 @@ __all__ = [
     "int32",
     "int32x16",
     "int32x4",
+    "int32x8",
     "int64",
     "int8",
     "isfinite",

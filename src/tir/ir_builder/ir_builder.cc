@@ -646,6 +646,7 @@ TVM_REGISTER_GLOBAL("ir_builder.tir.Float16").set_body_typed(Float16);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Float32").set_body_typed(Float32);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Float64").set_body_typed(Float64);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Int32x4").set_body_typed(Int32x4);
+TVM_REGISTER_GLOBAL("ir_builder.tir.Int32x8").set_body_typed(Int32x8);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Int32x16").set_body_typed(Int32x16);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Boolean").set_body_typed(Boolean);
 TVM_REGISTER_GLOBAL("ir_builder.tir.Handle").set_body_typed(Handle);
