@@ -648,6 +648,14 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
 
 
+def assume(cond=None):
+    return call_intrin("int32", "tir.assume", cond)
+
+
+def undef():
+    return call_intrin("int32", "tir.undef")
+
+
 def ret(val):
     """Create a tir return expression
 
