@@ -139,7 +139,10 @@ class Parser(doc.NodeVisitor):
             func = getattr(self, "visit_" + name, None)
         if func is None:
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
-        func(node)
+        try:
+            func(node)
+        except Exception as e:
+            self.report_error(node, str(e))
 
     def visit_body(self, node: List[doc.stmt]) -> Any:
         for stmt in node:
@@ -159,13 +162,19 @@ class Parser(doc.NodeVisitor):
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
-        func(self, node)
+        try:
+            func(self, node)
+        except Exception as e:
+            self.report_error(node, str(e))
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         func = dispatch.get(token="ir", type_name="ClassDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
-        func(self, node)
+        try:
+            func(self, node)
+        except Exception as e:
+            self.report_error(node, str(e))
 
     def visit_arguments(self, node: doc.arguments) -> Any:
         return _dispatch(self, "arguments")(self, node)

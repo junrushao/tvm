@@ -305,7 +305,7 @@ def opaque_access_during_complete(a: T.handle) -> None:  # error
 
 
 def test_opaque_access_during_complete():
-    check_error(opaque_access_during_complete, 1)
+    check_error(opaque_access_during_complete, 0)
 
 
 def convert_slice_to_bufferload() -> None:

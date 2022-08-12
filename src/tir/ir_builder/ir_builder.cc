@@ -24,6 +24,7 @@
 namespace tvm {
 namespace ir_builder {
 namespace tir {
+using tvm::tir::IterVar;
 
 Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Optional<Var> data,
                   Optional<Array<PrimExpr>> strides, Optional<PrimExpr> elem_offset,
