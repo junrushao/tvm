@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 """The core parser"""
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Set
 
 from ...error import DiagnosticError
 from . import dispatch, doc
@@ -94,12 +94,28 @@ class Parser(doc.NodeVisitor):
                 var_values[k] = v
         return eval_expr(self, node, var_values)
 
+    def _duplicate_lhs_check(self, target: doc.expr) -> Union[bool, Set[str]]:
+        if isinstance(target, (doc.Tuple, doc.List)):
+            vars = set()
+            for i in target.elts:
+                res = self._duplicate_lhs_check(i)
+                if res is True or (vars & res):
+                    return True
+                vars = vars.union(res)
+            return vars
+        elif isinstance(target, doc.Name):
+            return {target.id}
+        else:
+            self.report_error(target, "Invalid type in assign statement")
+
     def eval_assign(
         self,
         target: doc.expr,
         source: Any,
         bind_value: Callable[["Parser", doc.expr, str, Any], Any],
     ) -> Dict[str, Any]:
+        if self._duplicate_lhs_check(target) is True:
+            self.report_error(target, "Duplicate vars assigned.")
         var_values = eval_assign(self, target, source)
         for k, v in var_values.items():
             var = bind_value(self, target, k, v)

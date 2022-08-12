@@ -32,7 +32,7 @@ from . import op as _tir_op
 from .buffer import Buffer
 from .expr import Broadcast as broadcast
 from .expr import BufferLoad, CommReducer, IntImm, IterVar, Let, PrimExpr
-from .expr import Ramp as ramp
+from .expr import Ramp as ramp, Cast
 from .expr import Select, Shuffle, StringImm, Var
 from .generic import cast
 from .stmt import BufferRegion, type_annotation
@@ -771,6 +771,7 @@ class inline:
 
 __all__ = [
     "Assert",
+    "Cast",
     "Else",
     "If",
     "Let",

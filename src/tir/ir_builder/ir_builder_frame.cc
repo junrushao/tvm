@@ -32,13 +32,13 @@ void BlockFrameNode::ExitWithScope() {
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
+  Map<String, ObjectRef> attrs = annotations.value_or({});
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
-    annotations.Set("tir.script_parsing_detect_access",
-                    tvm::IntImm(DataType::Int(64), detect_access));
+    attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }
   tvm::tir::Block block(iter_vars, reads.value_or(Array<tvm::tir::BufferRegion>()),
                         writes.value_or(Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts), init,
-                        tir_alloc_buffers, match_buffers, annotations);
+                        tir_alloc_buffers, match_buffers, attrs);
   if (no_realize) {
     CHECK(iter_values.empty())
         << "ValueError: Block bindings are not allowed when `no_realize=True`";
@@ -70,12 +70,13 @@ void ForFrameNode::ExitWithScope() {
 
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  tvm::tir::PrimFunc func(/*params=*/args,
-                          /*body=*/AsStmt(stmts),
-                          /*ret_type=*/ret_type.value_or(TupleType::Empty()),
-                          /*buffer_map=*/buffer_map,
-                          /*preflattened_buffer_map=*/preflattened_buffer_map,
-                          /*attrs=*/attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs));
+  tvm::tir::PrimFunc func(
+      /*params=*/args,
+      /*body=*/AsStmt(stmts),
+      /*ret_type=*/ret_type.value_or(TupleType::Empty()),
+      /*buffer_map=*/buffer_map,
+      /*preflattened_buffer_map=*/preflattened_buffer_map,
+      /*attrs=*/attrs.defined() ? DictAttrs(attrs.value()) : NullValue<DictAttrs>());
   func = tvm::tir::ScriptComplete(func, root_alloc_buffers);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {

@@ -199,16 +199,20 @@ def visit_with(self: Parser, node: doc.With) -> None:
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     with self.var_table.with_frame():
         self.var_table.add("range", T.serial)
-        with T.prim_func():
-            T.func_name(node.name)
-            if node.returns is not None:
-                ret_type = self.eval_expr(node.returns)
-                if callable(ret_type):
-                    ret_type = PrimType(ret_type().dtype)
-                T.func_ret(ret_type)
-            with self.with_dispatch_token("tir"):
-                self.visit(node.args)
-                self.visit_body(node.body)
+        try:
+            with T.prim_func():
+                T.func_name(node.name)
+                if node.returns is not None:
+                    ret_type = self.eval_expr(node.returns)
+                    if callable(ret_type):
+                        ret_type = PrimType(ret_type().dtype)
+                    T.func_ret(ret_type)
+                with self.with_dispatch_token("tir"):
+                    self.visit(node.args)
+                    self.visit_body(node.body)
+        except Exception as e:
+            self.report_error(node, str(e))
+            raise
 
 
 @dispatch.register(token="tir", type_name="arguments")

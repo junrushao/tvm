@@ -1104,6 +1104,11 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
       << "-dimensional indices provided.";
 
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
+  for (const PrimExpr& i : indices) {
+    ICHECK(i->dtype.is_int() || i->dtype.is_uint())
+        << "ValueError: index of BufferLoad should be int, but got type " << i->dtype
+        << " for index " << i;
+  }
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
   node->span = std::move(span);

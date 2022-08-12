@@ -56,7 +56,7 @@ class BlockFrameNode : public TIRFrameNode {
   Optional<tvm::tir::Stmt> init;
   Array<tvm::tir::Buffer> alloc_buffers;
   Array<tvm::tir::MatchBufferRegion> match_buffers;
-  Map<String, ObjectRef> annotations;
+  Optional<Map<String, ObjectRef>> annotations;
 
   Array<PrimExpr> iter_values;
   Optional<PrimExpr> predicate;
@@ -141,7 +141,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   Optional<Type> ret_type;
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
-  Map<String, ObjectRef> attrs;
+  Optional<Map<String, ObjectRef>> attrs;
   Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
   Array<tvm::tir::Buffer> root_alloc_buffers;
 

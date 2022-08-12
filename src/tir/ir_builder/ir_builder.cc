@@ -73,7 +73,7 @@ BlockFrame Block(String name, bool no_realize) {
   n->init = NullOpt;
   n->alloc_buffers.clear();
   n->match_buffers.clear();
-  n->annotations.clear();
+  n->annotations = NullOpt;
   n->iter_values.clear();
   n->predicate = NullOpt;
   n->no_realize = no_realize;
@@ -132,7 +132,7 @@ void Writes(Array<ObjectRef> buffer_slices) {
 
 void BlockAttrs(Map<String, ObjectRef> attrs) {
   BlockFrame frame = FindBlockFrame("T.block_attr");
-  if (!frame->annotations.empty()) {
+  if (frame->annotations.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
   }
   frame->annotations = attrs;
@@ -310,7 +310,7 @@ PrimFuncFrame PrimFunc() {
   n->ret_type = NullOpt;
   n->buffer_map.clear();
   n->preflattened_buffer_map.clear();
-  n->attrs.clear();
+  n->attrs = NullOpt;
   n->env_threads.clear();
   n->root_alloc_buffers.clear();
   return PrimFuncFrame(n);
@@ -343,7 +343,7 @@ void FuncName(String name) {
 void FuncAttrs(Map<String, ObjectRef> attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
-  if (!frame->attrs.empty()) {
+  if (frame->attrs.defined()) {
     LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
   }
   frame->attrs = attrs;
