@@ -544,7 +544,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       tvm::tir::BufferNode* buffer =
           const_cast<tvm::tir::BufferNode*>(node.as<tvm::tir::BufferNode>());
       buffer->name = name;
-      Namer::Name(buffer->data, name + "_data");
+      Namer::Name(buffer->data, name);
       int n = buffer->strides.size();
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
