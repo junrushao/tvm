@@ -14,12 +14,56 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, invalid-name
 import inspect
 import sys
 from typing import Union
 
 from . import doc
+import re
+
+_findsource = inspect.findsource
+
+
+def findsource(object):
+    if not inspect.isclass(object):
+        return _findsource(object)
+
+    file = inspect.getsourcefile(object)
+    if file:
+        inspect.linecache.checkcache(file)
+    else:
+        file = inspect.getfile(object)
+        if not (file.startswith("<") and file.endswith(">")):
+            raise OSError("source code not available")
+
+    module = inspect.getmodule(object, file)
+    if module:
+        lines = inspect.linecache.getlines(file, module.__dict__)
+    else:
+        lines = inspect.linecache.getlines(file)
+    if not lines:
+        raise OSError("could not get source code")
+    qual_name = object.__qualname__.replace(".<locals>", "<locals>").split(".")
+    pat_list = []
+    for qn in qual_name:
+        if qn.endswith("<locals>"):
+            pat_list.append(re.compile(r"^(\s*)def\s*" + qn[:-8] + r"\b"))
+        else:
+            pat_list.append(re.compile(r"^(\s*)class\s*" + qn + r"\b"))
+    for i in range(len(lines)):
+        match = pat_list[0].match(lines[i])
+        if match:
+            pat_list.pop(0)
+        if not pat_list:
+            return lines, i
+    raise OSError("could not find class definition")
+
+
+def getsourcelines(object):
+    object = inspect.unwrap(object)
+    lines, lnum = findsource(object)
+    return inspect.getblock(lines[lnum:]), lnum + 1
 
 
 class Source:
@@ -39,7 +83,7 @@ class Source:
             return
 
         self.source_name = inspect.getsourcefile(program)  # type: ignore
-        lines, self.start_line = inspect.getsourcelines(program)  # type: ignore
+        lines, self.start_line = getsourcelines(program)  # type: ignore
         if lines:
             self.start_column = len(lines[0]) - len(lines[0].lstrip())
         else:
