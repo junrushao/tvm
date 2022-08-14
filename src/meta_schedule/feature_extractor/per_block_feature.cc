@@ -283,26 +283,26 @@ struct Feature {
 
   struct SubFeature {
     /*! \brief The buffer this feature is for */
-    const BufferNode* buffer = nullptr;
+    const BufferNode* buffer_ = nullptr;
     /*! \brief The access type of the buffer */
     AccessType access_type = AccessType::kUnknownRW;
     /*! \brief The regions that the buffer is accessed */
     std::vector<NDIntSet> regions = {};
-    // Access information
+    /************ Access information by SetRegion ************/
     /*! \brief loop_accessed_numel[i][...] means the number of elements accessed by loops[i] */
-    std::vector<std::unordered_map<const BufferNode*, int64_t>> loop_accessed_numel = {};
+    // std::vector<std::unordered_map<const BufferNode*, int64_t>> loop_accessed_numel = {};
     /*! \brief The shape of the data access */
-    IntVec access_shape;
+    IntVec access_shape = {};
+    /*********** Stride information by SetStride ************/
     /*! \brief The bytes that are continuously accessed */
     int64_t num_continuous_bytes = 1;
-    // Stride information
     /*! \brief The min stride of the access */
     int64_t min_stride = 0;
     /*! \brief The innermost stride */
     int64_t innermost_stride = 0;
     /*! \brief The product of the non-strided loops */
     int64_t prod_non_strided_loop_extent = 0;
-    // Reuse information
+    /********** Reuse information by SetReuse ************/
     /*! The type of data reuse */
     ReuseType reuse_type = ReuseType::kNoReuse;
     /*! The reuse distance in terms of number of iterations */
@@ -311,29 +311,30 @@ struct Feature {
     double reuse_dis_bytes = 0.0;
     /*! The reuse count */
     int64_t reuse_ct = 0;
-    // Features
+    /********* Features calculated by SetFeature ***********/
     /*! The touched memory in bytes */
-    double bytes;
+    double bytes = 0.0;
     /*! The touched unique memory in bytes */
-    double unique_bytes;
+    double unique_bytes = 0.0;
     /*! The number of touched cache lines */
-    double lines;
+    double lines = 0.0;
     /*! The number touched unique cache lines */
-    double unique_lines;
+    double unique_lines = 0.0;
     /*! bytes / reuse_ct */
-    double bytes_d_reuse_ct;
+    double bytes_d_reuse_ct = 0.0;
     /*! unique_bytes / reuse_ct */
-    double unique_bytes_d_reuse_ct;
+    double unique_bytes_d_reuse_ct = 0.0;
     /*! lines / reuse_ct */
-    double lines_d_reuse_ct;
+    double lines_d_reuse_ct = 0.0;
     /*! unique_lines / reuse_ct */
-    double unique_lines_d_reuse_ct;
+    double unique_lines_d_reuse_ct = 0.0;
     /*! The stride in access */
-    double stride;
+    double stride = 0.0;
 
     static constexpr int64_t kCount = 18;
 
     void Export(std::vector<double>* v) const {
+      ICHECK(access_type != AccessType::kUnknownRW);
       double vs[] = {
           static_cast<double>(static_cast<int>(access_type) == 0),
           static_cast<double>(static_cast<int>(access_type) == 1),
@@ -362,18 +363,12 @@ struct Feature {
 
     void SetStride(const LoopNest& loop_nest, arith::Analyzer* analyzer);
 
-    void SetReuse(const LoopNest& loop_nest,     //
-                  int64_t top_loop_touch_bytes,  //
-                  const ForBufferMap<IntVec>& buffer_touched_under_loop);
+    void SetReuse(const LoopNest& loop_nest, const std::vector<IntVec>& buffer_touched_under_loop,
+                  const std::vector<SubFeature>& sub_features);
 
-    void SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes);
+    void SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes, int64_t touched_bytes);
 
-    explicit SubFeature(const BufferNode* buffer, AccessType access_type,
-                        std::vector<NDIntSet> regions, int n_loops)
-        : buffer(buffer),
-          access_type(access_type),
-          regions(regions),
-          loop_accessed_numel(n_loops) {}
+    explicit SubFeature(const BufferNode* buffer) : buffer_(buffer) {}
   };
 
   void Export(std::vector<double>* v, int buffers_per_store) const {
@@ -388,183 +383,139 @@ struct Feature {
   }
 
   explicit Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
-                   int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::Analyzer* analyzer,
-                   std::vector<const BlockRealizeNode*>* scopes);
+                   int64_t cache_line_bytes, const BlockRealizeNode* parent_realize,
+                   IntVec* for_touched_bytes, arith::Analyzer* analyzer);
 
-  void Init(const BlockRealizeNode* realize, int n_loops, arith::Analyzer* analyzer,
-            std::vector<const BlockRealizeNode*>* scopes);
+  void Init(const BlockRealizeNode* realize, const BlockRealizeNode* parent_scope,
+            arith::Analyzer* analyzer);
 
-  void SetRegion(const LoopNest& loop_nest,                        //
-                 IntVec* for_touched_bytes,                        //
-                 ForBufferMap<IntVec>* buffer_touched_under_loop,  //
-                 arith::Analyzer* analyzer);
+  std::vector<IntVec> SetRegion(const LoopNest& loop_nest);
 
   std::vector<SubFeature> sub_features;
 };
 
-void Feature::Init(const BlockRealizeNode* realize, int n_loops, arith::Analyzer* analyzer,
-                   std::vector<const BlockRealizeNode*>* scopes) {
-  // Step 1. Check if each region is 'update'
-  int n_reads = realize->block->reads.size();
-  int n_writes = realize->block->writes.size();
-  std::vector<int> is_read_update(n_reads, 0);
-  std::vector<int> is_write_update(n_writes, 0);
-  for (int i_r = 0; i_r < n_reads; ++i_r) {
-    // Enumerate each read region
-    const BufferRegion& r = realize->block->reads[i_r];
-    for (int i_w = 0; i_w < n_writes; ++i_w) {
-      // Enumerate each write region
-      const BufferRegion& w = realize->block->writes[i_w];
-      if (r->buffer.same_as(w->buffer)) {
-        const Array<Range>& r_region = r->region;
-        const Array<Range>& w_region = w->region;
-        int ndim = r_region.size();
-        // Check if `r_region` and `w_region` are exactly the same
-        bool is_same = true;
-        for (int i = 0; i < ndim; ++i) {
-          if (!analyzer->CanProve(r_region[i]->min == w_region[i]->min) ||
-              !analyzer->CanProve(r_region[i]->extent == w_region[i]->extent)) {
-            is_same = false;
-            break;
-          }
-        }
-        // If so, mark it
-        if (is_same) {
-          is_read_update[i_r] = true;
-          is_write_update[i_w] = true;
-        }
+void Feature::Init(const BlockRealizeNode* realize, const BlockRealizeNode* parent_scope,
+                   arith::Analyzer* analyzer) {
+  // Step 1. Define two substitution rules for block vars
+  std::unordered_map<const VarNode*, PrimExpr> var_substitutes;
+  {
+    // - 1) block vars of the parent scope are substituted with its minimal possible value
+    if (parent_scope != nullptr) {
+      for (const IterVar& block_var : parent_scope->block->iter_vars) {
+        var_substitutes[block_var->var.get()] = block_var->dom->min;
       }
     }
-  }
-  // Step 2. Extract the block vars in the parent scope
-  std::unordered_map<const VarNode*, PrimExpr> var_substitutes;
-  auto f_substitute = [analyzer, &var_substitutes](const PrimExpr& expr) -> PrimExpr {
-    return analyzer->Simplify(
-        Substitute(expr, [&var_substitutes](const PrimExpr& expr) -> Optional<PrimExpr> {
-          if (const auto* var = expr.as<VarNode>()) {
-            auto it = var_substitutes.find(var);
-            if (it != var_substitutes.end()) {
-              return it->second;
-            }
-          }
-          return NullOpt;
-        }));
-  };
-  // Step 2.1. Substitute block vars of the parent scope to its min
-  if (!scopes->empty()) {
-    const BlockNode* parent_block = scopes->back()->block.operator->();
-    for (const IterVar& block_var : parent_block->iter_vars) {
-      var_substitutes[block_var->var.get()] = block_var->dom->min;
-    }
-  }
-  // Step 2.2. Substitute block vars to its binding
-  {
+    // - 2) block vars of the current scope are substituted with the expr bound to it
     ICHECK_EQ(realize->iter_values.size(), realize->block->iter_vars.size());
     int n = realize->iter_values.size();
     for (int i = 0; i < n; ++i) {
       const Var& lhs = realize->block->iter_vars[i]->var;
       const PrimExpr& rhs = realize->iter_values[i];
-      var_substitutes[lhs.get()] = f_substitute(rhs);
+      var_substitutes[lhs.get()] = Substitute(rhs, var_substitutes);
     }
   }
-  // Step 2.3. Helper to convert a TIR region into our int-set and do necessary simplification
-  auto f_make_int_set = [&f_substitute](const Array<Range>& region) -> NDIntSet {
+  // Step 2. A helper that turns a buffer access region into an IntSet
+  // with block var substituted and simplified.
+  auto f_make_int_set = [analyzer, &var_substitutes](const Array<Range>& region) -> NDIntSet {
     // Helper function to do the substitution
     int ndim = region.size();
     NDIntSet result;
     result.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       const Range& range = region[i];
-      PrimExpr min = f_substitute(range->min);
-      PrimExpr max = f_substitute(min + range->extent - Integer(1));
+      PrimExpr min = analyzer->Simplify(Substitute(range->min, var_substitutes));
+      PrimExpr max = analyzer->Simplify(Substitute(min + range->extent - 1, var_substitutes));
       result.push_back(arith::IntSet::Interval(min, max));
     }
     return result;
   };
-  // Step 3. Apply the substitution to each tensor region
-  struct BufferInfo {
-    AccessType access_type = AccessType::kUnknownRW;
-    std::vector<NDIntSet> regions = {};
+  // Step 3. For each buffer being read/written, extract the region and the access type
+  std::unordered_map<const BufferNode*, int> buffer2idx;
+  buffer2idx.reserve(realize->block->reads.size() + realize->block->writes.size());
+  this->sub_features.reserve(realize->block->reads.size() + realize->block->writes.size());
+  auto f_add_buffer_access = [this, &buffer2idx, &f_make_int_set](const BufferRegion& buffer_region,
+                                                                  bool is_read) {
+    const BufferNode* buffer = buffer_region->buffer.get();
+    // Step 3.0. Determine which sub-feature this access corresponds to
+    SubFeature* feature = nullptr;
+    {
+      int& idx = buffer2idx[buffer];
+      if (idx == 0 || this->sub_features.empty()) {
+        idx = this->sub_features.size();
+        this->sub_features.push_back(SubFeature(buffer));
+      }
+      feature = &this->sub_features[idx];
+    }
+    // Step 3.1. Update the access type
+    switch (feature->access_type) {
+      case AccessType::kUnknownRW:
+        feature->access_type = is_read ? AccessType::kRead : AccessType::kWrite;
+        break;
+      case AccessType::kRead:
+        if (!is_read) {
+          feature->access_type = AccessType::kReadWrite;
+        }
+        break;
+      case AccessType::kWrite:
+        if (is_read) {
+          feature->access_type = AccessType::kReadWrite;
+        }
+        break;
+      case AccessType::kReadWrite:
+        break;
+    }
+    // Step 3.2. Update the access region
+    feature->regions.push_back(f_make_int_set(buffer_region->region));
   };
-  std::unordered_map<const BufferNode*, BufferInfo> buffer_info;
-  buffer_info.reserve(realize->block->reads.size() + realize->block->writes.size());
-  for (int i = 0; i < n_reads; ++i) {
-    // Skip those update regions
-    if (is_read_update[i]) {
-      continue;
-    }
-    const BufferRegion& region = realize->block->reads[i];
-    BufferInfo& info = buffer_info[region->buffer.get()];
-    info.access_type = AccessType::kRead;
-    info.regions.push_back(f_make_int_set(region->region));
+  for (const BufferRegion& buffer_region : realize->block->reads) {
+    f_add_buffer_access(buffer_region, /*is_read=*/true);
   }
-  for (int i = 0; i < n_writes; ++i) {
-    const BufferRegion& region = realize->block->writes[i];
-    BufferInfo& info = buffer_info[region->buffer.get()];
-    if (is_write_update[i] || info.access_type == AccessType::kRead) {
-      info.access_type = AccessType::kReadWrite;
-    } else {
-      info.access_type = AccessType::kWrite;
-    }
-    info.regions.push_back(f_make_int_set(region->region));
-  }
-
-  this->sub_features.reserve(buffer_info.size());
-  for (const auto& kv : buffer_info) {
-    this->sub_features.emplace_back(kv.first, kv.second.access_type, std::move(kv.second.regions),
-                                    n_loops);
+  for (const BufferRegion& buffer_region : realize->block->writes) {
+    f_add_buffer_access(buffer_region, /*is_read=*/false);
   }
 }
 
-void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
-                        ForBufferMap<IntVec>* buffer_touched_under_loop,
-                        arith::Analyzer* analyzer) {
-  int n_loops = loop_nest.loops.size();
-  const std::vector<const ForNode*>& loops = loop_nest.loops;
-  // Step 1. Initialize and bind all the loop variables to a constant
-  *for_touched_bytes = IntVec(n_loops, 0);
-  for (int i = 0; i < n_loops; ++i) {
-    const ForNode* loop = loops[i];
-    analyzer->Bind(loop->loop_var, loop->min, /*allow_override=*/true);
-  }
-  // Step 2. Corner case: no loops
-  if (n_loops == 0) {
-    // In this case, the `access_shape` is not calculated
-    for (SubFeature& feature : sub_features) {
-      feature.access_shape = IntVec(feature.buffer->shape.size(), 1);
+std::vector<IntVec> Feature::SetRegion(const LoopNest& loop_nest) {
+  const ForVec& loops = loop_nest.loops;
+  int n_loops = loops.size();
+  std::vector<IntVec> buffer_touched_under_loop;
+  buffer_touched_under_loop.reserve(n_loops + 1);
+  for (int loop_idx = 0; loop_idx <= n_loops; ++loop_idx) {
+    arith::Analyzer analyzer;
+    // Step 1. Outer loops are bound to its minimal possible value, while inner ones are relaxed.
+    for (int j = 0; j < n_loops; ++j) {
+      const ForNode* loop = loops[j];
+      if (j < loop_idx) {
+        analyzer.Bind(loop->loop_var, loop->min);
+      } else {
+        analyzer.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      }
     }
-    return;
-  }
-  // Step 3. Gradually bind the loops from inner to outer,
-  // calculate the area the loops touch on each buffer
-  for (int i = n_loops - 1; i >= 0; --i) {
-    const ForNode* loop = loops[i];
-    analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent),
-                   /*allow_override=*/true);
-    int64_t& touched_bytes = (*for_touched_bytes)[i] = 0;
+    // Step 2. Calculate the area the loops touch on each buffer
+    IntVec touched(sub_features.size(), 0);
+    int buffer_idx = -1;
     for (SubFeature& feature : sub_features) {
-      const BufferNode* buffer = feature.buffer;
-      // Note: `feature.access_shape` for `i == 0` is the only one preserved,
-      // while others are discarded
-      std::tuple<int64_t, IntVec> res = utils::RelaxAndUnion(feature.regions, analyzer);
-      int64_t numel = std::get<0>(res);
-      feature.access_shape = std::get<1>(res);
-      feature.loop_accessed_numel[i][buffer] = numel;
-      touched_bytes += numel * buffer->dtype.bytes();
-      (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
+      ++buffer_idx;
+      if (loop_idx == 0) {
+        std::tie(touched[buffer_idx], feature.access_shape) =
+            utils::RelaxAndUnion(feature.regions, &analyzer);
+      } else {
+        std::tie(touched[buffer_idx], std::ignore) =
+            utils::RelaxAndUnion(feature.regions, &analyzer);
+      }
     }
+    buffer_touched_under_loop.emplace_back(std::move(touched));
   }
+  return buffer_touched_under_loop;
 }
 
 void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* analyzer) {
-  int n_loops = loop_nest.loops.size();
-  const std::vector<const ForNode*>& loops = loop_nest.loops;
-  // For each buffer, we find the loop stride on it
-  const BufferNode* buffer = this->buffer;
-  int ndim = this->buffer->shape.size();
+  const ForVec& loops = loop_nest.loops;
+  int n_loops = loops.size();
+  const BufferNode* buffer = this->buffer_;
+  int ndim = this->buffer_->shape.size();
+  // Step 0. Calculate the shape and stride of the buffer
   IntVec buffer_shape = utils::GetBufferShape(GetRef<Buffer>(buffer), analyzer);
-  // Calculate the buffer's stride from its shape
   IntVec buffer_stride(ndim);
   if (ndim >= 1) {
     buffer_stride[ndim - 1] = 1;
@@ -572,7 +523,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
       buffer_stride[i] = buffer_stride[i + 1] * buffer_shape[i + 1];
     }
   }
-  // Calculate `num_continuous_bytes`
+  // Step 1. Calculate `num_continuous_bytes` using `buffer_shape` and `access_shape`
   {
     int64_t& num_continuous_bytes = this->num_continuous_bytes = 1;
     const IntVec& access_shape = this->access_shape;
@@ -584,36 +535,33 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
       }
     }
   }
-  // Enumerate loops from inner to outer
-  int i = 0;
-  // Calculate this->min_stride
+  // Step 2. Enumerate loops from inner to outer, calculate:
+  // - `min_stride`
+  // - `prod_non_strided_loop_extent`
+  // - `innermost_stride`
   int64_t& stride = this->min_stride = 0;
-  for (i = n_loops - 1; i >= 0; --i) {
-    stride = utils::GetVarStride(this->regions, buffer_stride, loops[i]->loop_var);
-    if (stride != 0) {
-      break;
-    }
-  }
-  // Calculate this->innermost_stride
-  this->innermost_stride = (i == n_loops - 1) ? stride : 0;
-  // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
-  for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+  int64_t& innermost_stride = this->innermost_stride = 0;
+  for (int i = n_loops - 1; i >= 0; --i) {
+    const ForNode* loop = loops[i];
+    stride = utils::GetVarStride(this->regions, buffer_stride, loop->loop_var);
+    if (stride != 0) {
+      if (i == n_loops - 1) {
+        innermost_stride = stride;
+      }
+      break;
+    } else if (const int64_t* extent = GetLoopIntExtent(loop)) {
       prod *= *extent;
     }
   }
 }
 
-void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_touch_bytes,
-                                   const ForBufferMap<IntVec>& buffer_touched_under_loop) {
-  const BufferNode* buffer = this->buffer;
-  // Default case: no reuse
-  ReuseType& reuse_type = this->reuse_type = ReuseType::kNoReuse;
-  double& reuse_dis_iter = this->reuse_dis_iter = 0;
-  double& reuse_dis_bytes = this->reuse_dis_bytes = 0;
-  int64_t& reuse_ct = this->reuse_ct = 0;
-  // Step 3.1. Collect all `Var`s that appears in the buffer region
+void Feature::SubFeature::SetReuse(const LoopNest& loop_nest,
+                                   const std::vector<IntVec>& buffer_touched_under_loop,
+                                   const std::vector<SubFeature>& sub_features) {
+  const ForVec& loops = loop_nest.loops;
+  int n_loops = loops.size();
+  // Step 0. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
   for (const NDIntSet& region : this->regions) {
     for (const arith::IntSet& int_set : region) {
@@ -624,53 +572,56 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
       });
     }
   }
-  // Step 3.2. Enumerate loops from inner to outer, find the first loop with reuse
-  int n_loops = loop_nest.loops.size();
-  const std::vector<const ForNode*>& loops = loop_nest.loops;
-  for (int i = n_loops - 1; i >= 0; --i) {
-    const ForNode* loop = loops[i];
-    // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
+  // Default case: no reuse
+  ReuseType& reuse_type = this->reuse_type = ReuseType::kNoReuse;
+  double& reuse_dis_iter = this->reuse_dis_iter = 0;
+  double& reuse_dis_bytes = this->reuse_dis_bytes = 0;
+  int64_t& reuse_ct = this->reuse_ct = 0;
+  // Enumerate loops from inner to outer, find the first loop with reuse
+  for (int loop_idx = n_loops - 1; loop_idx >= 0; --loop_idx) {
+    const ForNode* loop = loops[loop_idx];
+    // Case 1. Found an invariant loop, which means the buffer is reused `n` times under this
+    // loop, where `n` is the loop extent. In this case, the reuse type is `kLoopMultipleRead`.
     if (!region_vars.count(loop->loop_var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
+      // Step 1.1. Set `reuse_ct`
       if (const int64_t* extent = GetLoopIntExtent(loop)) {
         reuse_ct = *extent;
       } else {
         reuse_ct = 1;
       }
+      // Step 1.2. Set `reuse_dis_iter`
       reuse_dis_iter = 1;
-      for (int j = n_loops - 1; j > i; --j) {
-        if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+      for (int i = loop_idx + 1; i < n_loops; ++i) {
+        if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
           reuse_dis_iter *= *extent;
         }
       }
+      // Step 1.3. Set `reuse_dis_bytes`
       reuse_dis_bytes = 0.0;
-      if (i == n_loops - 1) {
-        reuse_dis_bytes = top_loop_touch_bytes;
-      } else {
-        for (const auto& iter : buffer_touched_under_loop.at(loops[i + 1])) {
-          const BufferNode* buffer = iter.first;
-          const IntVec& numels = iter.second;
-          int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
-          reuse_dis_bytes += numel * buffer->dtype.bytes();
-        }
+      int buffer_idx = -1;
+      for (int64_t numel : buffer_touched_under_loop.at(loop_idx + 1)) {
+        const BufferNode* buffer = sub_features.at(++buffer_idx).buffer_;
+        reuse_dis_bytes += numel * buffer->dtype.bytes();
       }
       break;
     }
     // Case 2. Find serial reuse, i.e. reuse with kSerialMultipleReadWrite
-    const IntVec& touched = buffer_touched_under_loop.at(loop).at(buffer);
-    if (touched.size() >= 2) {
+    if (this->regions.size() >= 2) {
+      reuse_ct = this->regions.size() - 1;
+      reuse_type = ReuseType::kSerialMultipleReadWrite;
       int64_t extent = 1;
       if (const int64_t* ext = GetLoopIntExtent(loop)) {
         extent = *ext;
+      } else {
+        extent = 1;
       }
-      reuse_type = ReuseType::kSerialMultipleReadWrite;
-      reuse_ct = touched.size() - 1;
-      reuse_dis_iter = *std::min_element(touched.begin(), touched.end());
+      const IntVec& touch = buffer_touched_under_loop.at(loop_idx);
+      reuse_dis_iter = std::accumulate(touch.begin(), touch.end(), 1);
       reuse_dis_bytes = 0.0;
-      for (const auto& iter : buffer_touched_under_loop.at(loop)) {
-        const BufferNode* buffer = iter.first;
-        const IntVec& numels = iter.second;
-        int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
+      int buffer_idx = -1;
+      for (int64_t numel : touch) {
+        const BufferNode* buffer = sub_features.at(++buffer_idx).buffer_;
         reuse_dis_bytes += numel * buffer->dtype.bytes();
       }
       reuse_dis_iter /= extent;
@@ -680,8 +631,9 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
   }
 }
 
-void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes) {
-  int64_t dtype_bytes = this->buffer->dtype.bytes();
+void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes,
+                                     int64_t touched_bytes) {
+  int64_t dtype_bytes = this->buffer_->dtype.bytes();
   this->stride = this->innermost_stride;
   this->bytes = dtype_bytes * loop_nest.prod;
   if (loop_nest.loops.empty()) {
@@ -689,7 +641,7 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
     this->lines = 1;
     this->unique_lines = 1;
   } else {
-    this->unique_bytes = this->loop_accessed_numel.front().at(buffer) * dtype_bytes;
+    this->unique_bytes = touched_bytes;
     this->lines = static_cast<double>(loop_nest.prod) / this->prod_non_strided_loop_extent *
                   std::min(1.0, 1.0 * this->min_stride * dtype_bytes / cache_line_bytes);
     this->lines = std::max(1.0, this->lines);
@@ -705,33 +657,25 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
 }
 
 Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
-                 int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                 ForBufferMap<IntVec>* buffer_touched_under_loop, arith::Analyzer* analyzer,
-                 std::vector<const BlockRealizeNode*>* scopes) {
-  int n_loops = loop_nest.loops.size();
+                 int64_t cache_line_bytes, const BlockRealizeNode* parent_scope,
+                 IntVec* for_touched_bytes, arith::Analyzer* analyzer) {
   // Step 0. Initialize data structures
-  this->Init(realize, n_loops, analyzer, scopes);
+  this->Init(realize, parent_scope, analyzer);
   // Step 1. Calculate region-related feature
-  this->SetRegion(loop_nest, for_touched_bytes, buffer_touched_under_loop, analyzer);
+  std::vector<IntVec> buffer_touched_under_loop = this->SetRegion(loop_nest);
   // Step 2. Calculate stride-related feature
-  for (auto& feature : sub_features) {
+  for (SubFeature& feature : sub_features) {
     feature.SetStride(loop_nest, analyzer);
   }
   // Step 3. Calculate reuse-related feature
-  int64_t top_loop_touch_bytes = 0.0;
-  if (n_loops > 0) {
-    for (const SubFeature& feature : sub_features) {
-      int64_t bytes = feature.buffer->dtype.bytes();
-      int64_t n_buffer = feature.loop_accessed_numel[0].size();
-      top_loop_touch_bytes += bytes * n_buffer;
-    }
-  }
-  for (auto& feature : sub_features) {
-    feature.SetReuse(loop_nest, top_loop_touch_bytes, *buffer_touched_under_loop);
+  for (SubFeature& feature : sub_features) {
+    feature.SetReuse(loop_nest, buffer_touched_under_loop, sub_features);
   }
   // Step 4. Calculate rest of the features
-  for (auto& feature : sub_features) {
-    feature.SetFeature(loop_nest, cache_line_bytes);
+  int buffer_idx = -1;
+  for (SubFeature& feature : sub_features) {
+    feature.SetFeature(loop_nest, cache_line_bytes,
+                       buffer_touched_under_loop.front().at(++buffer_idx));
   }
   // Step 5. Sort the features
   std::sort(sub_features.begin(), sub_features.end(), [](const SubFeature& a, const SubFeature& b) {
@@ -741,8 +685,20 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
     if (a.bytes != b.bytes) {
       return a.bytes > b.bytes;
     }
-    return a.buffer->name < b.buffer->name;
+    return a.buffer_->name < b.buffer_->name;
   });
+  // Step 6. Calculate `for_touched_bytes`
+  int n_loops = loop_nest.loops.size();
+  *for_touched_bytes = IntVec(n_loops, 0);
+  for (int i = 0; i < n_loops; ++i) {
+    const IntVec& touched = buffer_touched_under_loop.at(i);
+    int64_t& result = (*for_touched_bytes)[i];
+    int buffer_idx = -1;
+    for (int64_t numel : touched) {
+      const BufferNode* buffer = sub_features.at(++buffer_idx).buffer_;
+      result += numel * buffer->dtype.bytes();
+    }
+  }
 }
 
 }  // namespace group2
@@ -765,9 +721,9 @@ struct Feature {
   explicit Feature(int n_samples, const LoopNest& loop_nest, const IntVec& for_touched_bytes,
                    const group1::Feature::ArithOps& arith_ops)
       : arith_intensity_curve(n_samples, 0.0) {
-    const std::vector<const ForNode*>& loops = loop_nest.loops;
-    ICHECK_EQ(loops.size(), for_touched_bytes.size());
+    const ForVec& loops = loop_nest.loops;
     int n_loops = loops.size();
+    ICHECK_EQ(loops.size(), for_touched_bytes.size());
     // Calculate `memory_bytes`
     std::vector<double> memory_bytes;
     memory_bytes.resize(n_loops);
@@ -1042,12 +998,13 @@ class PerBlockFeatureCollector : private StmtVisitor {
     if (!scopes_.empty()) {
       AddArithOpsToScope(&feature.group1->arith_ops);
     }
-    feature.group2 = std::make_unique<group2::Feature>(
-        realize, loop_nest_, cache_line_bytes_, &for_touched_bytes_, &buffer_touched_under_loop_,
-        &analyzer_, &scopes_);
+    IntVec for_touched_bytes;
+    feature.group2 = std::make_unique<group2::Feature>(realize, loop_nest_, cache_line_bytes_,
+                                                       scopes_.empty() ? nullptr : scopes_.back(),
+                                                       &for_touched_bytes, &analyzer_);
     feature.group3 =
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
-                                          for_touched_bytes_, feature.group1->arith_ops);
+                                          for_touched_bytes, feature.group1->arith_ops);
     feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_);
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
     // Erase the feature of the root block
@@ -1111,8 +1068,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
   std::vector<const BlockRealizeNode*> scopes_;
   std::vector<const StmtNode*> dfs_path_;
   LoopNest loop_nest_ = {};
-  IntVec for_touched_bytes_ = {};
-  ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
   std::unordered_map<const BlockRealizeNode*, Feature> block_features_ = {};
   std::vector<const BlockRealizeNode*> ordered_blocks_;
 };
@@ -1181,7 +1136,8 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       }
       results[task_id] = tir::utils::AsNDArray(features);
     };
-    support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
+    f(0, 0);
+    // support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
 
