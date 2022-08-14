@@ -196,6 +196,7 @@ def test_cpu_matmul():
         sch.parallel(i_o)
         sch.parallel(j_o)
         sch.unroll(k)
+        print(sch.mod.script())
         return sch
 
     extractor = ms.feature_extractor.PerBlockFeature()
@@ -240,24 +241,78 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-
-    # Group 4 & 5
-    _print_feature(f, 157, 172)
+    # Group 2.1: Buffer A
+    _print_feature(f, 75, 93)
+    _print_feature(f, 93, 111)
     assert_allclose(
-        actual=f[157:172],
+        actual=f[57:75],
         desired=[
             # fmt: off
-            # alloc_size: local/shared/global
-            0, 0, 0,
-            # alloc_prod: local/shared/global
-            0, 0, 0,
-            # alloc_outer_prod: local/shared/global
-            1, 1, 1,
-            # alloc_inner_prod: local/shared/global
-            # outer_prod, num_loops, auto_unroll_max_step
-            27.000000010748916, 27.000000010748916, 27.000000010748916
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            29, 20, 27, 14,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            1, 0, 0,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            4.087463, 7.0552826, 3.169925,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            26, 17, 24, 11.0007038,
+            # stride
+            9.002815,
             # fmt: on
         ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    # assert_allclose(
+    #     actual=f[75:93],
+    #     desired=[
+    #         # fmt: off
+    #         # AccessType: read, write, read & write
+    #         0, 0, 1,
+    #         # bytes, unique_bytes, lines, unique_lines
+    #         29, 20.000001907348633, 27, 14.00008773803711,
+    #         # ReuseType: loop multiple read, serial multiple read write, no reuse
+    #         1, 0, 0,
+    #         # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+    #         7.011227130889893, 9.250298500061035, 9.002815246582031,
+    #         # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+    #         20.000001907348633, 11.000703811645508, 18.0000057220459, 5.044394016265869,
+    #         # stride
+    #         9.002815246582031,
+    #         # fmt: on
+    #     ],
+    #     rtol=1e-5,
+    #     atol=1e-5,
+    # )
+    # Group 2.3: Buffer B
+    assert_allclose(
+        actual=f[93:111],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            29, 20.000001907348633, 19.000001907348633, 14.00008773803711,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            1, 0, 0,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            1.0, 3.700439691543579, 4.087462902069092,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            25.0, 16.000022888183594, 15.000043869018555, 10.001408194392809,
+            # stride
+            0.0,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.4 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[111:147],
+        desired=[0.0] * (18 * 2),
         rtol=1e-5,
         atol=1e-5,
     )
