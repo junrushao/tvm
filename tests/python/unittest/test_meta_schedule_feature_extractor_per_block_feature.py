@@ -240,24 +240,33 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-
-    # Group 4 & 5
-    _print_feature(f, 157, 172)
+    # Group 2.1: Buffer A
+    _print_feature(f, 57, 75)
     assert_allclose(
-        actual=f[157:172],
+        actual=f[57:75],
         desired=[
             # fmt: off
-            # alloc_size: local/shared/global
-            0, 0, 0,
-            # alloc_prod: local/shared/global
-            0, 0, 0,
-            # alloc_outer_prod: local/shared/global
-            1, 1, 1,
-            # alloc_inner_prod: local/shared/global
-            # outer_prod, num_loops, auto_unroll_max_step
-            27.000000010748916, 27.000000010748916, 27.000000010748916
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            29, 20, 27, 14,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            1, 0, 0,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            4.087463, 7.0552826, 3.169925,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            26, 17, 24, 11.0007038,
+            # stride
+            9.002815,
             # fmt: on
         ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.4 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[111:147],
+        desired=[0.0] * (18 * 2),
         rtol=1e-5,
         atol=1e-5,
     )
