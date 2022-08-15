@@ -242,7 +242,6 @@ def test_cpu_matmul():
         atol=1e-5,
     )
     # Group 2.1: Buffer A
-    _print_feature(f, 57, 75)
     _print_feature(f, 75, 93)
     _print_feature(f, 93, 111)
     assert_allclose(
@@ -261,6 +260,50 @@ def test_cpu_matmul():
             26, 17, 24, 11.0007038,
             # stride
             9.002815,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    # assert_allclose(
+    #     actual=f[75:93],
+    #     desired=[
+    #         # fmt: off
+    #         # AccessType: read, write, read & write
+    #         0, 0, 1,
+    #         # bytes, unique_bytes, lines, unique_lines
+    #         29, 20.000001907348633, 27, 14.00008773803711,
+    #         # ReuseType: loop multiple read, serial multiple read write, no reuse
+    #         1, 0, 0,
+    #         # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+    #         7.011227130889893, 9.250298500061035, 9.002815246582031,
+    #         # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+    #         20.000001907348633, 11.000703811645508, 18.0000057220459, 5.044394016265869,
+    #         # stride
+    #         9.002815246582031,
+    #         # fmt: on
+    #     ],
+    #     rtol=1e-5,
+    #     atol=1e-5,
+    # )
+    # Group 2.3: Buffer B
+    assert_allclose(
+        actual=f[93:111],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            29, 20.000001907348633, 19.000001907348633, 14.00008773803711,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            1, 0, 0,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            1.0, 3.700439691543579, 4.087462902069092,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            25.0, 16.000022888183594, 15.000043869018555, 10.001408194392809,
+            # stride
+            0.0,
             # fmt: on
         ],
         rtol=1e-5,

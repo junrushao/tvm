@@ -507,12 +507,6 @@ std::vector<IntVec> Feature::SetRegion(const LoopNest& loop_nest) {
     }
     buffer_touched_under_loop.emplace_back(std::move(touched));
   }
-  for (int i = 0; i <= n_loops; ++i) {
-    for (int j = 0; j < sub_features.size(); ++j) {
-      LOG(INFO) << "buffer_touched_under_loop[" << i << "][" << j
-                << "] = " << buffer_touched_under_loop[i][j];
-    }
-  }
   return buffer_touched_under_loop;
 }
 
@@ -681,8 +675,9 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
   // Step 4. Calculate rest of the features
   int buffer_idx = -1;
   for (SubFeature& feature : sub_features) {
-    feature.SetFeature(loop_nest, cache_line_bytes,
-                       buffer_touched_under_loop.front().at(++buffer_idx));
+    const BufferNode* buffer = feature.buffer_;
+    int64_t numel = buffer_touched_under_loop.front().at(++buffer_idx);
+    feature.SetFeature(loop_nest, cache_line_bytes, numel * buffer->dtype.bytes());
   }
   // Step 5. Calculate `for_touched_bytes`
   int n_loops = loop_nest.loops.size();
