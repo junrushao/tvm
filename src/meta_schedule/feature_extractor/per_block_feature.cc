@@ -439,12 +439,13 @@ void Feature::Init(const BlockRealizeNode* realize, const BlockRealizeNode* pare
     // Step 3.0. Determine which sub-feature this access corresponds to
     SubFeature* feature = nullptr;
     {
-      int& idx = buffer2idx[buffer];
-      if (idx == 0 || this->sub_features.empty()) {
-        idx = this->sub_features.size();
-        this->sub_features.push_back(SubFeature(buffer));
+      auto it = buffer2idx.find(buffer);
+      if (it == buffer2idx.end()) {
+        feature = &this->sub_features.emplace_back(SubFeature(buffer));
+        buffer2idx[buffer] = this->sub_features.size() - 1;
+      } else {
+        feature = &this->sub_features[it->second];
       }
-      feature = &this->sub_features[idx];
     }
     // Step 3.1. Update the access type
     switch (feature->access_type) {
@@ -505,6 +506,12 @@ std::vector<IntVec> Feature::SetRegion(const LoopNest& loop_nest) {
       }
     }
     buffer_touched_under_loop.emplace_back(std::move(touched));
+  }
+  for (int i = 0; i <= n_loops; ++i) {
+    for (int j = 0; j < sub_features.size(); ++j) {
+      LOG(INFO) << "buffer_touched_under_loop[" << i << "][" << j
+                << "] = " << buffer_touched_under_loop[i][j];
+    }
   }
   return buffer_touched_under_loop;
 }
@@ -677,17 +684,7 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
     feature.SetFeature(loop_nest, cache_line_bytes,
                        buffer_touched_under_loop.front().at(++buffer_idx));
   }
-  // Step 5. Sort the features
-  std::sort(sub_features.begin(), sub_features.end(), [](const SubFeature& a, const SubFeature& b) {
-    if (a.lines != b.lines) {
-      return a.lines > b.lines;
-    }
-    if (a.bytes != b.bytes) {
-      return a.bytes > b.bytes;
-    }
-    return a.buffer_->name < b.buffer_->name;
-  });
-  // Step 6. Calculate `for_touched_bytes`
+  // Step 5. Calculate `for_touched_bytes`
   int n_loops = loop_nest.loops.size();
   *for_touched_bytes = IntVec(n_loops, 0);
   for (int i = 0; i < n_loops; ++i) {
@@ -697,6 +694,22 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
     for (int64_t numel : touched) {
       const BufferNode* buffer = sub_features.at(++buffer_idx).buffer_;
       result += numel * buffer->dtype.bytes();
+    }
+  }
+  // Step 6. Sort the features
+  std::sort(sub_features.begin(), sub_features.end(), [](const SubFeature& a, const SubFeature& b) {
+    if (a.lines != b.lines) {
+      return a.lines > b.lines;
+    }
+    if (a.bytes != b.bytes) {
+      return a.bytes > b.bytes;
+    }
+    return a.buffer_->name < b.buffer_->name;
+  });
+  {
+    int i = -1;
+    for (SubFeature& feature : sub_features) {
+      LOG(INFO) << "Buffer #" << (++i) << ": " << feature.buffer_->name;
     }
   }
 }
@@ -1019,7 +1032,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
     if ((extent && (*extent != 1)) || for_vec) {
       dfs_path_.push_back(loop);
-      analyzer_.Bind(loop->loop_var, loop->min);
+      analyzer_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
     StmtVisitor::VisitStmt_(loop);
     loop_nest_.Pop(loop, for_vec, auto_unroll);
@@ -1030,8 +1043,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
 
   void VisitStmt_(const BufferStoreNode* store) final {
     ICHECK(!scopes_.empty());
-    // LOG(INFO) << "store = " << GetRef<BufferStore>(store)
-    //           << ", loop_nest_.prod = " << loop_nest_.prod;
     group1::Feature::ArithOps arith_ops;
     arith_ops.AddExpr(store->value, loop_nest_.prod);
     AddArithOpsToScope(&arith_ops);
@@ -1098,7 +1109,6 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
     using namespace tvm::tir::per_block_feature;
     static transform::Sequential passes = tir::transform::PassListForFeatureExtraction();
     mod = passes(std::move(mod));
-    // LOG(INFO) << "Extracting features from:\n" << tir::AsTVMScript(mod);
     std::vector<Feature> features = PerBlockFeatureCollector::Collect(
         is_gpu, this->cache_line_bytes, this->arith_intensity_curve_num_samples, mod);
     int n_features = features.size();

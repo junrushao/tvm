@@ -196,6 +196,7 @@ def test_cpu_matmul():
         sch.parallel(i_o)
         sch.parallel(j_o)
         sch.unroll(k)
+        print(sch.mod.script())
         return sch
 
     extractor = ms.feature_extractor.PerBlockFeature()
@@ -242,6 +243,8 @@ def test_cpu_matmul():
     )
     # Group 2.1: Buffer A
     _print_feature(f, 57, 75)
+    _print_feature(f, 75, 93)
+    _print_feature(f, 93, 111)
     assert_allclose(
         actual=f[57:75],
         desired=[
