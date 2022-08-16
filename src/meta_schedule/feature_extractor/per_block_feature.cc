@@ -26,7 +26,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -618,7 +617,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest,
         extent = 1;
       }
       const IntVec& touch = buffer_touched_under_loop.at(loop_idx);
-      reuse_dis_iter = std::accumulate(touch.begin(), touch.end(), 1);
+      reuse_dis_iter = std::accumulate(touch.begin(), touch.end(), 0);
       reuse_dis_bytes = 0.0;
       int buffer_idx = -1;
       for (int64_t numel : touch) {
@@ -677,6 +676,7 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
   for (SubFeature& feature : sub_features) {
     const BufferNode* buffer = feature.buffer_;
     int64_t numel = buffer_touched_under_loop.front().at(++buffer_idx);
+    LOG(INFO) << "feature: " << feature.buffer_->name << ", numel = " << numel;
     feature.SetFeature(loop_nest, cache_line_bytes, numel * buffer->dtype.bytes());
   }
   // Step 5. Calculate `for_touched_bytes`
