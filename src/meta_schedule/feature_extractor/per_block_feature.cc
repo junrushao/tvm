@@ -996,16 +996,17 @@ class PerBlockFeatureCollector : private StmtVisitor {
     }
     std::vector<Feature> result;
     result.reserve(collector.block_features_.size());
+    std::reverse(std::begin(collector.ordered_blocks_), std::end(collector.ordered_blocks_));
     for (const BlockRealizeNode* realize : collector.ordered_blocks_) {
+      LOG(INFO) << "Block: " << realize->block->name_hint;
       Feature& feature = collector.block_features_.at(realize);
-      if (feature.block_realize != nullptr) {
-        ICHECK(feature.group1);
-        ICHECK(feature.group2);
-        ICHECK(feature.group3);
-        ICHECK(feature.group4);
-        ICHECK(feature.group5);
-        result.push_back(std::move(feature));
-      }
+      ICHECK(feature.block_realize == realize);
+      ICHECK(feature.group1);
+      ICHECK(feature.group2);
+      ICHECK(feature.group3);
+      ICHECK(feature.group4);
+      ICHECK(feature.group5);
+      result.push_back(std::move(feature));
     }
     return result;
   }
@@ -1018,33 +1019,31 @@ class PerBlockFeatureCollector : private StmtVisitor {
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
   void VisitStmt_(const BlockRealizeNode* realize) final {
-    if (!scopes_.empty()) {
-      ordered_blocks_.push_back(realize);
-    }
-    Feature& feature = block_features_[realize];
-    feature.block_realize = realize;
-    feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
+    int previous_num_blocks_visited = ++this->num_blocks_visited_;
     scopes_.push_back(realize);
     dfs_path_.push_back(realize);
     StmtVisitor::VisitStmt_(realize);
     dfs_path_.pop_back();
     scopes_.pop_back();
-    if (!scopes_.empty()) {
-      AddArithOpsToScope(&feature.group1->arith_ops);
-    }
-    IntVec for_touched_bytes;
-    feature.group2 = std::make_unique<group2::Feature>(realize, loop_nest_, cache_line_bytes_,
-                                                       scopes_.empty() ? nullptr : scopes_.back(),
-                                                       &for_touched_bytes, &analyzer_);
-    feature.group3 =
-        std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
-                                          for_touched_bytes, feature.group1->arith_ops);
-    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_,
-                                                       &alloc_buffer_outer_loops_);
-    feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
-    // Erase the feature of the root block
-    if (scopes_.empty()) {
-      block_features_.erase(realize);
+    // only extract features for leaf blocks
+    if (previous_num_blocks_visited == this->num_blocks_visited_) {
+      ordered_blocks_.push_back(realize);
+      IntVec for_touched_bytes;
+      Feature& feature = block_features_[realize];
+      feature.block_realize = realize;
+      if (feature.group1 == nullptr) {
+        feature.group1 = std::make_unique<group1::Feature>(realize, loop_nest_, is_gpu_);
+      }
+      feature.group2 = std::make_unique<group2::Feature>(realize, loop_nest_, cache_line_bytes_,
+                                                         scopes_.empty() ? nullptr : scopes_.back(),
+                                                         &for_touched_bytes, &analyzer_);
+      feature.group3 =
+          std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
+                                            for_touched_bytes, feature.group1->arith_ops);
+      feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_,
+                                                         &alloc_buffer_outer_loops_);
+      feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
+      block_features_.emplace(realize, Feature{});
     }
   }
 
@@ -1067,14 +1066,13 @@ class PerBlockFeatureCollector : private StmtVisitor {
     ICHECK(!scopes_.empty());
     group1::Feature::ArithOps arith_ops;
     arith_ops.AddExpr(store->value, loop_nest_.prod);
-    AddArithOpsToScope(&arith_ops);
-  }
-
-  void AddArithOpsToScope(group1::Feature::ArithOps* arith_ops) {
     const BlockRealizeNode* scope = scopes_.back();
-    // Add the arith_ops to the parent
-    group1::Feature::ArithOps& parent_arith_ops = block_features_[scope].group1->arith_ops;
-#define TVM_FEATURE_MATH_OP_ADD(Name) parent_arith_ops.Name += arith_ops->Name;
+    std::unique_ptr<group1::Feature>& feature = block_features_[scope].group1;
+    if (feature == nullptr) {
+      block_features_[scope].block_realize = scope;
+      feature = std::make_unique<group1::Feature>(scope, loop_nest_, is_gpu_);
+    }
+#define TVM_FEATURE_MATH_OP_ADD(Name) feature->arith_ops.Name += arith_ops.Name;
     TVM_FEATURE_MATH_OP_ADD(float_mad);
     TVM_FEATURE_MATH_OP_ADD(float_add_sub);
     TVM_FEATURE_MATH_OP_ADD(float_mul);
@@ -1095,6 +1093,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
   }
 
   bool is_gpu_;
+  int num_blocks_visited_ = 0;
   int64_t cache_line_bytes_;
   int64_t arith_intensity_curve_num_samples_;
   arith::Analyzer analyzer_;
