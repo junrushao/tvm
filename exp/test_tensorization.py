@@ -151,5 +151,5 @@ def test_cuda_tensor_core(model_name, input_shape):
 
 if __name__ == "__main__":
     # test_cuda_tensor_core("bert_base", (8, 128))
-    # test_cuda_matmul()
-    get_search_space()
+    test_cuda_matmul()
+    # get_search_space()

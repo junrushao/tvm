@@ -272,7 +272,7 @@ inline std::tuple<int64_t, IntVec> RelaxAndUnion(const std::vector<NDIntSet>& re
     for (int j = 0; j < n_regions; ++j) {
       int_sets.push_back(regions[j][i]);
     }
-    LOG(INFO) << "dim " << i << ": " << int_sets;
+    // LOG(INFO) << "dim " << i << ": " << int_sets;
     arith::IntSet union_set = arith::Union(int_sets);
     // Update the area
     int64_t min = analyzer->const_int_bound(union_set.min())->min_value;

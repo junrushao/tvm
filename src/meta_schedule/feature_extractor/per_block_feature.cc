@@ -701,12 +701,14 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
     }
     return a.buffer_->name < b.buffer_->name;
   });
+  /*
   {
     int i = -1;
     for (SubFeature& feature : sub_features) {
       LOG(INFO) << "Buffer #" << (++i) << ": " << feature.buffer_->name;
     }
   }
+  */
 }
 
 }  // namespace group2
@@ -794,31 +796,30 @@ struct Feature {
   int64_t alloc_size_local = 0;
   int64_t alloc_size_shared = 0;
   int64_t alloc_size_global = 0;
-  // alloc_outer_prod * alloc_inner_prod
+  // alloc_outer_prod * written_inner_prod / buffer size
   int64_t alloc_prod_local = 0;
   int64_t alloc_prod_shared = 0;
   int64_t alloc_prod_global = 0;
-  // The product of lengths of loops outside the scope of the alloc
-  int64_t alloc_outer_prod_local = 1;
-  int64_t alloc_outer_prod_shared = 1;
-  int64_t alloc_outer_prod_global = 1;
+  // The product of lengths of loops outside the scope of the alloc * buffer size
+  int64_t alloc_outer_prod_local = 0;
+  int64_t alloc_outer_prod_shared = 0;
+  int64_t alloc_outer_prod_global = 0;
+  // The product of lengths of loops inside the scope of alloc before the buffer is written to *
+  // buffer size
+  int64_t written_inner_prod_local = 0;
+  int64_t written_inner_prod_shared = 0;
+  int64_t written_inner_prod_global = 0;
 
   static constexpr int64_t kCount = 12;
 
-  void Export(std::vector<double>* v, int64_t outer_prod) const {
+  void Export(std::vector<double>* v) const {
     double vs[] = {
-        slog(alloc_size_local),
-        slog(alloc_size_shared),
-        slog(alloc_size_global),
-        slog(alloc_prod_local),
-        slog(alloc_prod_shared),
-        slog(alloc_prod_global),
-        slog(alloc_outer_prod_local),
-        slog(alloc_outer_prod_shared),
-        slog(alloc_outer_prod_global),
-        slog(static_cast<double>(outer_prod) / alloc_outer_prod_local),
-        slog(static_cast<double>(outer_prod) / alloc_outer_prod_shared),
-        slog(static_cast<double>(outer_prod) / alloc_outer_prod_global),
+        slog(alloc_size_local),          slog(alloc_size_shared),
+        slog(alloc_size_global),         slog(alloc_prod_local),
+        slog(alloc_prod_shared),         slog(alloc_prod_global),
+        slog(alloc_outer_prod_local),    slog(alloc_outer_prod_shared),
+        slog(alloc_outer_prod_global),   slog(written_inner_prod_local),
+        slog(written_inner_prod_shared), slog(written_inner_prod_global),
     };
     v->insert(v->end(), std::begin(vs), std::end(vs));
   }
@@ -826,8 +827,10 @@ struct Feature {
   Feature() = default;
 
   explicit Feature(const LoopNest& loop_nest, const BlockRealizeNode* realize,
-                   arith::Analyzer* analyzer) {
+                   arith::Analyzer* analyzer,
+                   std::unordered_map<const Buffer*, int64_t>* alloc_buffer_outer_loops_) {
     for (const Buffer& buffer : realize->block->alloc_buffers) {
+      (*alloc_buffer_outer_loops_)[&buffer] = loop_nest.prod;
       std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
       int64_t numel = 1;
       for (int64_t x : shape) {
@@ -837,18 +840,43 @@ struct Feature {
       switch (storage_scope.rank) {
         case runtime::StorageRank::kLocal:
           alloc_size_local += numel * buffer->dtype.bytes();
-          alloc_prod_local += numel * loop_nest.prod;
-          alloc_outer_prod_local *= loop_nest.prod;
+          alloc_outer_prod_local += numel * loop_nest.prod;
           break;
         case runtime::StorageRank::kShared:
           alloc_size_shared += numel * buffer->dtype.bytes();
-          alloc_prod_shared += numel * loop_nest.prod;
-          alloc_outer_prod_shared *= loop_nest.prod;
+          alloc_outer_prod_shared += numel * loop_nest.prod;
           break;
         case runtime::StorageRank::kGlobal:
           alloc_size_global += numel * buffer->dtype.bytes();
+          alloc_outer_prod_global += numel * loop_nest.prod;
+          break;
+        default:
+          break;
+      }
+    }
+
+    const Array<BufferRegion> write_buffers = realize->block->writes;
+    for (const BufferRegion& write_buffer : write_buffers) {
+      const Buffer& buffer = write_buffer->buffer;
+      std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
+      int64_t numel = 1;
+      for (int64_t x : shape) {
+        numel *= x;
+      }
+      int64_t outer_loops = (*alloc_buffer_outer_loops_)[&buffer];
+      runtime::StorageScope storage_scope = runtime::StorageScope::Create(buffer.scope());
+      switch (storage_scope.rank) {
+        case runtime::StorageRank::kLocal:
+          alloc_prod_local += numel * loop_nest.prod;
+          written_inner_prod_local += numel * (static_cast<double>(loop_nest.prod) / outer_loops);
+          break;
+        case runtime::StorageRank::kShared:
+          alloc_prod_shared += numel * loop_nest.prod;
+          written_inner_prod_shared += numel * (static_cast<double>(loop_nest.prod) / outer_loops);
+          break;
+        case runtime::StorageRank::kGlobal:
           alloc_prod_global += numel * loop_nest.prod;
-          alloc_outer_prod_global *= loop_nest.prod;
+          written_inner_prod_global += numel * (static_cast<double>(loop_nest.prod) / outer_loops);
           break;
         default:
           break;
@@ -1013,7 +1041,8 @@ class PerBlockFeatureCollector : private StmtVisitor {
     feature.group3 =
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes, feature.group1->arith_ops);
-    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_);
+    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, realize, &analyzer_,
+                                                       &alloc_buffer_outer_loops_);
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
     // Erase the feature of the root block
     if (scopes_.empty()) {
@@ -1074,6 +1103,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
   std::vector<const BlockRealizeNode*> scopes_;
   std::vector<const StmtNode*> dfs_path_;
   LoopNest loop_nest_ = {};
+  std::unordered_map<const Buffer*, int64_t> alloc_buffer_outer_loops_ = {};
   std::unordered_map<const BlockRealizeNode*, Feature> block_features_ = {};
   std::vector<const BlockRealizeNode*> ordered_blocks_;
 };
@@ -1115,7 +1145,7 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       feature.group1->Export(&result);
       feature.group2->Export(&result, this->buffers_per_block);
       feature.group3->Export(&result);
-      feature.group4->Export(&result, feature.group5->outer_prod);
+      feature.group4->Export(&result);
       feature.group5->Export(&result);
     }
   }
@@ -1141,8 +1171,8 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       }
       results[task_id] = tir::utils::AsNDArray(features);
     };
-    f(0, 0);
-    // support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
+    // f(0, 0);
+    support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
 
