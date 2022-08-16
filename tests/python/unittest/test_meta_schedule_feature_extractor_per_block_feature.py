@@ -264,7 +264,6 @@ def test_cpu_matmul():
         atol=1e-5,
     )
     # Group 2.2: Buffer C
-    _print_feature(f, 75, 93)
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -317,5 +316,41 @@ def test_cpu_matmul():
     )
 
 
+def test_cpu_fusion():
+    # pylint: disable=all
+    @T.prim_func
+    def func(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [64, 32], dtype="float32")
+        B = T.match_buffer(b, [64, 32], dtype="float32")
+        C = T.match_buffer(c, [64, 32], dtype="float32")
+        for i, j in T.grid(64, 32):  # type: ignore
+            with T.block():
+                T.reads([A[i, j], B[i, j]])  # type: ignore
+                T.writes([B[i, j], C[i, j]])  # type: ignore
+                with T.block("B"):
+                    T.reads([A[i, j]])  # type: ignore
+                    T.writes([B[i, j]])  # type: ignore
+                    B[i, j] = A[i, j]  # type: ignore
+                with T.block("C"):
+                    T.reads([B[i, j]])  # type: ignore
+                    T.writes([C[i, j]])  # type: ignore
+                    C[i, j] = B[i, j]  # type: ignore
+
+    # pylint: enable=all
+
+    def _create_schedule():
+        return tir.Schedule(func, debug_mask="all")
+
+    extractor = ms.feature_extractor.PerBlockFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(_create_schedule)],
+    )
+    feature = feature.numpy()
+    print(feature.shape)
+    assert feature.shape == (2, N_FEATURES)
+
+
 if __name__ == "__main__":
-    test_cpu_matmul()
+    # test_cpu_matmul()
+    test_cpu_fusion()

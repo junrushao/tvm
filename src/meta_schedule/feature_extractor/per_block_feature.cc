@@ -1132,6 +1132,7 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
     using namespace tvm::tir::per_block_feature;
     static transform::Sequential passes = tir::transform::PassListForFeatureExtraction();
     mod = passes(std::move(mod));
+    LOG(INFO) << "mod =\n" << tir::AsTVMScript(mod);
     std::vector<Feature> features = PerBlockFeatureCollector::Collect(
         is_gpu, this->cache_line_bytes, this->arith_intensity_curve_num_samples, mod);
     int n_features = features.size();
