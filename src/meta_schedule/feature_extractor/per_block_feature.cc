@@ -1141,8 +1141,8 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
       }
       results[task_id] = tir::utils::AsNDArray(features);
     };
-    f(0, 0);
-    // support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
+    // f(0, 0);
+    support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
 
