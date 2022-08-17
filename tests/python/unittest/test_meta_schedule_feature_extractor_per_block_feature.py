@@ -165,15 +165,14 @@ def _feature_names(  # pylint: disable=invalid-name
             "auto_unroll_max_step",
         ]
     )
-    # 57 + 18 * 5 + 10 + 12 + 3
-    # assert len(result) == N_FEATURES
+    assert len(result) == N_FEATURES
     return result
 
 
 def _zip_feature(feature, names):
     assert feature.ndim == 1
-    # assert feature.shape[0] == N_FEATURES
-    # assert len(names) == N_FEATURES
+    assert feature.shape[0] == N_FEATURES
+    assert len(names) == N_FEATURES
     return list(zip(names, feature))
 
 
@@ -196,7 +195,6 @@ def test_cpu_matmul():
         sch.parallel(i_o)
         sch.parallel(j_o)
         sch.unroll(k)
-        print(sch.mod.script())
         return sch
 
     extractor = ms.feature_extractor.PerBlockFeature()
@@ -207,9 +205,9 @@ def test_cpu_matmul():
     feature = feature.numpy()
     assert feature.shape == (1, N_FEATURES)
     f = feature[0]
-    # Group 1.1: arith
+    # Group 1: arith, loop
     assert_allclose(
-        actual=f[0:16],
+        actual=f[0:57],
         # fmt: off
         desired=[
             # float math ops
@@ -218,16 +216,6 @@ def test_cpu_matmul():
             0, 29, 29, 0, 0, 0, 0,
             # bool/select ops
             0, 0,
-        ],
-        # fmt: on
-        rtol=1e-5,
-        atol=1e-5,
-    )
-    # Group 1.2: vectorize, unroll, parallel, GPU
-    assert_allclose(
-        actual=f[16:57],
-        desired=[
-            # fmt: off
             # vectorize
             1.0, 3.169924, 3.169924, 0, 0, 0, 0, 0, 0, 0, 1,
             # unroll
@@ -236,14 +224,12 @@ def test_cpu_matmul():
             1.58496, 11.0007, 6.022368, 0, 0, 0, 0, 0, 0, 0, 1,
             # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
             0.0, 1, 1, 1, 1, 1, 1, 1,
-            # fmt: on
         ],
+        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
     # Group 2.1: Buffer A
-    _print_feature(f, 75, 93)
-    _print_feature(f, 93, 111)
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -266,27 +252,27 @@ def test_cpu_matmul():
         atol=1e-5,
     )
     # Group 2.2: Buffer C
-    # assert_allclose(
-    #     actual=f[75:93],
-    #     desired=[
-    #         # fmt: off
-    #         # AccessType: read, write, read & write
-    #         0, 0, 1,
-    #         # bytes, unique_bytes, lines, unique_lines
-    #         29, 20.000001907348633, 27, 14.00008773803711,
-    #         # ReuseType: loop multiple read, serial multiple read write, no reuse
-    #         1, 0, 0,
-    #         # reuse_dis_iter, reuse_dis_bytes, reuse_ct
-    #         7.011227130889893, 9.250298500061035, 9.002815246582031,
-    #         # (byte, unique_bytes, lines, unique_lines) / reuse_ct
-    #         20.000001907348633, 11.000703811645508, 18.0000057220459, 5.044394016265869,
-    #         # stride
-    #         9.002815246582031,
-    #         # fmt: on
-    #     ],
-    #     rtol=1e-5,
-    #     atol=1e-5,
-    # )
+    assert_allclose(
+        actual=f[75:93],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            0, 0, 1,
+            # bytes, unique_bytes, lines, unique_lines
+            29, 20.000001907348633, 27, 14.00008773803711,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 1, 0,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            1.6147098441152081, 3.2094533656289497, 1,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            29.00000000268723, 20.000001375860553, 27.000000010748916, 14.000088052430122,
+            # stride
+            9.002815246582031,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
     # Group 2.3: Buffer B
     assert_allclose(
         actual=f[93:111],
@@ -318,5 +304,243 @@ def test_cpu_matmul():
     )
 
 
+def test_cpu_fusion():
+    # pylint: disable=all
+    @T.prim_func
+    def func(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [64, 32], dtype="float32")
+        B = T.match_buffer(b, [64, 32], dtype="float32")
+        C = T.match_buffer(c, [64, 32], dtype="float32")
+        for i, j in T.grid(64, 32):  # type: ignore
+            with T.block():
+                T.reads([A[i, j], B[i, j]])  # type: ignore
+                T.writes([B[i, j], C[i, j]])  # type: ignore
+                with T.block("B"):
+                    T.reads([A[i, j]])  # type: ignore
+                    T.writes([B[i, j]])  # type: ignore
+                    B[i, j] = A[i, j]  # type: ignore
+                with T.block("C"):
+                    T.reads([B[i, j]])  # type: ignore
+                    T.writes([C[i, j]])  # type: ignore
+                    C[i, j] = B[i, j]  # type: ignore
+
+    # pylint: enable=all
+
+    def _create_schedule():
+        return tir.Schedule(func, debug_mask="all")
+
+    extractor = ms.feature_extractor.PerBlockFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(_create_schedule)],
+    )
+    feature = feature.numpy()
+    assert feature.shape == (2, N_FEATURES)
+    ## Features for Block(B)
+    f = feature[0]
+    # Group 1: arith, loop
+    assert_allclose(
+        actual=f[0:57],
+        # fmt: off
+        desired=[0.0] * 16
+            # vectorize
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # unroll
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # parallel
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
+            + [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        # fmt: on
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.1: Buffer B
+    assert_allclose(
+        actual=f[57:75],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    assert_allclose(
+        actual=f[75:93],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            0, 1, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.3 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[93:147],
+        desired=[0.0] * (18 * 3),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    ## Features for Block(C)
+    f = feature[1]
+    # Group 1: arith, loop
+    assert_allclose(
+        actual=f[0:57],
+        # fmt: off
+        desired=[0.0] * 16
+            # vectorize
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # unroll
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # parallel
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
+            + [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        # fmt: on
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.1: Buffer B
+    assert_allclose(
+        actual=f[57:75],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    assert_allclose(
+        actual=f[75:93],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            0, 1, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.3 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[93:147],
+        desired=[0.0] * (18 * 3),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+
+
+def test_gpu():
+    def _create_schedule():
+        func = matmul
+        sch = tir.Schedule(func, debug_mask="all")
+        c = sch.get_block("C")
+        c_local = sch.cache_write(c, 0, "local")
+        i, j, k = sch.get_loops(c)
+        # pylint: disable=invalid-name
+        i0, i1, i2, i3, i4 = sch.split(i, factors=[None, 1, 16, 32, 1])  # outer: 1
+        j0, j1, j2, j3, j4 = sch.split(j, factors=[None, 4, 1, 1, 16])  # outer: 8
+        k0, k1, k2 = sch.split(k, factors=[None, 1, 2])  # outer: 256
+        # pylint: enable=invalid-name
+        # fmt: off
+        sch.reorder(
+            i0, j0,  # S
+            i1, j1,  # S
+            i2, j2,  # S
+            k0,      # R
+            k1,      # R
+            i3, j3,  # S
+            k2,      # R
+            i4, j4,  # S
+        )
+        # fmt: on
+        # thread binding
+        i0_j0 = sch.fuse(i0, j0)
+        i1_j1 = sch.fuse(i1, j1)
+        i2_j2 = sch.fuse(i2, j2)
+        sch.bind(i0_j0, "blockIdx.x")
+        sch.bind(i1_j1, "vthread.x")
+        sch.bind(i2_j2, "threadIdx.x")
+        # fusion
+        sch.reverse_compute_at(c_local, i2_j2)
+        # cache read 'A'
+        a_shared = sch.cache_read(c, 1, "shared")
+        sch.compute_at(a_shared, k0)
+        _, _, _, _, a_i, a_j = sch.get_loops(a_shared)
+        a_ij = sch.fuse(a_i, a_j)
+        _, a_j = sch.split(a_ij, factors=[None, 16])  # outer: 64
+        sch.bind(a_j, "threadIdx.x")
+        # cache read 'B'
+        b_shared = sch.cache_read(c, 2, "shared")
+        sch.compute_at(b_shared, k0)
+        _, _, _, _, b_i, b_j = sch.get_loops(b_shared)
+        b_ij = sch.fuse(b_i, b_j)
+        _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
+        sch.bind(b_j, "threadIdx.x")
+        # auto unroll
+        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tir.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "pragma_unroll_explicit", tir.IntImm("int32", 1))
+        return sch
+
+    extractor = ms.feature_extractor.PerBlockFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("cuda")),
+        candidates=[_make_candidate(_create_schedule)],
+    )
+    feature = feature.numpy()
+    print(feature.shape)
+    assert feature.shape == (4, N_FEATURES)
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
+    test_cpu_fusion()
+    test_gpu()
