@@ -676,7 +676,7 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
   for (SubFeature& feature : sub_features) {
     const BufferNode* buffer = feature.buffer_;
     int64_t numel = buffer_touched_under_loop.front().at(++buffer_idx);
-    LOG(INFO) << "feature: " << feature.buffer_->name << ", numel = " << numel;
+    // LOG(INFO) << "feature: " << feature.buffer_->name << ", numel = " << numel;
     feature.SetFeature(loop_nest, cache_line_bytes, numel * buffer->dtype.bytes());
   }
   // Step 5. Calculate `for_touched_bytes`
@@ -999,7 +999,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
     std::vector<Feature> result;
     result.reserve(collector.block_features_.size());
     for (const BlockRealizeNode* realize : collector.ordered_blocks_) {
-      LOG(INFO) << "Block: " << realize->block->name_hint;
+      // LOG(INFO) << "Block: " << realize->block->name_hint;
       Feature& feature = collector.block_features_.at(realize);
       ICHECK(feature.block_realize == realize);
       ICHECK(feature.group1);
@@ -1023,9 +1023,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
     ordered_blocks_.push_back(realize);
     int previous_num_blocks_visited = ++this->num_blocks_visited_;
     scopes_.push_back(realize);
-    dfs_path_.push_back(realize);
     StmtVisitor::VisitStmt_(realize);
-    dfs_path_.pop_back();
     scopes_.pop_back();
     // only extract features for leaf blocks
     if (previous_num_blocks_visited == this->num_blocks_visited_) {
@@ -1056,14 +1054,10 @@ class PerBlockFeatureCollector : private StmtVisitor {
     const int64_t* extent = GetLoopIntExtent(loop);
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
     if ((extent && (*extent != 1)) || for_vec) {
-      dfs_path_.push_back(loop);
       analyzer_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
     StmtVisitor::VisitStmt_(loop);
     loop_nest_.Pop(loop, for_vec, auto_unroll);
-    if ((extent && (*extent != 1)) || for_vec) {
-      dfs_path_.pop_back();
-    }
   }
 
   void VisitStmt_(const BufferStoreNode* store) final {
@@ -1102,7 +1096,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
   int64_t arith_intensity_curve_num_samples_;
   arith::Analyzer analyzer_;
   std::vector<const BlockRealizeNode*> scopes_;
-  std::vector<const StmtNode*> dfs_path_;
   LoopNest loop_nest_ = {};
   std::unordered_map<const Buffer*, int64_t> alloc_buffer_outer_loops_ = {};
   std::unordered_map<const BlockRealizeNode*, Feature> block_features_ = {};
@@ -1135,7 +1128,7 @@ class PerBlockFeatureNode : public FeatureExtractorNode {
     using namespace tvm::tir::per_block_feature;
     static transform::Sequential passes = tir::transform::PassListForFeatureExtraction();
     mod = passes(std::move(mod));
-    LOG(INFO) << "mod =\n" << tir::AsTVMScript(mod);
+    // LOG(INFO) << "mod =\n" << tir::AsTVMScript(mod);
     std::vector<Feature> features = PerBlockFeatureCollector::Collect(
         is_gpu, this->cache_line_bytes, this->arith_intensity_curve_num_samples, mod);
     int n_features = features.size();
