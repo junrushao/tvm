@@ -996,7 +996,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
     }
     std::vector<Feature> result;
     result.reserve(collector.block_features_.size());
-    std::reverse(std::begin(collector.ordered_blocks_), std::end(collector.ordered_blocks_));
     for (const BlockRealizeNode* realize : collector.ordered_blocks_) {
       LOG(INFO) << "Block: " << realize->block->name_hint;
       Feature& feature = collector.block_features_.at(realize);
@@ -1019,6 +1018,7 @@ class PerBlockFeatureCollector : private StmtVisitor {
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
   void VisitStmt_(const BlockRealizeNode* realize) final {
+    ordered_blocks_.push_back(realize);
     int previous_num_blocks_visited = ++this->num_blocks_visited_;
     scopes_.push_back(realize);
     dfs_path_.push_back(realize);
@@ -1027,7 +1027,6 @@ class PerBlockFeatureCollector : private StmtVisitor {
     scopes_.pop_back();
     // only extract features for leaf blocks
     if (previous_num_blocks_visited == this->num_blocks_visited_) {
-      ordered_blocks_.push_back(realize);
       IntVec for_touched_bytes;
       Feature& feature = block_features_[realize];
       feature.block_realize = realize;
@@ -1044,6 +1043,9 @@ class PerBlockFeatureCollector : private StmtVisitor {
                                                          &alloc_buffer_outer_loops_);
       feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
       block_features_.emplace(realize, Feature{});
+    } else {
+      ordered_blocks_.erase(
+          std::find(std::begin(ordered_blocks_), std::end(ordered_blocks_), realize));
     }
   }
 

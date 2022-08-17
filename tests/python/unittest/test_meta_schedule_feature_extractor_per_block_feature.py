@@ -207,9 +207,9 @@ def test_cpu_matmul():
     feature = feature.numpy()
     assert feature.shape == (1, N_FEATURES)
     f = feature[0]
-    # Group 1.1: arith
+    # Group 1: arith, loop
     assert_allclose(
-        actual=f[0:16],
+        actual=f[0:57],
         # fmt: off
         desired=[
             # float math ops
@@ -218,16 +218,6 @@ def test_cpu_matmul():
             0, 29, 29, 0, 0, 0, 0,
             # bool/select ops
             0, 0,
-        ],
-        # fmt: on
-        rtol=1e-5,
-        atol=1e-5,
-    )
-    # Group 1.2: vectorize, unroll, parallel, GPU
-    assert_allclose(
-        actual=f[16:57],
-        desired=[
-            # fmt: off
             # vectorize
             1.0, 3.169924, 3.169924, 0, 0, 0, 0, 0, 0, 0, 1,
             # unroll
@@ -236,8 +226,8 @@ def test_cpu_matmul():
             1.58496, 11.0007, 6.022368, 0, 0, 0, 0, 0, 0, 0, 1,
             # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
             0.0, 1, 1, 1, 1, 1, 1, 1,
-            # fmt: on
         ],
+        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
@@ -349,8 +339,148 @@ def test_cpu_fusion():
     feature = feature.numpy()
     print(feature.shape)
     assert feature.shape == (2, N_FEATURES)
+    ## Features for Block(B)
+    f = feature[0]
+    # Group 1: arith, loop
+    assert_allclose(
+        actual=f[0:57],
+        # fmt: off
+        desired=[0.0] * 16
+            # vectorize
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # unroll
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # parallel
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
+            + [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        # fmt: on
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.1: Buffer B
+    assert_allclose(
+        actual=f[57:75],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    assert_allclose(
+        actual=f[75:93],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            0, 1, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.3 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[93:147],
+        desired=[0.0] * (18 * 3),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    ## Features for Block(C)
+    f = feature[1]
+    # Group 1: arith, loop
+    assert_allclose(
+        actual=f[0:57],
+        # fmt: off
+        desired=[0.0] * 16
+            # vectorize
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # unroll
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # parallel
+            + [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # is_gpu, blockIdx.x/y/z, threadIdx.x/y/z, vthread
+            + [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        # fmt: on
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.1: Buffer B
+    assert_allclose(
+        actual=f[57:75],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            1, 0, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.2: Buffer C
+    assert_allclose(
+        actual=f[75:93],
+        desired=[
+            # fmt: off
+            # AccessType: read, write, read & write
+            0, 1, 0,
+            # bytes, unique_bytes, lines, unique_lines
+            13.000176429748535, 13.000176429748535, 7.011227130889893, 7.011227130889893,
+            # ReuseType: loop multiple read, serial multiple read write, no reuse
+            0, 0, 1,
+            # reuse_dis_iter, reuse_dis_bytes, reuse_ct
+            0, 0, 0,
+            # (byte, unique_bytes, lines, unique_lines) / reuse_ct
+            14.00008773803711, 14.00008773803711, 8.005624771118164, 8.005624771118164,
+            # stride
+            1,
+            # fmt: on
+        ],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # Group 2.3 - 2.5: Dummy padding
+    assert_allclose(
+        actual=f[93:147],
+        desired=[0.0] * (18 * 3),
+        rtol=1e-5,
+        atol=1e-5,
+    )
 
 
 if __name__ == "__main__":
-    # test_cpu_matmul()
+    test_cpu_matmul()
     test_cpu_fusion()
