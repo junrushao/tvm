@@ -165,15 +165,14 @@ def _feature_names(  # pylint: disable=invalid-name
             "auto_unroll_max_step",
         ]
     )
-    # 57 + 18 * 5 + 10 + 12 + 3
-    # assert len(result) == N_FEATURES
+    assert len(result) == N_FEATURES
     return result
 
 
 def _zip_feature(feature, names):
     assert feature.ndim == 1
-    # assert feature.shape[0] == N_FEATURES
-    # assert len(names) == N_FEATURES
+    assert feature.shape[0] == N_FEATURES
+    assert len(names) == N_FEATURES
     return list(zip(names, feature))
 
 
@@ -196,7 +195,6 @@ def test_cpu_matmul():
         sch.parallel(i_o)
         sch.parallel(j_o)
         sch.unroll(k)
-        print(sch.mod.script())
         return sch
 
     extractor = ms.feature_extractor.PerBlockFeature()
@@ -337,7 +335,6 @@ def test_cpu_fusion():
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
-    print(feature.shape)
     assert feature.shape == (2, N_FEATURES)
     ## Features for Block(B)
     f = feature[0]
@@ -481,6 +478,69 @@ def test_cpu_fusion():
     )
 
 
+def test_gpu():
+    def _create_schedule():
+        func = matmul
+        sch = tir.Schedule(func, debug_mask="all")
+        c = sch.get_block("C")
+        c_local = sch.cache_write(c, 0, "local")
+        i, j, k = sch.get_loops(c)
+        # pylint: disable=invalid-name
+        i0, i1, i2, i3, i4 = sch.split(i, factors=[None, 1, 16, 32, 1])  # outer: 1
+        j0, j1, j2, j3, j4 = sch.split(j, factors=[None, 4, 1, 1, 16])  # outer: 8
+        k0, k1, k2 = sch.split(k, factors=[None, 1, 2])  # outer: 256
+        # pylint: enable=invalid-name
+        # fmt: off
+        sch.reorder(
+            i0, j0,  # S
+            i1, j1,  # S
+            i2, j2,  # S
+            k0,      # R
+            k1,      # R
+            i3, j3,  # S
+            k2,      # R
+            i4, j4,  # S
+        )
+        # fmt: on
+        # thread binding
+        i0_j0 = sch.fuse(i0, j0)
+        i1_j1 = sch.fuse(i1, j1)
+        i2_j2 = sch.fuse(i2, j2)
+        sch.bind(i0_j0, "blockIdx.x")
+        sch.bind(i1_j1, "vthread.x")
+        sch.bind(i2_j2, "threadIdx.x")
+        # fusion
+        sch.reverse_compute_at(c_local, i2_j2)
+        # cache read 'A'
+        a_shared = sch.cache_read(c, 1, "shared")
+        sch.compute_at(a_shared, k0)
+        _, _, _, _, a_i, a_j = sch.get_loops(a_shared)
+        a_ij = sch.fuse(a_i, a_j)
+        _, a_j = sch.split(a_ij, factors=[None, 16])  # outer: 64
+        sch.bind(a_j, "threadIdx.x")
+        # cache read 'B'
+        b_shared = sch.cache_read(c, 2, "shared")
+        sch.compute_at(b_shared, k0)
+        _, _, _, _, b_i, b_j = sch.get_loops(b_shared)
+        b_ij = sch.fuse(b_i, b_j)
+        _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
+        sch.bind(b_j, "threadIdx.x")
+        # auto unroll
+        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tir.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "pragma_unroll_explicit", tir.IntImm("int32", 1))
+        return sch
+
+    extractor = ms.feature_extractor.PerBlockFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("cuda")),
+        candidates=[_make_candidate(_create_schedule)],
+    )
+    feature = feature.numpy()
+    print(feature.shape)
+    assert feature.shape == (4, N_FEATURES)
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_fusion()
+    test_gpu()
