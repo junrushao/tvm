@@ -369,7 +369,7 @@ class _DefaultCUDATensorCore:
                         store_scope="shared",
                         in_dtype=in_dtype,
                         out_dtype=out_dtype,
-                        trans_b=trans_b,
+                        trans_b=False,
                     )
                     for (in_dtype, out_dtype) in [("float16", "float16"), ("int8", "int32")]
                     for trans_b in [False, True]
