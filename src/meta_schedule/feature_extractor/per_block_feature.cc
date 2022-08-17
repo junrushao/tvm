@@ -701,12 +701,14 @@ Feature::Feature(const BlockRealizeNode* realize, const LoopNest& loop_nest,
     }
     return a.buffer_->name < b.buffer_->name;
   });
+  /*
   {
     int i = -1;
     for (SubFeature& feature : sub_features) {
       LOG(INFO) << "Buffer #" << (++i) << ": " << feature.buffer_->name;
     }
   }
+  */
 }
 
 }  // namespace group2
