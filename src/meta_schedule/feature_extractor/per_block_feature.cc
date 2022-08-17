@@ -556,18 +556,6 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   }
 }
 
-template <class T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
-  if (v.size() == 0) {
-    return os << "[]";
-  }
-  os << "[" << v[0];
-  for (size_t i = 1; i < v.size(); ++i) {
-    os << ", " << v[i];
-  }
-  return os << "]";
-}
-
 void Feature::SubFeature::SetReuse(const LoopNest& loop_nest,
                                    const std::vector<IntVec>& buffer_touched_under_loop,
                                    const std::vector<SubFeature>& sub_features) {

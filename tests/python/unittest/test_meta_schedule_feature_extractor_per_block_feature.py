@@ -302,6 +302,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
 
 
 def test_cpu_fusion():
@@ -406,6 +407,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
     ## Features for Block(C)
     f = feature[1]
     # Group 1: arith, loop
@@ -476,6 +478,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
 
 
 def test_gpu():
@@ -615,6 +618,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
     ### Check feature[1]: BufferStore(B_shared) <= B[...]
     f = feature[1]
     # Group 1.1: arith
@@ -693,6 +697,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
     ### Check feature[2]: BufferStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
     f = feature[2]
     # Group 1.1: arith
@@ -792,6 +797,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
     ### Check feature[3]: BufferStore(C) <= C_local[...]
     f = feature[3]
     # Group 1.1: arith
@@ -870,6 +876,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
+    # TODO(@Kathryn-cat): Test group 3 - 5
 
 
 if __name__ == "__main__":
