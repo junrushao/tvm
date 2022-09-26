@@ -61,23 +61,23 @@ def _get_network(
         assert layout is None or layout in ["NCHW", "NHWC"]
 
         if name in ["resnet_18", "resnet_50"]:
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))(pretrained=False)
         elif name == "wide_resnet_50":
-            model = getattr(models, "wide_resnet50_2")(weights=None)
+            model = getattr(models, "wide_resnet50_2")(pretrained=False)
         elif name == "resnext_50":
-            model = getattr(models, "resnext50_32x4d")(weights=None)
+            model = getattr(models, "resnext50_32x4d")(pretrained=False)
         elif name == "mobilenet_v2":
-            model = getattr(models, name)(weights=None)
+            model = getattr(models, name)(pretrained=False)
         elif name == "mobilenet_v3":
-            model = getattr(models, name + "_large")(weights=None)
+            model = getattr(models, name + "_large")(pretrained=False)
         elif name == "inception_v3":
-            model = getattr(models, name)(weights=None, aux_logits=False)
+            model = getattr(models, name)(pretrained=False, aux_logits=False)
         elif name == "densenet_121":
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))(pretrained=False)
         elif name == "resnet3d_18":
-            model = models.video.r3d_18(weights=None)
+            model = models.video.r3d_18(pretrained=False)
         elif name == "vgg_16":
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))(pretrained=False)
 
         dtype = "float32"
         input_data = torch.randn(input_shape).type(  # pylint: disable=no-member
