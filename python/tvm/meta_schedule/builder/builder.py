@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -112,6 +112,8 @@ class BuilderResult(Object):
 class Builder(Object):
     """The abstract builder interface."""
 
+    BuilderType = Union["Builder", Literal["local"]]
+
     def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
         """Build the given inputs.
 
@@ -125,6 +127,22 @@ class Builder(Object):
             The results of building the given inputs.
         """
         return _ffi_api.BuilderBuild(self, build_inputs)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Literal["local"] = "local",
+        *args,
+        **kwargs,
+    ) -> "Builder":
+        """Create a Builder."""
+        from . import LocalBuilder  # pylint: disable=import-outside-toplevel
+
+        if kind == "local":
+            return LocalBuilder(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown Builder: {kind}")
+
+
+create = Builder.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyBuilder")
@@ -168,16 +186,3 @@ class PyBuilder:
             The results of building the given inputs.
         """
         raise NotImplementedError
-
-
-def create(  # pylint: disable=keyword-arg-before-vararg
-    kind: Literal["local"] = "local",
-    *args,
-    **kwargs,
-) -> Builder:
-    """Create a Builder."""
-    from . import LocalBuilder  # pylint: disable=import-outside-toplevel
-
-    if kind == "local":
-        return LocalBuilder(*args, **kwargs)  # type: ignore
-    raise ValueError(f"Unknown Builder: {kind}")

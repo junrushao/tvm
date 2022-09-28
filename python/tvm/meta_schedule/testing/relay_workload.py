@@ -34,15 +34,17 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
-    args: Tuple[str, List[int], str]
+    args: Tuple[str, List[int], Optional[str]]
 ) -> Tuple[IRModule, bytearray, Tuple[str, List[int], str]]:
     name: str
     input_shape: List[int]
-    layout: str
+    layout: Optional[str]
     name, input_shape, layout = args
 
-    mod: IRModule
+    if layout == "None":
+        layout = None
 
+    mod: IRModule
     if name in [
         "resnet_18",
         "resnet_50",
@@ -251,9 +253,6 @@ def extract_from_relay(
     input_shape: List[int],
     *,
     cache_dir: Optional[str] = None,
-    opt_level: int = 3,
-    pass_config: Optional[Dict[str, Any]] = None,
-    disabled_pass: Optional[List[str]] = None,
 ) -> List[ExtractedTask]:
     """Extract the tasks from a network.
 
@@ -272,12 +271,6 @@ def extract_from_relay(
     cache_dir : Optional[str]
         The directory to cache the generated network.
         If not specified, the cache will be disabled.
-    opt_level : int
-        The optimization level of the compiler.
-    pass_config : Optional[Dict[str, Any]]
-        The pass config of the compiler.
-    disabled_pass : Optional[List[str]]
-        The disabled pass of the compiler.
 
     Returns
     -------
@@ -291,9 +284,6 @@ def extract_from_relay(
             mod=mod,
             target=target,
             params=params,
-            opt_level=opt_level,
-            pass_config=pass_config,
-            disabled_pass=disabled_pass,
         )
         extracted_tasks = list(extracted_tasks)
         _save_cache(cache_dir, filename, extracted_tasks)

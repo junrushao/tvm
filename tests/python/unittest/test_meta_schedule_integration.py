@@ -25,6 +25,7 @@ from tvm import relay, te, tir
 from tvm._ffi import register_func
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune_context import _normalize_mod
 from tvm.script import tir as T
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
@@ -285,8 +286,7 @@ def extract_task_qbert():
         if out_type.dtype == "float32":
             continue
 
-        mod = ms.default_config.mod(task.dispatched[0])
-        sch = tvm.tir.Schedule(mod)
+        sch = tvm.tir.Schedule(_normalize_mod(task.dispatched[0]))
         block = sch.get_block("compute")
         annotations = sch.get(block).annotations
 

@@ -20,8 +20,11 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import te
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.schedule_rule import get_rules
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+    get_rules,
+)
 from tvm.script import tir as T
 from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
 
@@ -186,13 +189,16 @@ def test_matmul_relu():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[multi_level_tiling_tensor_core()]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
-    ).generate_design_space()
+        types=None,
+        sch_rules=[
+            multi_level_tiling_tensor_core(),
+        ]
+        + get_rules(kind="cuda", types=ms.schedule_rule.AutoInline),
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -324,10 +330,11 @@ def test_matmul_relu_with_fallback():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(),
         ]
@@ -338,7 +345,7 @@ def test_matmul_relu_with_fallback():
                 ms.schedule_rule.AutoInline,
             ),
         ),
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -477,12 +484,13 @@ def test_conv2d():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[multi_level_tiling_tensor_core()],
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -629,17 +637,18 @@ def test_conv2d_more_intrin():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
                 in_dtype="float16",
                 out_dtype=["float16", "float32"],
             ),
         ],
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -777,16 +786,17 @@ def test_matmul_relu_pipeline():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
                 use_software_pipeline=True,
             ),
         ],
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -914,13 +924,14 @@ def test_matmul_relu_global():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="global")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -938,13 +949,14 @@ def test_matmul_relu_non_tensorizable():
             k=128,
         )
     )
-    (sch,) = ms.TuneContext(
+    (sch,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="global")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),
-    ).generate_design_space()
+    )
     tvm.ir.assert_structural_equal(mod, sch.mod["main"])
 
 
@@ -1073,13 +1085,14 @@ def test_padded_matmul_relu():
             out_dtype="float32",
         )
     )
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=tvm.target.Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,

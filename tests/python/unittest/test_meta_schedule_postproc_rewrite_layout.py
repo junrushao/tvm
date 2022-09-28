@@ -17,8 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import RewriteLayout
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -27,15 +26,20 @@ def _target() -> Target:
     return Target("cuda", host="llvm")
 
 
-def _create_context(mod, target) -> TuneContext:
-    return TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            RewriteLayout(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[
+                ms.postproc.RewriteLayout(),
+            ],
+            mutator_probs={},
+        ),
         task_name="test",
     )
+    return ctx
 
 
 @T.prim_func
@@ -83,7 +87,7 @@ def test_layout_rewrite():
     ctx = _create_context(tir_matmul, target)
     sch = tvm.tir.Schedule(tir_matmul, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod["main"], rewritten_tir_matmul)
 
 

@@ -14,47 +14,56 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The core tuning API"""
-from typing import List, Optional
+"""MetaSchedule-TIR integration"""
+from typing import Optional, Union
+
+from tvm import ir, tir
+from tvm.target import Target
 
 from .builder import Builder
 from .cost_model import CostModel
 from .database import Database
+from .logging import get_loggers_from_work_dir
 from .measure_callback import MeasureCallback
 from .runner import Runner
+from .search_strategy import SearchStrategy
+from .space_generator import SpaceGenerator
 from .task_scheduler import TaskScheduler
+from .tune import tune_tasks
 from .tune_context import TuneContext
+from .utils import fork_seed
 
 
-def tune_tasks(
-    *,
-    tasks: List[TuneContext],
-    task_weights: List[float],
+def tune_tir(
+    mod: Union[ir.IRModule, tir.PrimFunc],
+    target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
+    *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
     runner: Runner.RunnerType = "local",
     database: Database.DatabaseType = "json",
     cost_model: CostModel.CostModelType = "xgb",
     measure_callbacks: MeasureCallback.CallbackListType = "default",
-    task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
+    task_scheduler: TaskScheduler.TaskSchedulerType = "round-robin",
+    space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
+    strategy: SearchStrategy.SearchStrategyType = "evolutionary",
+    task_name: str = "main",
+    seed: Optional[int] = None,
 ) -> Database:
-    """Tune a list of tasks. Using a task scheduler.
+    """Tune a TIR function.
 
     Parameters
     ----------
-    tasks : List[TuneContext]
-        The list of tasks to tune.
-    task_weights : List[float]
-        The weight of each task.
+    mod : Union[ir.IRModule, tir.PrimFunc]
+        The TIR function to tune.
+    target : Union[str, Target]
+        The target to tune for.
     work_dir : str
         The working directory.
     max_trials_global : int
         The maximum number of trials to run globally.
-    max_trials_per_task : Optional[int]
-        The maximum number of trials to run per task.
     num_trials_per_iter : int
         The number of trials to run per iteration
     builder : Builder.BuilderType
@@ -69,44 +78,44 @@ def tune_tasks(
         The measure callbacks.
     task_scheduler : TaskScheduler.TaskSchedulerType
         The task scheduler.
+    space : SpaceGenerator.SpaceGeneratorType
+        The space generator.
+    strategy : SearchStrategy.SearchStrategyType
+        The search strategy.
+    task_name : str
+        The name of the task.
+    seed : Optional[int]
+        The seed for the random number generator.
 
     Returns
     -------
     database : Database
         The database with all tuning records
     """
-    if len(tasks) != len(task_weights):
-        raise ValueError(
-            f"Length of tasks ({len(tasks)}) and task_weights ({len(task_weights)}) do not match."
-        )
-    if max_trials_per_task is None:
-        max_trials_per_task = max_trials_global
-    if not isinstance(builder, Builder):
-        builder = Builder.create(builder)
-    if not isinstance(runner, Runner):
-        runner = Runner.create(runner)
-    if database == "json":
-        database = Database.create(database, work_dir=work_dir)
-    elif not isinstance(database, Database):
-        database = Database.create(database)
-    if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model)
-    if isinstance(measure_callbacks, MeasureCallback):
-        measure_callbacks = [measure_callbacks]
-    elif measure_callbacks == "default":
-        measure_callbacks = MeasureCallback.create(measure_callbacks)
-    if not isinstance(task_scheduler, TaskScheduler):
-        task_scheduler = TaskScheduler.create(task_scheduler)
-    task_scheduler.tune(
-        tasks=tasks,
-        task_weights=task_weights,
+    (logger,) = get_loggers_from_work_dir(work_dir, [task_name])
+    (seed,) = fork_seed(seed, n=1)
+    return tune_tasks(
+        tasks=[
+            TuneContext(
+                mod=mod,
+                target=target,
+                space_generator=space,
+                search_strategy=strategy,
+                task_name=task_name,
+                logger=logger,
+                rand_state=seed,
+                num_threads="physical",
+            ).clone()
+        ],
+        task_weights=[1.0],
+        work_dir=work_dir,
         max_trials_global=max_trials_global,
-        max_trials_per_task=max_trials_per_task,
+        max_trials_per_task=max_trials_global,
         num_trials_per_iter=num_trials_per_iter,
         builder=builder,
         runner=runner,
-        measure_callbacks=measure_callbacks,
         database=database,
         cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        task_scheduler=task_scheduler,
     )
-    return database

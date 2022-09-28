@@ -14,10 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-XGBoost-based cost model
-"""
-import logging
+"""XGBoost-based cost model"""
 import os
 import tempfile
 from collections import OrderedDict
@@ -30,6 +27,7 @@ from ...contrib.tar import tar, untar
 from ...runtime import NDArray
 from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor
+from ..logging import get_logger
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..utils import cpu_count, derived_object, shash2hex
@@ -60,7 +58,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 def make_metric_sorter(focused_metric):

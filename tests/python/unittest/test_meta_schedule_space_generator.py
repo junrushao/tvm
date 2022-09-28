@@ -94,7 +94,11 @@ def test_meta_schedule_design_space_generator_union():
 def test_meta_schedule_design_space_generator_NIE():
     @derived_object
     class TestPySpaceGenerator(PySpaceGenerator):
-        pass
+        def __init__(self):
+            super().__init__()
+            self.sch_rules = []
+            self.postprocs = []
+            self.mutator_probs = {}
 
     with pytest.raises(
         TVMError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"
@@ -104,4 +108,5 @@ def test_meta_schedule_design_space_generator_NIE():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_meta_schedule_design_space_generator_NIE()
+    # tvm.testing.main()

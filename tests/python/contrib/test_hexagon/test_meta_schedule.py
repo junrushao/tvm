@@ -16,20 +16,23 @@
 # under the License.
 
 """ Test rpc based launcher for hexagon """
-import pytest
-import numpy as np
 import tempfile
 
+import numpy as np
+import pytest
 import tvm.testing
-from tvm import te
 from tvm import meta_schedule as ms
+from tvm import te
+from tvm.contrib.hexagon.meta_schedule import (
+    get_hexagon_local_builder,
+    get_hexagon_rpc_runner,
+)
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput
+from tvm.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.meta_schedule.runner import RunnerInput
-from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -186,26 +189,24 @@ def test_vrmpy_dense(hexagon_launcher):
         schedule_dense(sch, block, M, do_tune)
     else:
         with tempfile.TemporaryDirectory() as work_dir:
-            config = ms.TuneConfig(
-                strategy="replay_trace",
-                num_trials_per_iter=8,
-                max_trials_per_task=8,
-                max_trials_global=8,
-            )
 
             def schedule_dense_for_tune(sch):
                 block = sch.get_block("compute")
                 return schedule_dense(sch, block, None, True)
 
-            sch = ms.tune_tir(
+            database = ms.tir_integration.tune_tir(
                 mod=workload,
                 target=target,
-                config=config,
                 work_dir=work_dir,
-                space=ms.space_generator.ScheduleFn(schedule_dense_for_tune),
+                max_trials_global=8,
+                space=ms.space_generator.ScheduleFn(
+                    schedule_dense_for_tune,
+                ),
+                strategy="replay-trace",
                 builder=get_hexagon_local_builder(),
                 runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
             )
+            sch = database.query_schedule(workload, target, workload_name="main")
 
     with hexagon_launcher.start_session() as session:
         verify_dense(sch, target, M, N, K, session)

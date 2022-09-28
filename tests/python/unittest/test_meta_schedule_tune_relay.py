@@ -144,17 +144,18 @@ def test_meta_schedule_tune_relay(
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
         with ms.Profiler() as profiler:
-            rt_mod1: tvm.runtime.Module = ms.tune_relay(
+            database = ms.relay_integration.tune_relay(
                 mod=mod,
-                params=params,
                 target=target,
-                config=ms.TuneConfig(
-                    strategy="evolutionary",
-                    num_trials_per_iter=32,
-                    max_trials_per_task=20000,
-                    max_trials_global=20000,
-                ),
+                params=params,
                 work_dir=work_dir,
+                max_trials_global=20000,
+            )
+            rt_mod1 = ms.relay_integration.compile_relay(
+                database=database,
+                mod=mod,
+                target=target,
+                params=params,
             )
         print(profiler.table())
         # Compile without meta-schedule for correctness check
@@ -432,28 +433,23 @@ def manual_tir_common(do_tune=False):
 
     if do_tune:
         extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
-        # Filter out tasks that we don't intend to schedule / tune with TIR.
-        tune_tasks = list(
-            filter(
-                lambda task: "dense" in task.task_name,
-                extracted_tasks,
-            )
-        )
-        config = ms.TuneConfig(
-            strategy="replay_trace",
-            num_trials_per_iter=64,
-            max_trials_per_task=20000,
-            max_trials_global=20000,
-        )
-
         with tempfile.TemporaryDirectory() as work_dir:
             # postprocs=lambda: [] is important to prevent default post processors from
             # tampering with the manual schedule.
-            database = ms.tune_extracted_tasks(
-                tune_tasks,
-                config,
+            tasks = ms.relay_integration.extract_tasks_to_tune_context(
+                list(
+                    filter(
+                        lambda task: "dense" in task.task_name,
+                        extracted_tasks,
+                    )
+                ),
                 work_dir=work_dir,
-                postprocs=lambda: [],
+            )
+            database = ms.relay_integration.tune_tasks(
+                tasks=tasks,
+                task_weights=[1.0] * len(tasks),
+                work_dir=work_dir,
+                max_trials_global=20000,
             )
     else:
 
