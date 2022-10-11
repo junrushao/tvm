@@ -80,6 +80,49 @@ inline LoopRV ScheduleDataPack(Schedule sch, BlockRV block) {
   return t1[1];
 }
 
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.llvm")
+    .set_body_typed([](Schedule sch, BlockRV block) -> Array<Schedule> {
+      ScheduleDataPack(sch, block);
+      return {sch};
+    });
+
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.llvm")
+    .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
+      BlockRV input_tile = GetOnlyProducer(sch, data_pack);
+      BlockRV data_pad = GetOnlyProducer(sch, input_tile);
+      ScheduleDataPack(sch, data_pack);
+      sch->ComputeAt(input_tile, /*loop_rv=*/sch->SampleComputeLocation(input_tile),
+                     /*preserve_unit_loops=*/true);
+      sch->ComputeAt(data_pad, /*loop_rv=*/sch->SampleComputeLocation(data_pad),
+                     /*preserve_unit_loops=*/true);
+      return {sch};
+    });
+
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.cuda")
+    .set_body_typed([](Schedule sch, BlockRV block) -> Array<Schedule> {
+      ScheduleDataPack(sch, block);
+      int64_t max_threadblocks = 256;
+      int64_t max_threads_per_block = 1024;
+      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      BindBlockThreadIdx(sch, block, max_threadblocks, max_threads_per_block, get_factor);
+      return {sch};
+    });
+
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
+    .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
+      BlockRV input_tile = GetOnlyProducer(sch, data_pack);
+      BlockRV data_pad = GetOnlyProducer(sch, input_tile);
+      LoopRV loop = ScheduleDataPack(sch, data_pack);
+      sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
+      sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+      sch->ComputeInline(data_pad);
+      int64_t max_threadblocks = 256;
+      int64_t max_threads_per_block = 1024;
+      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      BindBlockThreadIdx(sch, data_pack, max_threadblocks, max_threads_per_block, get_factor);
+      return {sch};
+    });
+
 inline LoopRV ScheduleDataPackNCHW(Schedule sch, BlockRV block) {
   Array<LoopRV> loops = sch->GetLoops(block);
   ICHECK_EQ(loops.size(), 6);
@@ -105,24 +148,6 @@ inline LoopRV ScheduleDataPackNCHW(Schedule sch, BlockRV block) {
   sch->Reorder({fused, split[1], loops[0], loops[1]});
   return split[1];
 }
-
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.llvm")
-    .set_body_typed([](Schedule sch, BlockRV block) -> Array<Schedule> {
-      ScheduleDataPack(sch, block);
-      return {sch};
-    });
-
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.llvm")
-    .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
-      BlockRV input_tile = GetOnlyProducer(sch, data_pack);
-      BlockRV data_pad = GetOnlyProducer(sch, input_tile);
-      ScheduleDataPack(sch, data_pack);
-      sch->ComputeAt(input_tile, /*loop_rv=*/sch->SampleComputeLocation(input_tile),
-                     /*preserve_unit_loops=*/true);
-      sch->ComputeAt(data_pad, /*loop_rv=*/sch->SampleComputeLocation(data_pad),
-                     /*preserve_unit_loops=*/true);
-      return {sch};
-    });
 
 TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
     .set_body_typed([](Schedule sch, BlockRV output) -> Array<Schedule> {
@@ -152,16 +177,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
       int64_t max_threads_per_block = 1024;
       auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
       BindBlockThreadIdx(sch, output, max_threadblocks, max_threads_per_block, get_factor);
-      return {sch};
-    });
-
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.cuda")
-    .set_body_typed([](Schedule sch, BlockRV block) -> Array<Schedule> {
-      ScheduleDataPack(sch, block);
-      int64_t max_threadblocks = 256;
-      int64_t max_threads_per_block = 1024;
-      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
-      BindBlockThreadIdx(sch, block, max_threadblocks, max_threads_per_block, get_factor);
       return {sch};
     });
 
@@ -208,21 +223,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_kernel_pack.nchw.cuda")
       int64_t max_threads_per_block = 1024;
       auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
       BindBlockThreadIdx(sch, kernel_pack, max_threadblocks, max_threads_per_block, get_factor);
-      return {sch};
-    });
-
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
-    .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
-      BlockRV input_tile = GetOnlyProducer(sch, data_pack);
-      BlockRV data_pad = GetOnlyProducer(sch, input_tile);
-      LoopRV loop = ScheduleDataPack(sch, data_pack);
-      sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
-      sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
-      sch->ComputeInline(data_pad);
-      int64_t max_threadblocks = 256;
-      int64_t max_threads_per_block = 1024;
-      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
-      BindBlockThreadIdx(sch, data_pack, max_threadblocks, max_threads_per_block, get_factor);
       return {sch};
     });
 

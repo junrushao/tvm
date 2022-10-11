@@ -117,7 +117,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
           new_buffers.push_back(buffer);
         }
       }
-      block.CopyOnWrite()->annotations.Set(topi_attr, new_buffers);
+      block.CopyOnWrite()->annotations.erase(topi_attr);
     }
     return std::move(block);
   }

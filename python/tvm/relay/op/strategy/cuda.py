@@ -145,7 +145,6 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     kernel_layout = attrs.kernel_layout
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
-
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -166,9 +165,35 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
                     name="conv2d_nchw.cuda",
                 )
-            _, _, kh, kw = get_const_tuple(kernel.shape)
-            if (
-                (2 < kh < 8 and 2 < kw < 8 and kh == kw)
+            N, _, H, W = get_const_tuple(data.shape)
+            CO, CI, KH, KW = get_const_tuple(kernel.shape)
+            (_, _, judge_winograd_auto_scheduler) = judge_winograd(
+                N,
+                H,
+                W,
+                KH,
+                KW,
+                CI,
+                CO,
+                padding,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+                data.dtype,
+                kernel.dtype,
+                pre_flag=False,
+            )
+            if is_meta_schedule_enabled() and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nchw),
+                    # wrap_compute_conv2d(topi.nn.conv2d_winograd_nc),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nchw_winograd.cuda",
+                    plevel=15,
+                )
+            elif (
+                (2 < KH < 8 and 2 < KW < 8 and KH == KW)
                 and (stride_h == 1 and stride_w == 1)
                 and (dilation_h == 1 and dilation_w == 1)
             ):

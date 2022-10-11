@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import autotvm, te
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_dispatch_enabled
+from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -181,16 +181,18 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).
-    if is_auto_scheduler_enabled() or is_meta_schedule_dispatch_enabled():
+    if is_auto_scheduler_enabled() or is_meta_schedule_enabled():
         use_autotvm = False
 
     # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
-        logger.info(
-            "Using %s for %s based on highest priority (%d)",
-            best_plevel_impl.name,
-            op.name,
-            best_plevel_impl.plevel,
+        print(
+            "Using %s for %s based on highest priority (%d)"
+            % (
+                best_plevel_impl.name,
+                op.name,
+                best_plevel_impl.plevel,
+            )
         )
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
@@ -223,12 +225,15 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     if best_autotvm_impl:
         # The best autotvm implementation definitely doesn't use fallback config
-        logger.info(
-            "Using %s for %s based on lowest cost (%.2e)",
-            best_autotvm_impl.name,
-            op.name,
-            best_cfg.cost,
-        )
+        if "nn.conv2d" in op.name:
+            print(
+                "\tUsing %s for %s based on lowest cost (%f)"
+                % (
+                    best_autotvm_impl.name,
+                    op.name,
+                    best_cfg.cost * 1e9,
+                )
+            )
         return best_autotvm_impl, outputs[best_autotvm_impl]
 
     # Use the implementation with highest plevel

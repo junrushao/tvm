@@ -131,7 +131,9 @@ namespace transform {
 Pass AlterOpLayout() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
+        f = Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
+        LOG(INFO) << "After AlterOpLayout: " << std::endl << PrettyPrint(f);
+        return f;
       };
   return CreateFunctionPass(pass_func, 3, "AlterOpLayout", {"InferType"});
 }

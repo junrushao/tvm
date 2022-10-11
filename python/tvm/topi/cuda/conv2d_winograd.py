@@ -389,5 +389,13 @@ def conv2d_winograd_nhwc_cuda(
     """
     tile_size = _infer_tile_size(data, weight, layout="NHWC")
     return _conv2d_winograd_nhwc_impl(
-        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size=tile_size,
+        pre_computed=pre_computed,
+        write_cache_level=3,
     )

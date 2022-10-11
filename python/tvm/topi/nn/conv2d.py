@@ -998,6 +998,7 @@ def _conv2d_winograd_nhwc_impl(
     out_dtype,
     tile_size,
     pre_computed=False,
+    write_cache_level=2,
     auto_scheduler_rewritten_layout="",
     meta_schedule_original_shape=None,
 ):
@@ -1022,6 +1023,8 @@ def _conv2d_winograd_nhwc_impl(
         The size of the tile to use for the Winograd filter
     pre_computed: bool = False
         Whether the kernel is precomputed
+    write_cache_level: int = 2
+        The cache level to write to in multi-level tiling rule in MetaSchedule.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
     meta_schedule_original_shape: Optional[List[PrimExpr]] = None
@@ -1085,7 +1088,8 @@ def _conv2d_winograd_nhwc_impl(
         kernel_pack = te.compute(
             (alpha, alpha, CO, CI),
             lambda eps, nu, co, ci: te.sum(
-                weight[r_kh][r_kw][ci][co] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
+                weight[r_kh, r_kw, ci, co] * G[eps, r_kh] * G[nu, r_kw],
+                axis=[r_kh, r_kw],
             ),
             name="kernel_pack",
         )
@@ -1093,13 +1097,17 @@ def _conv2d_winograd_nhwc_impl(
     else:
         kernel_pack = weight
         attrs = {"layout_free_placeholders": [kernel_pack]}
+    attrs["meta_schedule.write_cache_level"] = [write_cache_level]
 
     # pack data tile
     input_tile = te.compute(
         (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: data_pad[p // (nH * nW)][((p // nW) % nH) * m + eps][
-            (p % nW) * m + nu
-        ][ci],
+        lambda eps, nu, p, ci: data_pad[
+            p // (nH * nW),
+            ((p // nW) % nH) * m + eps,
+            (p % nW) * m + nu,
+            ci,
+        ],
         name="input_tile",
         attrs={"schedule_rule": "None"},
     )
@@ -1116,7 +1124,8 @@ def _conv2d_winograd_nhwc_impl(
     data_pack = te.compute(
         (alpha, alpha, P, CI),
         lambda eps, nu, p, ci: te.sum(
-            input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
+            input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu],
+            axis=[r_a, r_b],
         ),
         name="data_pack",
         attrs={
@@ -1131,7 +1140,8 @@ def _conv2d_winograd_nhwc_impl(
     bgemm = te.compute(
         (alpha, alpha, P, CO),
         lambda eps, nu, p, co: te.sum(
-            data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][co][ci], axis=[ci]
+            data_pack[eps, nu, p, ci] * kernel_pack[eps, nu, co, ci],
+            axis=[ci],
         ),
         name="bgemm",
         attrs=attrs,
@@ -1151,7 +1161,8 @@ def _conv2d_winograd_nhwc_impl(
     inverse = te.compute(
         (m, m, P, CO),
         lambda vh, vw, p, co: te.sum(
-            bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
+            bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw],
+            axis=[r_a, r_b],
         ),
         name="inverse",
         attrs={
@@ -1164,7 +1175,12 @@ def _conv2d_winograd_nhwc_impl(
     # output
     output = te.compute(
         (N, H, W, CO),
-        lambda n, h, w, co: inverse[h % m, w % m, n * nH * nW + (h // m) * nW + (w // m), co],
+        lambda n, h, w, co: inverse[
+            h % m,
+            w % m,
+            n * nH * nW + (h // m) * nW + (w // m),
+            co,
+        ],
         name="conv2d_winograd",
     )
 
@@ -1222,10 +1238,168 @@ def conv2d_winograd_nhwc(
         dilation,
         out_dtype,
         tile_size,
+        pre_computed=pre_computed,
+        write_cache_level=2,
+        auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape=meta_schedule_original_shape,
+    )
+
+
+@tvm.target.generic_func
+def conv2d_winograd_nchw(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    tile_size = 4
+    return _conv2d_winograd_nchw_impl(
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
         pre_computed,
         auto_scheduler_rewritten_layout,
         meta_schedule_original_shape,
     )
+
+
+def _conv2d_winograd_nchw_impl(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    tile_size,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    del auto_scheduler_rewritten_layout
+
+    N, CI, H, W = get_const_tuple(data.shape)
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
+
+    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
+    if not pre_computed:  # kernel tensor is raw tensor, do strict check
+        CO, CI, KH, KW = get_const_tuple(weight.shape)
+    else:
+        H_CAT, W_CAT, CI, CO = get_const_tuple(weight.shape)
+        KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
+
+    pad_t, pad_l, pad_b, pad_r = get_pad_tuple(padding, (KH, KW))
+    HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
+    assert HSTR == 1 and WSTR == 1 and KH == 3 and KW == 3
+
+    r = KW
+    m = tile_size
+    alpha = m + r - 1
+    A, B, G = winograd_transform_matrices(m, r, out_dtype)
+
+    H = (H + pad_t + pad_b - KH) // HSTR + 1
+    W = (W + pad_l + pad_r - KW) // WSTR + 1
+    nH, nW = (H + m - 1) // m, (W + m - 1) // m
+    P = N * nH * nW
+
+    # TODO: do we need `pad_extra`?
+    data_pad = pad(
+        data,
+        (0, 0, pad_t, pad_l),
+        (0, 0, pad_b, pad_r),
+        name="data_pad",
+        attrs={"schedule_rule": "None"},
+    )
+
+    if not pre_computed:
+        r_kh = te.reduce_axis((0, KH), name="r_kh")
+        r_kw = te.reduce_axis((0, KW), name="r_kw")
+        kernel_pack = te.compute(
+            (alpha, alpha, CI, CO),
+            lambda eps, nu, ci, co: te.sum(
+                weight[co, ci, r_kh, r_kw] * G[eps, r_kh] * G[nu, r_kw],
+                axis=[r_kh, r_kw],
+            ),
+            name="kernel_pack",
+        )
+    else:
+        kernel_pack = weight
+
+    # pack data tile
+    input_tile = te.compute(
+        (CI, P, alpha, alpha),
+        lambda ci, p, eps, nu: data_pad[
+            p // (nH * nW),
+            ci,
+            ((p // nW) % nH) * m + eps,
+            (p % nW) * m + nu,
+        ],
+        name="input_tile",
+        attrs={"schedule_rule": "None"},
+    )
+
+    # transform data
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_a")
+    data_pack = te.compute(
+        (alpha, alpha, CI, P),
+        lambda eps, nu, ci, p: te.sum(
+            input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu],
+            axis=[r_a, r_b],
+        ),
+        name="data_pack",
+    )
+
+    # do batch gemm
+    ci = te.reduce_axis((0, CI), name="ci")
+    bgemm = te.compute(
+        (alpha, alpha, CO, P),
+        lambda eps, nu, co, p: te.sum(
+            data_pack[eps, nu, ci, p] * kernel_pack[eps, nu, ci, co],
+            axis=[ci],
+        ),
+        name="bgemm",
+    )
+
+    # inverse transform
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_a")
+    inverse = te.compute(
+        (CO, P, m, m),
+        lambda co, p, vh, vw: te.sum(
+            bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw],
+            axis=[r_a, r_b],
+        ),
+        name="inverse",
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.nchw.cuda"},
+    )
+
+    # output
+    output = te.compute(
+        (N, CO, H, W),
+        lambda n, co, h, w: inverse[
+            co,
+            n * nH * nW + (h // m) * nW + (w // m),
+            h % m,
+            w % m,
+        ],
+        name="conv2d_winograd",
+    )
+
+    return output
 
 
 def conv2d_winograd_nhwc_without_weight_transform(
