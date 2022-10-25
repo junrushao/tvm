@@ -477,6 +477,8 @@ class ScheduleBuilder : public ExprVisitor {
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
+    static const auto* f_store_fn_inputs = runtime::Registry::Get("debug_store_fn_inputs");
+    (*f_store_fn_inputs)(fn_inputs);
     VisitExpr(relay_func->body);
 
     // TODO(mbs): This should be the definitive global by which the PrimFunc is known and

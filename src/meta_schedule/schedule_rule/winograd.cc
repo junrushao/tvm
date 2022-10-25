@@ -55,16 +55,8 @@ inline LoopRV ScheduleDataPack(Schedule sch, BlockRV block) {
   Array<LoopRV> t1 = sch->Split(loops[3], {factors.begin(), factors.end()});
   ICHECK_EQ(t1.size(), 2);
 
-  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
-    if (*i <= 16) {
-      sch->Unroll(loops[0]);
-    }
-  }
-  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
-    if (*i <= 16) {
-      sch->Unroll(loops[1]);
-    }
-  }
+  sch->Unroll(loops[0]);
+  sch->Unroll(loops[1]);
   sch->Unroll(loops[4]);
   sch->Unroll(loops[5]);
   sch->Reorder({
@@ -127,16 +119,8 @@ inline LoopRV ScheduleDataPackNCHW(Schedule sch, BlockRV block) {
   Array<LoopRV> loops = sch->GetLoops(block);
   ICHECK_EQ(loops.size(), 6);
 
-  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
-    if (*i <= 16) {
-      sch->Unroll(loops[0]);
-    }
-  }
-  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
-    if (*i <= 16) {
-      sch->Unroll(loops[1]);
-    }
-  }
+  sch->Unroll(loops[0]);
+  sch->Unroll(loops[1]);
   sch->Unroll(loops[4]);
   sch->Unroll(loops[5]);
 
@@ -185,16 +169,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.nchw.cuda")
       sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
       Array<LoopRV> loops = sch->GetLoops(inverse);
       ICHECK_EQ(loops.size(), 6);
-      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[2]))) {
-        if (*i <= 16) {
-          sch->Unroll(loops[2]);
-        }
-      }
-      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[3]))) {
-        if (*i <= 16) {
-          sch->Unroll(loops[3]);
-        }
-      }
+      sch->Unroll(loops[2]);
+      sch->Unroll(loops[3]);
       sch->Unroll(loops[4]);
       sch->Unroll(loops[5]);
       return {sch};
@@ -204,16 +180,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_kernel_pack.nchw.cuda")
     .set_body_typed([](Schedule sch, BlockRV kernel_pack) -> Array<Schedule> {
       Array<LoopRV> loops = sch->GetLoops(kernel_pack);
       ICHECK_EQ(loops.size(), 6);
-      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
-        if (*i <= 16) {
-          sch->Unroll(loops[0]);
-        }
-      }
-      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
-        if (*i <= 16) {
-          sch->Unroll(loops[1]);
-        }
-      }
+      sch->Unroll(loops[0]);
+      sch->Unroll(loops[1]);
       sch->Unroll(loops[4]);
       sch->Unroll(loops[5]);
 

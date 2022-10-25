@@ -174,6 +174,15 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
     return output
 
 
+FN_INPUTS = None
+
+
+@tvm._ffi.register_func("debug_store_fn_inputs")
+def debug_store_fn_inputs(fn_inputs):
+    global FN_INPUTS
+    FN_INPUTS = fn_inputs
+
+
 def schedule_winograd_cuda(cfg, s, output, pre_computed):
     """Schedule winograd template"""
     # get stages
@@ -183,26 +192,46 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     input_tile, B = s[data_pack].op.input_tensors
     pad_data = s[input_tile].op.input_tensors[0]
 
+    def _print_lower(msg):
+        if pre_computed:
+            print(msg)
+            p0 = pad_data.op.input_tensors[0]
+            p1 = kernel_pack
+            pn = FN_INPUTS[2:]
+            tvm.lower(s, [p0, p1, *pn, output]).show()
+
+    def _print_tir():
+        if pre_computed:
+            p0 = pad_data.op.input_tensors[0]
+            p1 = kernel_pack
+            pn = FN_INPUTS[2:]
+            tvm.te.create_prim_func([p0, p1, *pn, output]).show()
+
+    _print_lower("initial")
+    _print_tir()
+
     # data transform
     s[B].compute_inline()
 
     data_l = s.cache_write(data_pack, "local")
     eps, nu, c, p = s[data_l].op.axis
     r_a, r_b = s[data_l].op.reduce_axis
-    for axis in [eps, nu, r_a, r_b]:
-        s[data_l].unroll(axis)
+    # for axis in [eps, nu, r_a, r_b]:
+    #     s[data_l].unroll(axis)
 
     eps, nu, c, p = s[data_pack].op.axis
     p, pi = s[data_pack].split(p, 1)
     fused = s[data_pack].fuse(c, p)
     bb, tt = s[data_pack].split(fused, 128)
     s[data_pack].reorder(bb, tt, pi, eps, nu)
-    s[data_pack].bind(bb, te.thread_axis("blockIdx.x"))
-    s[data_pack].bind(tt, te.thread_axis("threadIdx.x"))
+    # s[data_pack].bind(bb, te.thread_axis("blockIdx.x"))
+    # s[data_pack].bind(tt, te.thread_axis("threadIdx.x"))
 
     s[data_l].compute_at(s[data_pack], pi)
     s[input_tile].compute_at(s[data_pack], pi)
     s[pad_data].compute_inline()
+
+    _print_lower("after `data_pack`")
 
     # transform kernel
     if not pre_computed:
@@ -296,8 +325,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         s[load].bind(ty, te.thread_axis("threadIdx.y"))
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-    s[C].pragma(bgemm_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
-    s[C].pragma(bgemm_scope, "unroll_explicit", cfg["unroll_explicit"].val)
+    # s[C].pragma(bgemm_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    # s[C].pragma(bgemm_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     # schedule inverse, output and fusion
     if output.op in s.outputs:
@@ -328,6 +357,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         s[inverse].unroll(axis)
     s[inverse].compute_at(s[output], tt)
 
+    if pre_computed:
+        breakpoint()
     return s
 
 
