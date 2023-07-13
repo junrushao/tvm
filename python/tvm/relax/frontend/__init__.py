@@ -17,4 +17,5 @@
 """
 Frontends for constructing Relax programs, with the model importers
 """
+from . import nn
 from .common import detach_params
