@@ -66,7 +66,7 @@ class RotaryEmbedding(Module):
 
     # pylint: disable=invalid-name
     def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
-        def rotary_embedding(x, cos, sin, offset):
+        def rotary_embedding(x: te.Tensor, cos: te.Tensor, sin: te.Tensor, offset: tir.Var):
             def compute(b, s, h, d):
                 n_feat_half = self.rotary_dim // 2
                 y = tir.if_then_else(
@@ -179,8 +179,8 @@ class LlamaDecoderLayer(Module):
     def __init__(self, config: LlamaConfig, rotary_embedding: RotaryEmbedding):
         self.attn = LlamaAttention(config, rotary_embedding)
         self.ffn = LlamaFFN(config)
-        self.input_norm = RMSNorm(config.hidden_size, config.rms_norm_eps)
-        self.post_attention_norm = RMSNorm(config.hidden_size, config.rms_norm_eps)
+        self.input_norm = RMSNorm(config.hidden_size, config.rms_norm_eps, bias=False)
+        self.post_attention_norm = RMSNorm(config.hidden_size, config.rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
@@ -203,7 +203,7 @@ class LlamaModel(Module):
         self.layers = ModuleList(
             [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = RMSNorm(config.hidden_size, config.rms_norm_eps)
+        self.norm = RMSNorm(config.hidden_size, config.rms_norm_eps, bias=False)
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embed_tokens(inputs)

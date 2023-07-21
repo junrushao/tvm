@@ -69,11 +69,16 @@ def repeat(
 def rms_norm(
     x: Tensor,
     weight: Tensor,
+    bias: Optional[Tensor],
     axes: Union[int, List[int]],
     epsilon: float = 1e-5,
     name: str = "rms_norm",
 ) -> Tensor:
-    return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, axes, epsilon), name)
+    if bias is None:
+        bias = _op.zeros(weight.shape, dtype=weight.dtype)
+    else:
+        bias = bias._expr
+    return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, bias, axes, epsilon), name)
 
 
 def astype(x: Tensor, dtype: str, name: str = "astype") -> Tensor:

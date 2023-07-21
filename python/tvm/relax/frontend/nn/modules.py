@@ -80,15 +80,59 @@ class RMSNorm(Module):
         self,
         hidden_size: int,
         epsilon: float = 1e-5,
+        bias: bool = True,
         dtype: Optional[str] = None,
     ):
         super().__init__()
         self.epsilon = epsilon
         self.weight = Parameter((hidden_size,), dtype=dtype)
+        if bias:
+            self.bias = Parameter((hidden_size,), dtype=dtype)
+        else:
+            self.bias = None
         # TODO(@junrushao): add bias
 
     def forward(self, x: Tensor):  # pylint: disable=invalid-name
-        return op.rms_norm(x, weight=self.weight, axes=-1, epsilon=self.epsilon)
+        from tvm import te
+
+        # pylint: disable=invalid-name
+        def rms_norm(x: te.Tensor, weight: te.Tensor):
+            is_float32 = x.dtype == "float32"
+
+            def f_square(x):
+                return tir.Cast("float32", x) * tir.Cast("float32", x) if not is_float32 else x * x
+
+            k = te.reduce_axis((0, x.shape[2]), name="k")
+            square_sum = te.compute(
+                (x.shape[0], x.shape[1]),
+                lambda bsz, i: te.sum(f_square(x[bsz, i, k]), axis=k),
+                name=x.op.name + "red_temp",
+            )
+
+            def f_div_cast(bsz, i, k):
+                x_val = x[bsz, i, k]
+                if not is_float32:
+                    x_val = tir.Cast("float32", x_val)
+                return x_val / tir.sqrt(square_sum[bsz, i] / x.shape[2] + self.epsilon)
+
+            def f_mul_cast(x, y):
+                value = x * y
+                if not is_float32:
+                    value = tir.Cast(x.dtype, value)
+                return value
+
+            return te.compute(
+                x.shape,
+                lambda bsz, i, k: f_mul_cast(weight(k), f_div_cast(bsz, i, k)),
+                name="rms_norm",
+            )
+
+        # pylint: enable=invalid-name
+
+        if self.bias is None:
+            return self.tensor_expr_op(rms_norm, "rms_norm", [x, self.weight])
+
+        return op.rms_norm(x, weight=self.weight, bias=None, axes=-1, epsilon=self.epsilon)
 
     # pylint: enable=invalid-name
 

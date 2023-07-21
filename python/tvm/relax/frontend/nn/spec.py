@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 from tvm import tir
 from tvm.ir import IRModule
+from tvm.runtime import NDArray
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
@@ -157,17 +158,37 @@ class SpecBuilder:
         delattr(SpecBuilder._tls, "current")
 
     def build(self, spec: Module) -> IRModule:
-        _check_parameter_binding(spec.module)
+        def _params() -> Dict[str, NDArray]:
+            params = OrderedDict()
+            missing = []
+            for name, param in core._attribute_finder(  # pylint: disable=protected-access
+                spec.module,
+                prefix="",
+                condition_yield=lambda x: isinstance(x, core.Parameter),
+            ):
+                data = param.data
+                if data is None:
+                    missing.append(name)
+                else:
+                    params[name] = data
+            # if missing:
+            #     raise ValueError(f"Parameters {missing} are not set to any concrete values. ")
+            return params
 
-        effects = [
-            ("", self.io_effect),
-        ] + list(
-            core._attribute_finder(  # pylint: disable=protected-access
+        def _effects() -> List[Tuple[str, core.Effect]]:
+            result = [
+                ("", self.io_effect),
+            ]
+            for name, effect in core._attribute_finder(  # pylint: disable=protected-access
                 spec.module,
                 "",
                 condition_yield=lambda x: isinstance(x, core.Effect),
-            )
-        )
+            ):
+                result.append((name, effect))
+            return result
+
+        params = _params()
+        effects = _effects()
         with self:
             with self.builder.function("_initialize_effect"):
                 with self.builder.dataflow():
@@ -201,7 +222,7 @@ def _emit_method(
     effects: List[Tuple[str, core.Effect]],
 ):
     def _unwrap_nested(expr: Any) -> Any:
-        if isinstance(expr, Tensor):
+        if isinstance(expr, core.Tensor):
             return expr._expr  # pylint: disable=protected-access
         if isinstance(expr, tuple):
             return rx.Tuple([_unwrap_nested(x) for x in expr])
@@ -230,12 +251,3 @@ def _spec_to_params(spec: Method):
         else:
             raise ValueError(f"Unsupported argument type {type(arg)}")
     return params
-
-
-def _check_parameter_binding(model: core.Module):
-    missing_parameters = []
-    for name, param in model.named_parameters():
-        if not isinstance(param._expr, rx.Constant):  # pylint: disable=protected-access
-            missing_parameters.append(name)
-    if missing_parameters:
-        raise ValueError(f"Parameters {missing_parameters} are not set to any concrete values. ")
