@@ -14,18 +14,21 @@ from typing import (
     Union,
 )
 
+import numpy as np
+
 from tvm import tir
 from tvm.ir import IRModule
-from tvm.runtime import Device, NDArray
+from tvm.runtime import Device, NDArray, ndarray
 from tvm.target import Target
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TensorStructInfo, TupleStructInfo
+from ...struct_info import ShapeStructInfo, TensorStructInfo
 from ._tensor_op import _TensorOp
 
 if TYPE_CHECKING:
     from . import spec as _spec
+    from . import torch
 
 IntExpr = Union[int, tir.PrimExpr]
 
@@ -101,14 +104,45 @@ class Tensor(_TensorOp):
 
 
 class Parameter(Tensor):
+    _data: Optional[NDArray]
+
     def __init__(self, shape: Sequence[IntExpr], dtype: Optional[str] = None) -> None:
         if dtype is None:
-            dtype = _DEFAULT_DTYPE
+            dtype = get_default_dtype()
         super().__init__(_expr=_tensor_placeholder("p", shape, dtype=dtype)._expr)
+        self._data = None
 
-    def set_data(self, data) -> None:
-        # TODO(@junrushao): the impl is a quick hack, need to make it work more broadly
-        self._expr = rx.const(data)
+    @property
+    def data(self) -> Optional[NDArray]:
+        return self._data
+
+    @data.setter
+    def data(
+        self,
+        data: Union[
+            None,
+            NDArray,
+            np.ndarray,
+            "torch.Tensor",
+        ],
+    ) -> None:
+        if data is None:
+            self._data = data
+            return
+        # Try to do zero-copy if possible
+        if isinstance(data, NDArray):
+            pass
+        elif isinstance(data, np.ndarray):
+            data = ndarray.numpyasarray(data)
+        elif hasattr(data, "__dlpack__"):
+            data = ndarray.from_dlpack(data)
+        else:
+            raise TypeError(f"Unsupported data type: {type(data)}")
+        if data.shape != tuple(self.shape):
+            raise ValueError(f"Shape mismatch: expected {tuple(self.shape)}, got {data.shape}")
+        if data.dtype != self.dtype:
+            raise ValueError(f"Dtype mismatch: expected {self.dtype}, got {data.dtype}")
+        self._data = data
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
         super().to(dtype=dtype)
@@ -189,6 +223,8 @@ class Module:
             if isinstance(arg, Tensor):
                 return arg._expr  # pylint: disable=protected-access
             return arg
+
+        from .op import _wrap_nested  # pylint: disable=import-outside-toplevel
 
         return _wrap_nested(
             BlockBuilder.current().emit_te(
@@ -283,31 +319,6 @@ def _attribute_finder(
                 prefix + name + ".",
                 condition_yield,
             )
-
-
-def _wrap_nested(expr: rx.Expr, name: str) -> Any:
-    expr = BlockBuilder.current().emit(expr, name)
-    if isinstance(expr.struct_info_, TensorStructInfo):
-        return Tensor(_expr=expr)
-    if isinstance(expr.struct_info_, TupleStructInfo):
-        return tuple(
-            _wrap_nested(
-                rx.TupleGetItem(expr, i),
-                name=f"{name}.{i}",
-            )
-            for i in range(expr.struct_info_.fields)
-        )
-    raise TypeError(f"Unsupported return type: {expr.struct_info_}")
-
-
-def _unwrap_nested(expr: Any) -> Any:
-    if isinstance(expr, Tensor):
-        return expr._expr  # pylint: disable=protected-access
-    if isinstance(expr, tuple):
-        return tuple(_unwrap_nested(x) for x in expr)
-    if isinstance(expr, list):
-        return [_unwrap_nested(x) for x in expr]
-    raise TypeError(f"Unsupported return type: {type(expr)}")
 
 
 def _str_to_device(device: str) -> Device:

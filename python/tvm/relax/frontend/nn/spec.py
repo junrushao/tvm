@@ -200,6 +200,15 @@ def _emit_method(
     spec: Module,
     effects: List[Tuple[str, core.Effect]],
 ):
+    def _unwrap_nested(expr: Any) -> Any:
+        if isinstance(expr, Tensor):
+            return expr._expr  # pylint: disable=protected-access
+        if isinstance(expr, tuple):
+            return rx.Tuple([_unwrap_nested(x) for x in expr])
+        if isinstance(expr, list):
+            return rx.Tuple([_unwrap_nested(x) for x in expr])
+        raise TypeError(f"Unsupported return type: {type(expr)}")
+
     effect_inputs = []
     for prefix, effect in effects:
         effect_inputs.extend(effect.create(prefix))
@@ -207,14 +216,7 @@ def _emit_method(
     effect_outputs = []
     for _, effect in effects:
         effect_outputs.extend(effect.finalize())
-    outputs = builder.emit_output(
-        rx.Tuple(
-            [
-                core._unwrap_nested(outputs),  # pylint: disable=protected-access
-                rx.Tuple(effect_outputs),
-            ]
-        )
-    )
+    outputs = builder.emit_output(rx.Tuple([_unwrap_nested(outputs), rx.Tuple(effect_outputs)]))
     return outputs, effect_inputs
 
 

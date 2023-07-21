@@ -1,10 +1,28 @@
 # pylint: disable=missing-docstring,too-many-lines,invalid-name,protected-access
-from typing import List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 from tvm import tir as _tir
-from tvm.relax import op as _op
 
-from .core import IntExpr, Tensor, _wrap_nested
+from ... import expr as rx
+from ... import op as _op
+from ...block_builder import BlockBuilder
+from ...struct_info import TensorStructInfo, TupleStructInfo
+from .core import IntExpr, Tensor
+
+
+def _wrap_nested(expr: rx.Expr, name: str) -> Any:
+    expr = BlockBuilder.current().emit(expr, name)
+    if isinstance(expr.struct_info_, TensorStructInfo):
+        return Tensor(_expr=expr)
+    if isinstance(expr.struct_info_, TupleStructInfo):
+        return tuple(
+            _wrap_nested(
+                rx.TupleGetItem(expr, i),
+                name=f"{name}.{i}",
+            )
+            for i in range(expr.struct_info_.fields)
+        )
+    raise TypeError(f"Unsupported return type: {expr.struct_info_}")
 
 
 def add(a: Tensor, b: Tensor, name: str = "add") -> Tensor:
