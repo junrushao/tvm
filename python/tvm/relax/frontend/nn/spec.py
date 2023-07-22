@@ -157,15 +157,13 @@ class SpecBuilder:
         assert hasattr(SpecBuilder._tls, "current")
         delattr(SpecBuilder._tls, "current")
 
-    def build(self, spec: Module) -> IRModule:
+    def build(self, spec: Module) -> Tuple[IRModule, List[Tuple[str, NDArray]]]:
         # pylint: disable=protected-access
         def _params() -> List[Tuple[str, core.Parameter]]:
             params = []
             missing = []
             for name, param in core._attribute_finder(
-                spec.module,
-                prefix="",
-                condition_yield=lambda x: isinstance(x, core.Parameter),
+                spec.module, prefix="", condition_yield=lambda x: isinstance(x, core.Parameter)
             ):
                 if param.data is None:
                     missing.append(name)
@@ -178,13 +176,9 @@ class SpecBuilder:
             return params
 
         def _effects() -> List[Tuple[str, core.Effect]]:
-            result = [
-                ("", self.io_effect),
-            ]
+            result = [("", self.io_effect)]
             for name, effect in core._attribute_finder(
-                spec.module,
-                "",
-                condition_yield=lambda x: isinstance(x, core.Effect),
+                spec.module, "", condition_yield=lambda x: isinstance(x, core.Effect)
             ):
                 result.append((name, effect))
             return result
@@ -202,7 +196,7 @@ class SpecBuilder:
                         inputs = []
                         for arg in method_spec.args:
                             if isinstance(arg, core.Tensor):
-                                inputs.append(arg._expr)  # pylint: disable=protected-access
+                                inputs.append(arg._expr)
                             elif isinstance(arg, tir.Var):
                                 inputs.append(
                                     rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
@@ -211,15 +205,13 @@ class SpecBuilder:
                                 raise ValueError(f"Unsupported argument type {type(arg)}")
                         for name, param in params:
                             param._expr = core._tensor_placeholder(
-                                name=name,
-                                shape=param.shape,
-                                dtype=param.dtype,
+                                name=name, shape=param.shape, dtype=param.dtype
                             )._expr
                         outputs, effect_inputs = _emit_method(self.builder, method_spec, effects)
                     inputs = inputs + [p._expr for _, p in params] + effect_inputs
                     self.builder.emit_func_output(outputs, inputs)
         # pylint: enable=protected-access
-        return self.builder.get()
+        return self.builder.get(), [(name, param.data) for name, param in params]
 
 
 def _emit_effect_init(
