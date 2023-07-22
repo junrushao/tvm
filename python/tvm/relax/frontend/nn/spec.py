@@ -158,28 +158,30 @@ class SpecBuilder:
         delattr(SpecBuilder._tls, "current")
 
     def build(self, spec: Module) -> IRModule:
-        def _params() -> Dict[str, NDArray]:
-            params = OrderedDict()
+        # pylint: disable=protected-access
+        def _params() -> List[Tuple[str, core.Parameter]]:
+            params = []
             missing = []
-            for name, param in core._attribute_finder(  # pylint: disable=protected-access
+            for name, param in core._attribute_finder(
                 spec.module,
                 prefix="",
                 condition_yield=lambda x: isinstance(x, core.Parameter),
             ):
-                data = param.data
-                if data is None:
+                if param.data is None:
                     missing.append(name)
                 else:
-                    params[name] = data
-            # if missing:
-            #     raise ValueError(f"Parameters {missing} are not set to any concrete values. ")
+                    params.append((name, param))
+            if missing:
+                raise ValueError(
+                    f"Parameters are not set to any concrete values: {', '.join(missing)}"
+                )
             return params
 
         def _effects() -> List[Tuple[str, core.Effect]]:
             result = [
                 ("", self.io_effect),
             ]
-            for name, effect in core._attribute_finder(  # pylint: disable=protected-access
+            for name, effect in core._attribute_finder(
                 spec.module,
                 "",
                 condition_yield=lambda x: isinstance(x, core.Effect),
@@ -197,9 +199,26 @@ class SpecBuilder:
             for method_spec in spec.methods.values():
                 with self.builder.function(method_spec.name):
                     with self.builder.dataflow():
-                        params = _spec_to_params(method_spec)
+                        inputs = []
+                        for arg in method_spec.args:
+                            if isinstance(arg, core.Tensor):
+                                inputs.append(arg._expr)  # pylint: disable=protected-access
+                            elif isinstance(arg, tir.Var):
+                                inputs.append(
+                                    rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
+                                )
+                            else:
+                                raise ValueError(f"Unsupported argument type {type(arg)}")
+                        for name, param in params:
+                            param._expr = core._tensor_placeholder(
+                                name=name,
+                                shape=param.shape,
+                                dtype=param.dtype,
+                            )._expr
                         outputs, effect_inputs = _emit_method(self.builder, method_spec, effects)
-                    self.builder.emit_func_output(outputs, params=params + effect_inputs)
+                    inputs = inputs + [p._expr for _, p in params] + effect_inputs
+                    self.builder.emit_func_output(outputs, inputs)
+        # pylint: enable=protected-access
         return self.builder.get()
 
 
@@ -239,15 +258,3 @@ def _emit_method(
         effect_outputs.extend(effect.finalize())
     outputs = builder.emit_output(rx.Tuple([_unwrap_nested(outputs), rx.Tuple(effect_outputs)]))
     return outputs, effect_inputs
-
-
-def _spec_to_params(spec: Method):
-    params = []
-    for arg in spec.args:
-        if isinstance(arg, core.Tensor):
-            params.append(arg._expr)  # pylint: disable=protected-access
-        elif isinstance(arg, tir.Var):
-            params.append(rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg])))
-        else:
-            raise ValueError(f"Unsupported argument type {type(arg)}")
-    return params

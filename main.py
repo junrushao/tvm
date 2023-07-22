@@ -310,8 +310,7 @@ def main():
     for _, param in model.state_dict().items():
         from tvm.runtime import ndarray  # pylint: disable=import-outside-toplevel
 
-        data = np.random.rand(*param.shape).astype(param.dtype)
-        # param.set_data(ndarray.array(data))
+        param.data = np.random.rand(*param.shape).astype(param.dtype)
 
     inputs = np.random.randint(0, config.vocab_size, size=(batch_size, seq_len), dtype="int32")
     total_seq_len = seq_len

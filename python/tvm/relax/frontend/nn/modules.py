@@ -92,10 +92,10 @@ class RMSNorm(Module):
             self.bias = None
         # TODO(@junrushao): add bias
 
-    def forward(self, x: Tensor):  # pylint: disable=invalid-name
-        from tvm import te
+    # pylint: disable=invalid-name
+    def forward(self, x: Tensor):
+        from tvm import te  # pylint: disable=import-outside-toplevel
 
-        # pylint: disable=invalid-name
         def rms_norm(x: te.Tensor, weight: te.Tensor):
             is_float32 = x.dtype == "float32"
 
@@ -127,11 +127,8 @@ class RMSNorm(Module):
                 name="rms_norm",
             )
 
-        # pylint: enable=invalid-name
-
         if self.bias is None:
             return self.tensor_expr_op(rms_norm, "rms_norm", [x, self.weight])
-
         return op.rms_norm(x, weight=self.weight, bias=None, axes=-1, epsilon=self.epsilon)
 
     # pylint: enable=invalid-name

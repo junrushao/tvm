@@ -87,16 +87,9 @@ class Tensor(_TensorOp):
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
         # pylint: disable=protected-access
+        assert isinstance(self._expr, rx.Var)
         if dtype is not None:
-            if isinstance(self._expr, rx.Constant):
-                warnings.warn(
-                    "Changing the dtype of a Parameter that has been bound to concrete "
-                    "data is not recommended. It might lead to potential precision loss "
-                    "or other unexpected behaviors"
-                )
-                self._expr = rx.const(self._expr.data.numpy().astype(dtype))
-            else:
-                self._expr = _tensor_placeholder("p", self.shape, dtype=dtype)._expr
+            self._expr = _tensor_placeholder("p", self.shape, dtype=dtype)._expr
         # pylint: enable=protected-access
 
     def __repr__(self) -> str:
@@ -133,7 +126,7 @@ class Parameter(Tensor):
         if isinstance(data, NDArray):
             pass
         elif isinstance(data, np.ndarray):
-            data = ndarray.numpyasarray(data)
+            data = ndarray.array(data)
         elif hasattr(data, "__dlpack__"):
             data = ndarray.from_dlpack(data)
         else:
@@ -145,6 +138,12 @@ class Parameter(Tensor):
         self._data = data
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+        if dtype is not None and self._data is not None:
+            raise ValueError(
+                "Changing the dtype of a Parameter that has been bound to concrete "
+                "data is not recommended. It might lead to potential precision loss "
+                "or other unexpected behaviors"
+            )
         super().to(dtype=dtype)
 
 
@@ -310,7 +309,7 @@ def _attribute_finder(
             for i, subitem in enumerate(item):
                 yield from _attribute_finder(
                     subitem,
-                    prefix + name + f"[{i}].",
+                    prefix + name + f".{i}.",
                     condition_yield,
                 )
         elif isinstance(item, Module):
