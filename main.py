@@ -308,8 +308,6 @@ def main():
     model = LlamaForCasualLM(config)
     model.to(dtype=dtype)
     for _, param in model.state_dict().items():
-        from tvm.runtime import ndarray  # pylint: disable=import-outside-toplevel
-
         param.data = np.random.rand(*param.shape).astype(param.dtype)
 
     inputs = np.random.randint(0, config.vocab_size, size=(batch_size, seq_len), dtype="int32")
@@ -317,7 +315,7 @@ def main():
 
     import torch  # pylint: disable=import-outside-toplevel
 
-    method_spec = spec.Method.from_torch(
+    method_spec = spec.MethodSpec.from_torch(
         model,
         "prefill",
         args=[

@@ -1,21 +1,27 @@
 # pylint: disable=missing-docstring,too-many-lines
 import inspect
 import threading
-from collections import OrderedDict
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from tvm import tir
 from tvm.ir import IRModule
-from tvm.runtime import NDArray
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
 from ...struct_info import ShapeStructInfo
 from . import core
 
+ArgSpecType = Union["Int", "Tensor"]
+MethodSpecType = Union["MethodSpec", Dict[str, ArgSpecType]]
+ModuleSpecType = Union["ModuleSpec", Dict[str, MethodSpecType]]
+
 
 class Int:  # pylint: disable=too-few-public-methods
-    pass
+    def __init__(self) -> None:
+        pass
+
+    def __repr__(self) -> str:
+        return "int"
 
 
 class Tensor:  # pylint: disable=too-few-public-methods
@@ -26,34 +32,59 @@ class Tensor:  # pylint: disable=too-few-public-methods
         self.shape = list(shape)
         self.dtype = dtype
 
+    def __repr__(self) -> str:
+        shape = ", ".join(str(i) for i in self.shape)
+        return f"Tensor([{shape}], '{self.dtype}')"
 
-class Method:  # pylint: disable=too-few-public-methods
-    name: str
-    args: List[Union[Tensor, tir.Var]]
+
+class MethodSpec:
     method: Callable
+    arg_names: List[str]
+    arg_specs: List[ArgSpecType]
 
     def __init__(
         self,
-        name: str,
-        args: List[Union[core.Tensor, tir.Var]],
         method: Callable,
+        arg_names: List[str],
+        arg_specs: List[ArgSpecType],
     ) -> None:
-        for arg in args:
-            if isinstance(arg, tir.Var):
-                pass
-            elif isinstance(arg, core.Tensor):
-                for shape in arg.shape:
-                    assert isinstance(shape, (tir.Var, int))
-            else:
-                raise TypeError(f"Invalid argument type: {type(arg)}")
-        self.name = name
-        self.args = args
         self.method = method
+        self.arg_names = arg_names
+        self.arg_specs = arg_specs
+
+    def _repr(self, name: str) -> str:
+        args = ", ".join(
+            f"{name}: {spec}"
+            for name, spec in zip(
+                self.arg_names,
+                self.arg_specs,
+            )
+        )
+        return f"{name}({args})"
+
+    def __repr__(self) -> str:
+        return self._repr(name="MethodSpec")
 
     @staticmethod
-    def from_raw(module: core.Module, name: str, spec: Dict[str, Union[Int, Tensor]]) -> "Method":
-        if not hasattr(module, name):
-            raise AttributeError(f"Method {name} not found in module {module}")
+    def from_raw(spec: MethodSpecType, method: Callable) -> "MethodSpec":
+        if isinstance(spec, MethodSpec):
+            return spec
+        method_signature = inspect.signature(method)
+        arg_names = list(method_signature.parameters.keys())
+        arg_specs = []
+
+        for arg_name in arg_names:
+            arg_spec = spec[arg_name]
+            if arg_spec is Int:
+                arg_spec = arg_spec()
+            elif isinstance(arg_spec, (Int, Tensor)):
+                pass
+            else:
+                raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+            arg_specs.append(arg_spec)
+        return MethodSpec(method, arg_names, arg_specs)
+
+    def as_inputs(self) -> List[Union[tir.Var, core.Tensor]]:
         str2var: Dict[str, tir.Var] = {}
 
         def _get_var(name: str) -> tir.Var:
@@ -63,29 +94,20 @@ class Method:  # pylint: disable=too-few-public-methods
             str2var[name] = var
             return var
 
-        method = getattr(module, name, None)
-        method_signature = inspect.signature(method)
-        arg_names = list(method_signature.parameters.keys())
         args = []
-        for arg_name in arg_names:
-            if arg_name not in spec:
-                raise ValueError(f"Argument {arg_name} not found in the spec of method {name}")
-            arg_spec = spec[arg_name]
-            if arg_spec is Int:
-                arg_spec = arg_spec()
+        for arg_name, arg_spec in zip(self.arg_names, self.arg_specs):
             if isinstance(arg_spec, Int):
-                args.append(_get_var(arg_name))
+                arg = _get_var(arg_name)
             elif isinstance(arg_spec, Tensor):
-                args.append(
-                    core._tensor_placeholder(  # pylint: disable=protected-access
-                        name=arg_name,
-                        shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
-                        dtype=arg_spec.dtype,
-                    )
+                arg = core._tensor_placeholder(  # pylint: disable=protected-access
+                    name=arg_name,
+                    shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
+                    dtype=arg_spec.dtype,
                 )
             else:
-                raise TypeError(f"Invalid argument spec in method {name}: {arg_spec}")
-        return Method(name, args, method)
+                raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+            args.append(arg)
+        return args
 
     @staticmethod
     def from_torch(
@@ -93,42 +115,51 @@ class Method:  # pylint: disable=too-few-public-methods
         name: str,
         args: List[Any],
     ) -> "Method":
-        from .torch import _spec_from_torch  # pylint: disable=import-outside-toplevel
+        from .torch import (  # pylint: disable=import-outside-toplevel
+            _method_spec_from_torch,
+        )
 
-        return _spec_from_torch(module, name, args)
-
-    def __repr__(self) -> str:
-        args: List[str] = []
-        for arg in self.args:
-            if isinstance(arg, tir.Var):
-                args.append(f"{arg.name} : int")
-            elif isinstance(arg, core.Tensor):
-                args.append(f'{arg._expr.name_hint} : Tensor({arg.shape}, "{arg.dtype}")')
-            else:
-                raise TypeError(f"Invalid argument type: {arg}")
-        return f"{self.name}({', '.join(args)})"
+        return _method_spec_from_torch(module, name, args)
 
 
-class Module:  # pylint: disable=too-few-public-methods
+class ModuleSpec:
     module: core.Module
-    methods: Dict[str, Method]
+    method_names: List[str]
+    method_specs: List[MethodSpecType]
 
-    def __init__(self, module: core.Module, methods: Dict[str, Method]):
+    def __init__(
+        self,
+        module: core.Module,
+        method_names: List[str],
+        method_specs: List[MethodSpecType],
+    ) -> None:
         self.module = module
-        self.methods = methods
+        self.method_names = method_names
+        self.method_specs = method_specs
 
     @staticmethod
-    def from_raw(
-        module: core.Module,
-        spec: Dict[str, Dict[str, Union["Spec.Int", "Spec.Tensor"]]],
-    ) -> "Module":
-        methods = OrderedDict()
-        for method_name, method_spec in spec.items():
-            methods[method_name] = Method.from_raw(module, method_name, method_spec)
-        return Module(module, methods)
+    def from_raw(spec: ModuleSpecType, module: core.Module) -> "ModuleSpec":
+        if isinstance(spec, ModuleSpec):
+            return spec
+        method_names = list(spec.keys())
+        method_specs = []
+        for method_name in method_names:
+            method_spec = spec[method_name]
+            if isinstance(method_spec, MethodSpec):
+                pass
+            else:
+                method_spec = MethodSpec.from_raw(method_spec, getattr(module, method_name))
+            method_specs.append(method_spec)
+        return ModuleSpec(module, method_names, method_specs)
 
     def __repr__(self) -> str:
-        return "Module:\n" + "\n".join([f"  {method}" for method in self.methods])
+        return "ModuleSpec:\n" + "\n".join(
+            "  " + spec._repr(name)  # pylint: disable=protected-access
+            for name, spec in zip(
+                self.method_names,
+                self.method_specs,
+            )
+        )
 
 
 class SpecBuilder:
@@ -157,22 +188,14 @@ class SpecBuilder:
         assert hasattr(SpecBuilder._tls, "current")
         delattr(SpecBuilder._tls, "current")
 
-    def build(self, spec: Module) -> Tuple[IRModule, List[Tuple[str, NDArray]]]:
+    def build(self, spec: ModuleSpec) -> Tuple[IRModule, List[Tuple[str, core.Parameter]]]:
         # pylint: disable=protected-access
         def _params() -> List[Tuple[str, core.Parameter]]:
             params = []
-            missing = []
             for name, param in core._attribute_finder(
                 spec.module, prefix="", condition_yield=lambda x: isinstance(x, core.Parameter)
             ):
-                if param.data is None:
-                    missing.append(name)
-                else:
-                    params.append((name, param))
-            if missing:
-                raise ValueError(
-                    f"Parameters are not set to any concrete values: {', '.join(missing)}"
-                )
+                params.append((name, param))
             return params
 
         def _effects() -> List[Tuple[str, core.Effect]]:
@@ -183,6 +206,8 @@ class SpecBuilder:
                 result.append((name, effect))
             return result
 
+        # pylint: enable=protected-access
+
         params = _params()
         effects = _effects()
         with self:
@@ -190,28 +215,12 @@ class SpecBuilder:
                 with self.builder.dataflow():
                     outputs = _emit_effect_init(self.builder, effects)
                 self.builder.emit_func_output(outputs, params=[])
-            for method_spec in spec.methods.values():
-                with self.builder.function(method_spec.name):
+            for method_name, method_spec in zip(spec.method_names, spec.method_specs):
+                with self.builder.function(method_name):
                     with self.builder.dataflow():
-                        inputs = []
-                        for arg in method_spec.args:
-                            if isinstance(arg, core.Tensor):
-                                inputs.append(arg._expr)
-                            elif isinstance(arg, tir.Var):
-                                inputs.append(
-                                    rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
-                                )
-                            else:
-                                raise ValueError(f"Unsupported argument type {type(arg)}")
-                        for name, param in params:
-                            param._expr = core._tensor_placeholder(
-                                name=name, shape=param.shape, dtype=param.dtype
-                            )._expr
-                        outputs, effect_inputs = _emit_method(self.builder, method_spec, effects)
-                    inputs = inputs + [p._expr for _, p in params] + effect_inputs
+                        outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
-        # pylint: enable=protected-access
-        return self.builder.get(), [(name, param.data) for name, param in params]
+        return self.builder.get(), params
 
 
 def _emit_effect_init(
@@ -229,24 +238,41 @@ def _emit_effect_init(
 
 def _emit_method(
     builder: BlockBuilder,
-    spec: Module,
+    spec: MethodSpec,
+    params: List[Tuple[str, core.Parameter]],
     effects: List[Tuple[str, core.Effect]],
 ):
-    def _unwrap_nested(expr: Any) -> Any:
+    # pylint: disable=protected-access
+    def _unwrap_ret(expr: Any) -> Any:
         if isinstance(expr, core.Tensor):
             return expr._expr  # pylint: disable=protected-access
         if isinstance(expr, tuple):
-            return rx.Tuple([_unwrap_nested(x) for x in expr])
+            return rx.Tuple([_unwrap_ret(x) for x in expr])
         if isinstance(expr, list):
-            return rx.Tuple([_unwrap_nested(x) for x in expr])
+            return rx.Tuple([_unwrap_ret(x) for x in expr])
         raise TypeError(f"Unsupported return type: {type(expr)}")
 
-    effect_inputs = []
-    for prefix, effect in effects:
-        effect_inputs.extend(effect.create(prefix))
-    outputs = spec.method(*spec.args)
+    def _convert_input(arg):
+        if isinstance(arg, tir.Var):
+            return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
+        if isinstance(arg, core.Tensor):
+            return arg._expr  # pylint: disable=protected-access
+        raise TypeError(f"Unsupported input type: {type(arg)}")
+
+    explicit_inputs = spec.as_inputs()
+    inputs = []
+    for arg in explicit_inputs:
+        inputs.append(_convert_input(arg))
+    for name, param in params:
+        param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
+        inputs.append(param._expr)
+    for name, effect in effects:
+        inputs.extend(effect.create(name))
+    # pylint: enable=protected-access
+
+    outputs = spec.method(*explicit_inputs)
     effect_outputs = []
     for _, effect in effects:
         effect_outputs.extend(effect.finalize())
-    outputs = builder.emit_output(rx.Tuple([_unwrap_nested(outputs), rx.Tuple(effect_outputs)]))
-    return outputs, effect_inputs
+    outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
+    return outputs, inputs

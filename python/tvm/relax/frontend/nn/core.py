@@ -235,18 +235,17 @@ class Module:
             name=name_hint,
         )
 
-    def export_tvm(self, spec: "_spec.Module") -> IRModule:
-        from . import spec as _spec  # pylint: disable=import-outside-toplevel
-
-        if not isinstance(spec, _spec.Module):
-            spec = _spec.Module.from_raw(self, spec)
-        mod = _spec.SpecBuilder().build(spec)
-        return mod
-
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
         for _, item in self.__dict__.items():
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
+
+    def export_tvm(self, spec: "_spec.Module") -> IRModule:
+        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+
+        spec = _spec.ModuleSpec.from_raw(spec, self)
+        mod, params = _spec.SpecBuilder().build(spec)
+        return mod, params
 
     def jit(
         self,
@@ -257,8 +256,9 @@ class Module:
     ) -> Callable:
         from . import spec as _spec  # pylint: disable=import-outside-toplevel
 
-        if not isinstance(spec, _spec.Module):
-            spec = _spec.Module.from_raw(self, spec)
+        spec = _spec.ModuleSpec.from_raw(spec, self)
+        mod, params = _spec.SpecBuilder().build(spec)
+
         if out_format == "torch":
             from . import torch  # pylint: disable=import-outside-toplevel
 
