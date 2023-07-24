@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,too-many-lines
 import inspect
 import threading
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 from tvm import tir
 from tvm.ir import IRModule

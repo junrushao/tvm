@@ -19,9 +19,11 @@ import numpy as np
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.runtime import Device, NDArray, ndarray
+from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
 from ... import expr as rx
+from ... import pipeline, vm_build
 from ...block_builder import BlockBuilder
 from ...struct_info import ShapeStructInfo, TensorStructInfo
 from ._tensor_op import _TensorOp
@@ -240,7 +242,7 @@ class Module:
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
 
-    def export_tvm(self, spec: "_spec.Module") -> IRModule:
+    def export_tvm(self, spec: "_spec.Module") -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
         from . import spec as _spec  # pylint: disable=import-outside-toplevel
 
         spec = _spec.ModuleSpec.from_raw(spec, self)
@@ -257,16 +259,27 @@ class Module:
         from . import spec as _spec  # pylint: disable=import-outside-toplevel
 
         spec = _spec.ModuleSpec.from_raw(spec, self)
+        device = _str_to_device(device)
+
+        # Build IRModule
         mod, params = _spec.SpecBuilder().build(spec)
+        params = _param_to_ndarray(params, device)
+
+        # Compile mod
+        mod.show(black_format=False)
+        mod = pipeline.get_pipeline("zero")(mod)  # pylint: disable=no-value-for-parameter
+        rt_mod = vm_build.build(mod, target)
+
+        # Create VM
+        virtual_machine = VirtualMachine(rt_mod, device)
 
         if out_format == "torch":
             from . import torch  # pylint: disable=import-outside-toplevel
 
             return torch.TorchModule(
                 spec=spec,
-                mod=self.export_tvm(spec),
-                target=target,
-                device=_str_to_device(device),
+                params=params,
+                virtual_machine=virtual_machine,
             )
         raise ValueError(f"Unknown out_format: {out_format}")
 
@@ -333,6 +346,19 @@ def _str_to_device(device: str) -> Device:
     else:
         device_id = int(split[1])
     return Device(Device.STR2MASK[device_type], device_id)
+
+
+def _param_to_ndarray(params: List[Tuple[str, Parameter]], device: Device) -> List[NDArray]:
+    results = []
+    missing = []
+    for name, param in params:
+        if param.data is None:
+            missing.append(name)
+        else:
+            results.append(param.data.copyto(target=device))
+    if missing:
+        raise ValueError(f"Parameters are not set to any concrete values: {', '.join(missing)}")
+    return results
 
 
 def _tensor_placeholder(
