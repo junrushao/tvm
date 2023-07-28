@@ -189,7 +189,8 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   int batch_offset_B = B->ndim - 2;
 
   int M = ColumnCount(B, transb, batch_offset_B);
-  int N = RowCount(A, transa, batch_offset_A);
+  // hack
+  int N = A->shape[0] * A->shape[1]; // RowCount(A, transa, batch_offset_A);
   int K = ColumnCount(A, transa, batch_offset_A);
 
   int lda = transb ? K : M;
@@ -203,37 +204,37 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
       cublasLtMatrixLayoutCreate(&B_desc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&C_desc, c_type, M, N, ldc));
 
-  if (A->ndim != 2 || B->ndim != 2) {
-    auto get_batch_count = [](int64_t* shape, int batch_offset) {
-      int64_t count = 1;
-      for (int i = 0; i < batch_offset; ++i) {
-        count *= shape[i];
-      }
-      return count;
-    };
-    auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
-      CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
-          mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
-      CHECK_CUBLAS_ERROR(
-          cublasLtMatrixLayoutSetAttribute(mat_desc, CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
-                                           &batch_stride, sizeof(batch_stride)));
-    };
+  // if (A->ndim != 2 || B->ndim != 2) {
+  //   auto get_batch_count = [](int64_t* shape, int batch_offset) {
+  //     int64_t count = 1;
+  //     for (int i = 0; i < batch_offset; ++i) {
+  //       count *= shape[i];
+  //     }
+  //     return count;
+  //   };
+  //   auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
+  //     CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+  //         mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
+  //     CHECK_CUBLAS_ERROR(
+  //         cublasLtMatrixLayoutSetAttribute(mat_desc, CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+  //                                          &batch_stride, sizeof(batch_stride)));
+  //   };
 
-    int batch_count_A = get_batch_count(A->shape, batch_offset_A);
-    int batch_count_B = get_batch_count(B->shape, batch_offset_B);
-    int batch_count_C = get_batch_count(C->shape, C->ndim - 2);
-    int64_t batch_stride_A = M * K;
-    int64_t batch_stride_B = K * N;
-    int64_t batch_stride_C = M * N;
+  //   int batch_count_A = get_batch_count(A->shape, batch_offset_A);
+  //   int batch_count_B = get_batch_count(B->shape, batch_offset_B);
+  //   int batch_count_C = get_batch_count(C->shape, C->ndim - 2);
+  //   int64_t batch_stride_A = M * K;
+  //   int64_t batch_stride_B = K * N;
+  //   int64_t batch_stride_C = M * N;
 
-    // cuBLASLt does not seem to support batched GEMM with one of matrices having
-    // one batch (with batch_stride 0).
-    ICHECK_EQ(batch_count_A, batch_count_B);
+  //   // cuBLASLt does not seem to support batched GEMM with one of matrices having
+  //   // one batch (with batch_stride 0).
+  //   ICHECK_EQ(batch_count_A, batch_count_B);
 
-    set_batch(A_desc, batch_count_A, batch_stride_A);
-    set_batch(B_desc, batch_count_B, batch_stride_B);
-    set_batch(C_desc, batch_count_C, batch_stride_C);
-  }
+  //   set_batch(A_desc, batch_count_A, batch_stride_A);
+  //   set_batch(B_desc, batch_count_B, batch_stride_B);
+  //   set_batch(C_desc, batch_count_C, batch_stride_C);
+  // }
 
   auto A_data = static_cast<char*>(A->data) + A->byte_offset;
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;

@@ -61,15 +61,16 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             # cuBLAS only supports bias vector
             return False
 
-    # cuBLASLt does not seem to support batched GEMM with one of matrices having
-    # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
-    # must be equal.
-    return (
-        (lhs_batches == 1 and rhs_batches == 1)
-        or isinstance(lhs_batches, tvm.tir.Var)
-        or isinstance(rhs_batches, tvm.tir.Var)
-        or (int(lhs_batches) == int(rhs_batches))
-    )
+    # # cuBLASLt does not seem to support batched GEMM with one of matrices having
+    # # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
+    # # must be equal.
+    # return (
+    #     (lhs_batches == 1 and rhs_batches == 1)
+    #     or isinstance(lhs_batches, tvm.tir.Var)
+    #     or isinstance(rhs_batches, tvm.tir.Var)
+    #     or (int(lhs_batches) == int(rhs_batches))
+    # )
+    return True
 
 
 register_patterns(
