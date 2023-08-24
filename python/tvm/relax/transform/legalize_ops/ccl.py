@@ -14,17 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import grad
-from . import image
-from . import index
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import search
-from . import statistical
-from . import unary
+# pylint: disable=invalid-name
+"""Default legalization function for ccl operators."""
+from ...op import call_pure_packed
+from ...block_builder import BlockBuilder
+from ...expr import Call, Expr, ShapeExpr
+from .common import register_legalize
+
+
+@register_legalize("relax.ccl.allreduce")
+def _allreduce(bb: BlockBuilder, call: Call) -> Expr:
+    op_type = None
+    if call.attrs.op_type == "sum":
+        op_type = ShapeExpr([0])
+    return call_pure_packed(
+        "runtime.disco.allreduce", call.args[0], op_type, sinfo_args=call.args[0].struct_info
+    )

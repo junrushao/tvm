@@ -33,7 +33,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief AllReduce. */
-Expr allreduce(Expr data, Integer op_type);
+Expr allreduce(Expr data, String op_type);
 
 }  // namespace relax
 }  // namespace tvm

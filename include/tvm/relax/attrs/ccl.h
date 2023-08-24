@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
 struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
-  Integer op_type;
+  String op_type;
 
   TVM_DECLARE_ATTRS(AllReduceAttrs, "relax.attrs.AllReduceAttrs") {
     TVM_ATTR_FIELD(op_type).describe(

@@ -22,6 +22,4 @@ def allreduce(x, op_type: str = "sum"):
     """
     TODO
     """
-    op_type_map = {"sum": 0, "prod": 1, "max": 2, "min": 3}
-    assert op_type in op_type_map, "unsupported all reduction operations."
-    return _ffi_api.allreduce(x, op_type_map[op_type])
+    return _ffi_api.allreduce(x, op_type)

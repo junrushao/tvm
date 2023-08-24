@@ -25,7 +25,7 @@ namespace relax {
 /* relax.ccl.allreduce */
 TVM_REGISTER_NODE_TYPE(AllReduceAttrs);
 
-Expr allreduce(Expr x, Integer op_type) {
+Expr allreduce(Expr x, String op_type) {
   ObjectPtr<AllReduceAttrs> attrs = make_object<AllReduceAttrs>();
   attrs->op_type = std::move(op_type);
 
