@@ -31,15 +31,23 @@ def test_allreduce():
     class AllReduce:
         @R.function
         def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
-            gv: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "sum")
-            return gv
+            gv0: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "sum")
+            gv1: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "prod")
+            gv2: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "min")
+            gv3: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "max")
+            gv4: R.Tensor((10, 10), "float32") = R.ccl.allreduce(x, "avg")
+            return x
         
     @I.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            gv: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([0]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
-            return gv
+            gv0: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([0]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            gv1: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([1]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            gv2: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([2]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            gv3: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([3]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            gv4: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([4]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            return x
     # fmt: on
 
     mod = LegalizeOps()(AllReduce)

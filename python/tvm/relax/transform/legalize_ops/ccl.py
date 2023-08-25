@@ -29,6 +29,10 @@ def _allreduce(bb: BlockBuilder, call: Call) -> Expr:
     op_type_str = call.attrs.op_type
     op_type_map = {
         "sum": 0,
+        "prod": 1,
+        "min": 2,
+        "max": 3,
+        "avg": 4,
     }
 
     if op_type_str not in op_type_map:

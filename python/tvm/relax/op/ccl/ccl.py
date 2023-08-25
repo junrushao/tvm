@@ -27,14 +27,15 @@ def allreduce(x, op_type: str = "sum"):
     x : relax.Expr
       The input tensor.
     op_type: str
-      The type of reduction operation to be applied to the input data. Now only sum is supported.
+      The type of reduction operation to be applied to the input data.
+      Now "sum", "prod", "min", "max" and "avg" are supported.
 
     Returns
     -------
     result : relax.Expr
       The result of allreduce.
     """
-    supported_op_types = ["sum"]
+    supported_op_types = ["sum", "prod", "min", "max", "avg"]
     assert (
         op_type in supported_op_types
     ), f"Allreduce only supports limited reduction operations, including {supported_op_types}, but got {op_type}."
