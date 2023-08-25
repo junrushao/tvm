@@ -37,5 +37,5 @@ def allreduce(x, op_type: str = "sum"):
     supported_op_types = ["sum"]
     assert (
         op_type in supported_op_types
-    ), f"Allreduce only supports limited reduction operations, including {supported_op_types}, but got {op_type}"
+    ), f"Allreduce only supports limited reduction operations, including {supported_op_types}, but got {op_type}."
     return _ffi_api.allreduce(x, op_type)

@@ -33,7 +33,7 @@ def _allreduce(bb: BlockBuilder, call: Call) -> Expr:
 
     if op_type_str not in op_type_map:
         logging.info(
-            f"Allreduce only supports limited reduction operations, including {op_type_map.keys()}, but got {op_type_str}"
+            f"Allreduce only supports limited reduction operations, including {op_type_map.keys()}, but got {op_type_str}."
         )
     return call_pure_packed(
         "runtime.disco.allreduce",
