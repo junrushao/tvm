@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for ccl operators."""
+import logging
+
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
@@ -24,9 +26,18 @@ from .common import register_legalize
 
 @register_legalize("relax.ccl.allreduce")
 def _allreduce(bb: BlockBuilder, call: Call) -> Expr:
-    op_type = None
-    if call.attrs.op_type == "sum":
-        op_type = ShapeExpr([0])
+    op_type_str = call.attrs.op_type
+    op_type_map = {
+        "sum": 0,
+    }
+
+    if op_type_str not in op_type_map:
+        logging.info(
+            f"Allreduce only supports limited reduction operations, including {op_type_map.keys()}, but got {op_type_str}"
+        )
     return call_pure_packed(
-        "runtime.disco.allreduce", call.args[0], op_type, sinfo_args=call.args[0].struct_info
+        "runtime.disco.allreduce",
+        call.args[0],
+        ShapeExpr([op_type_map[op_type_str]]),
+        sinfo_args=call.args[0].struct_info,
     )

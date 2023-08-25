@@ -16,10 +16,26 @@
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
 from . import _ffi_api
+from ...expr import Expr
 
 
 def allreduce(x, op_type: str = "sum"):
+    """Allreduce operator
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The input tensor.
+    op_type: str
+      The type of reduction operation to be applied to the input data. Now only sum is supported.
+
+    Returns
+    -------
+    result : relax.Expr
+      The result of allreduce.
     """
-    TODO
-    """
+    supported_op_types = ["sum"]
+    assert (
+        op_type in supported_op_types
+    ), f"Allreduce only supports limited reduction operations, including {supported_op_types}, but got {op_type}"
     return _ffi_api.allreduce(x, op_type)

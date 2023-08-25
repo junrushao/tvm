@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Constructor APIs"""
+"""Operators serving for Collective Communications Library (CCL) operators"""
 import tvm._ffi
 
 tvm._ffi._init_api("relax.op.ccl", __name__)

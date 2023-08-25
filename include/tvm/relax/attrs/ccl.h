@@ -35,7 +35,8 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
 
   TVM_DECLARE_ATTRS(AllReduceAttrs, "relax.attrs.AllReduceAttrs") {
     TVM_ATTR_FIELD(op_type).describe(
-        "The type of reduction operation to be applied to the input data.");
+        "The type of reduction operation to be applied to the input data. Now only sum is "
+        "supported.");
   }
 };  // struct AllReduceAttrs
 

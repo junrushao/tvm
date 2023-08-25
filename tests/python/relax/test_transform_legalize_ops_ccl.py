@@ -38,7 +38,7 @@ def test_allreduce():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            gv: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([0]), sinfo_args=(R.Tensor((10, 10), dtype="float32"),))
+            gv: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.allreduce", x, R.shape([0]), sinfo_args=R.Tensor((10, 10), dtype="float32"))
             return gv
     # fmt: on
 
