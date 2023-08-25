@@ -14,17 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import grad
-from . import image
-from . import index
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import search
-from . import statistical
-from . import unary
+"""Relax Collective Communications Library (CCL) operators"""
+from . import _ffi_api
+from ...expr import Expr
+
+
+def allreduce(x, op_type: str = "sum"):
+    """Allreduce operator
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The input tensor.
+    op_type: str
+      The type of reduction operation to be applied to the input data. Now only sum is supported.
+
+    Returns
+    -------
+    result : relax.Expr
+      The result of allreduce.
+    """
+    supported_op_types = ["sum"]
+    assert (
+        op_type in supported_op_types
+    ), f"Allreduce only supports limited reduction operations, including {supported_op_types}, but got {op_type}."
+    return _ffi_api.allreduce(x, op_type)
