@@ -43,9 +43,9 @@ class ShardLoaderObj : public Object {
   /*! \brief Create a shard loader. */
   static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
                           const std::string& shard_info,
-                          TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard);
+                          PackedFunc f_shard);
   /*! \brief Load the i-th parameter */
-  NDArray Load(int weight_index) const;
+  NDArray Load(std::string weight_name) const;
   /*! \brief Slice the given tensor at a specific dimension */
   NDArray Shard(NDArray source, int dim, int num_slices) const;
 
@@ -62,9 +62,9 @@ class ShardLoaderObj : public Object {
   /*! \brief The metadata loaded from `ndarray-cache.json` */
   NDArrayCacheMetadata metadata_;
   /*! \brief Sharding information for each weight */
-  std::vector<ShardInfo> shard_info_;
+  std::unordered_map<std::string, ShardInfo> shard_info_;
   /*! \brief A method to slice a 3-D tensor */
-  TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard_;
+  PackedFunc f_shard_;
   /*! \brief The current file opened to load weights in it */
   mutable const FileRecord* current_file_;
   /*! \brief The context of the current file to be loaded from */
@@ -93,9 +93,10 @@ inline std::vector<ShapeTuple::index_type> ShardShape(const ShapeTuple& shape, i
   return result;
 }
 
+
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
                                  const std::string& shard_info,
-                                 TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard) {
+                                 PackedFunc f_shard) {
   ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();
   n->f_shard_ = f_shard;
   n->metadata_ = NDArrayCacheMetadata::LoadFromStr(metadata, path_to_metadata);
@@ -106,7 +107,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
     for (const ParamRecord& param_record : file_record.records) {
       const std::string& name = param_record.name;
       int shard_id = shards.count(name) ? shards[name] : -1;
-      n->shard_info_.push_back(ShardInfo{&file_record, &param_record, shard_id});
+      n->shard_info_[name]=ShardInfo{&file_record, &param_record, shard_id};
     }
   }
   return ObjectRef(std::move(n));
@@ -120,11 +121,11 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
   LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
 }
 
-NDArray ShardLoaderObj::Load(int weight_index) const {
+NDArray ShardLoaderObj::Load(std::string weight_name) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int shard_idx = worker->worker_id;
   Device device = worker->default_device;
-  const auto& shard_info = shard_info_[weight_index];
+  const auto& shard_info = shard_info_.at(weight_name);
   const ParamRecord* param = shard_info.param;
   const FileRecord* file = shard_info.file;
   int shard_dim = shard_info.shard_dim;
@@ -139,13 +140,27 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
     auto f_load = [](NDArray param, const void* data, size_t nbytes) {
       param.CopyFromBytes(data, nbytes);
     };
-    send = this->Shard(param->Load(device, &this->current_file_stream_, f_load), shard_dim,
-                       num_shards);
+    if(shard_dim != -1){
+      send = this->Shard(param->Load(device, &this->current_file_stream_, f_load), shard_dim,
+                        num_shards);
+    } else {
+      send = param->Load(device, &this->current_file_stream_, f_load);
+    }
   }
-  NDArray recv =
-      NDArray::Empty(ShardShape(param->shape, shard_dim, num_shards), param->dtype, device);
-  ScatterFromWorker0(send, recv);
-  return recv;
+  if(shard_dim != -1){
+    NDArray recv =
+        NDArray::Empty(ShardShape(param->shape, shard_dim, num_shards), param->dtype, device);
+    ScatterFromWorker0(send, recv);
+    return recv;
+  } else {
+    NDArray recv;
+    if(send.defined()){
+      recv = NDArray(send.value());
+    } else {
+      recv = NDArray::Empty(param->shape, param->dtype, device);
+    }
+    return BroadcastFromWorker0(recv);
+  }
 }
 
 NDArray ShardLoaderObj::Shard(NDArray source, int dim, int num_slices) const {
@@ -174,18 +189,48 @@ NDArray ShardLoaderObj::Shard(NDArray source, int dim, int num_slices) const {
   dst_tensor.ndim = 4;
   dst_tensor.shape = dst_flat;
   // Copy slices using the API
-  this->f_shard_(&src_tensor, num_slices, &dst_tensor);
+  if (this->f_shard_.defined()){
+    this->f_shard_(&src_tensor, num_slices, &dst_tensor);
+  } else {
+    DLTensor src_sub_tensor = *source.operator->();
+    src_sub_tensor.ndim = 2;
+    src_sub_tensor.shape = dst_flat + 2;
+
+    int64_t old_src_byte_offset = src_sub_tensor.byte_offset;
+    int64_t dst_offset = 0;
+    for (int i = 0; i < num_slices; ++i) {
+      dst_tensor.data = destination->data;
+      src_sub_tensor.byte_offset = old_src_byte_offset + src_sub_tensor.dtype.bits * dst_flat[2] * dst_flat[3] * i / 8;
+      for (int j = 0; j < dst_flat[1]; j++) {
+        ArrayCopyToBytes(&src_sub_tensor, (char*) dst_tensor.data + dst_offset,
+                        src_sub_tensor.dtype.bits * dst_flat[2] * dst_flat[3] / 8);
+        src_sub_tensor.byte_offset += src_sub_tensor.dtype.bits * src_flat[1] * src_flat[2]/ 8;
+        dst_offset += dst_tensor.dtype.bits * dst_flat[2] * dst_flat[3] / 8;
+      }
+    }
+  }
   return destination;
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoader").set_body_typed(ShardLoaderObj::Create);
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
-    .set_body_typed([](ObjectRef loader_obj, ShapeTuple weight_index) {
+    .set_body_typed([](ObjectRef loader_obj, String weight_name) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
                                << loader_obj->GetTypeKey();
-      return loader->Load(IntegerFromShapeTuple(weight_index));
+      return loader->Load(weight_name);
     });
+
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](ObjectRef loader_obj) {
+  const auto* loader = loader_obj.as<ShardLoaderObj>();
+  CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                           << loader_obj->GetTypeKey();
+  Array<NDArray> shards;
+  for (int i = 0; i < static_cast<int>(loader->shard_info_.size()); i++) {
+    shards.push_back(loader->Load("param_" + std::to_string(i)));
+  }
+  return shards;
+});
 
 }  // namespace runtime
 }  // namespace tvm
