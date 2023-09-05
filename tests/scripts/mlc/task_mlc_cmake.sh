@@ -17,7 +17,5 @@
 # under the License.
 set -euxo pipefail
 
-BUILD_THREADS="${BUILD_THREADS:-1}"
-
 cd build
-make -j $BUILD_THREADS
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..

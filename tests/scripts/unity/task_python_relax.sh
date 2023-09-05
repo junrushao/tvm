@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
@@ -29,13 +28,5 @@ export TVM_NUM_THREADS=2
 make cython3
 
 # Run Relax tests
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
-
-# Run Relax examples
-# python3 ./apps/relax_examples/mlp.py
-# python3 ./apps/relax_examples/nn_module.py
-# python3 ./apps/relax_examples/resnet.py
-
-# Test for MSC
-pytest tests/python/contrib/test_msc
+export TEST_DIRECTORY=$1
+python3 -m pytest tests/python/${TEST_DIRECTORY}/

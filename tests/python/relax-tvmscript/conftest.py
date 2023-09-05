@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,10 +13,11 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-set -euxo pipefail
 
-BUILD_THREADS="${BUILD_THREADS:-1}"
+import pytest
 
-cd build
-make -j $BUILD_THREADS
+import tvm
+from tvm.relax.ir.instrument import WellFormedInstrument
+
+
+tvm.transform.PassContext.current().override_instruments([WellFormedInstrument()])
