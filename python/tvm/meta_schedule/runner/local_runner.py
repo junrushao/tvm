@@ -279,12 +279,17 @@ class LocalRunner(PyRunner):
             err_path = subprocess.STDOUT
 
         logger.info("LocalRunner: max_workers = 1")
-        self.pool = PopenPoolExecutor(
-            max_workers=1,  # one local worker
-            timeout=timeout_sec,
-            initializer=initializer,
-            stderr=err_path,  # suppress the stderr output
-        )
+
+        def make_pool():
+            return PopenPoolExecutor(
+                max_workers=1,  # one local worker
+                timeout=timeout_sec,
+                initializer=initializer,
+                stderr=err_path,  # suppress the stderr output
+            )
+
+        self._make_pool = make_pool
+        self.pool = self._make_pool()
         self._sanity_check()
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
@@ -312,6 +317,10 @@ class LocalRunner(PyRunner):
                 error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
             results.append(local_future)  # type: ignore
+            self.pool = None
+            import gc
+            gc.collect()
+            self.pool = self._make_pool()
         return results
 
     def _sanity_check(self) -> None:
