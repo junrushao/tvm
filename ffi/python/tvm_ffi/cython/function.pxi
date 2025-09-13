@@ -37,14 +37,14 @@ cdef inline object make_ret_small_str(TVMFFIAny result):
     """convert small string to return value."""
     cdef TVMFFIByteArray bytes
     bytes = TVMFFISmallBytesGetContentByteArray(&result)
-    return py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
+    return bytearray_to_str(&bytes)
 
 
 cdef inline object make_ret_small_bytes(TVMFFIAny result):
     """convert small bytes to return value."""
     cdef TVMFFIByteArray bytes
     bytes = TVMFFISmallBytesGetContentByteArray(&result)
-    return PyBytes_FromStringAndSize(bytes.data, bytes.size)
+    return bytearray_to_bytes(&bytes)
 
 
 cdef inline object make_ret(TVMFFIAny result, DLPackToPyObject c_dlpack_to_pyobject = NULL):
@@ -543,6 +543,59 @@ def _member_method_wrapper(method_func):
     return wrapper
 
 
+def _type_index_to_py_type_info(int type_index):
+    cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(type_index)
+    cdef const TVMFFIFieldInfo* field
+    cdef const TVMFFIMethodInfo* method
+    cdef int i
+    cdef int num_methods = info.num_methods
+    cdef object fields = []
+    cdef object methods = []
+    cdef FieldGetter getter
+    cdef FieldSetter setter
+
+    from tvm_ffi.experimental.type_info import PyTypeField, PyTypeMethod, PyTypeInfo
+
+    for i in range(info.num_fields):
+        field = &(info.fields[i])
+        getter = FieldGetter.__new__(FieldGetter)
+        (<FieldGetter>getter).getter = field.getter
+        (<FieldGetter>getter).offset = field.offset
+        setter = FieldSetter.__new__(FieldSetter)
+        (<FieldSetter>setter).setter = field.setter
+        (<FieldSetter>setter).offset = field.offset
+        fields.append(
+            PyTypeField(
+                name=bytearray_to_str(&field.name),
+                doc=bytearray_to_str(&field.doc) if field.doc.size != 0 else None,
+                size=field.size,
+                offset=field.offset,
+                frozen=(field.flags & kTVMFFIFieldFlagBitMaskWritable) == 0,
+                getter=getter,
+                setter=setter,
+            )
+        )
+
+    for i in range(num_methods):
+        method = &(info.methods[i])
+        methods.append(
+            PyTypeMethod(
+                name=bytearray_to_str(&method.name),
+                doc=bytearray_to_str(&method.doc) if method.doc.size != 0 else None,
+                func=_get_method_from_method_info(method),
+                is_static=(method.flags & kTVMFFIFieldFlagBitMaskIsStaticMethod) != 0,
+            )
+        )
+
+    return PyTypeInfo(
+        type_cls=None,
+        type_index=type_index,
+        type_key=bytearray_to_str(&info.type_key),
+        fields=fields,
+        methods=methods,
+    )
+
+
 def _add_class_attrs_by_reflection(int type_index, object cls):
     """Decorate the class attrs by reflection"""
     cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(type_index)
@@ -563,11 +616,11 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if (field.flags & kTVMFFIFieldFlagBitMaskWritable) == 0:
             setter = None
         doc = (
-            py_str(PyBytes_FromStringAndSize(field.doc.data, field.doc.size))
+            bytearray_to_str(&field.doc)
             if field.doc.size != 0
             else None
         )
-        name = py_str(PyBytes_FromStringAndSize(field.name.data, field.name.size))
+        name = bytearray_to_str(&field.name)
         if hasattr(cls, name):
             # skip already defined attributes
             continue
@@ -576,12 +629,8 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
     for i in range(num_methods):
         # attach methods to the class
         method = &(info.methods[i])
-        name = py_str(PyBytes_FromStringAndSize(method.name.data, method.name.size))
-        doc = (
-            py_str(PyBytes_FromStringAndSize(method.doc.data, method.doc.size))
-            if method.doc.size != 0
-            else None
-        )
+        name = bytearray_to_str(&method.name)
+        doc = bytearray_to_str(&method.doc) if method.doc.size != 0 else None
         method_func = _get_method_from_method_info(method)
 
         if method.flags & kTVMFFIFieldFlagBitMaskIsStaticMethod:
@@ -594,7 +643,7 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
 
         if doc is not None:
             method_pyfunc.__doc__ = doc
-            method_pyfunc.__name__ = name
+        method_pyfunc.__name__ = name
 
         if hasattr(cls, name):
             # skip already defined attributes
